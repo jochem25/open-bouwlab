@@ -1,9 +1,12 @@
 name: Deploy site
 
+# UITGESCHAKELD per 2026-07-21 (canonical-migratie naar jochem25/open-bouwlab):
+# deploy-doel open-aec.com (open-heatloss-studio.open-aec.com) resolvet naar
+# 167.235.54.105 — Foundation-infra waar wij geen SSH-toegang (meer) op hebben.
+# De app wordt geserveerd via warmteverlies.open-aec.com (eigen server, GHCR-image).
+# Statische site verhuist bij de domein-migratie naar een kolthofbouwadvies.nl-subdomein;
+# dan deploy-doel + reusable-workflow-ref (nu OpenAEC-Foundation/github) herzien.
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
 
 permissions:
