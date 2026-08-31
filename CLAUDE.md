@@ -193,7 +193,7 @@ De 8 huidige pagina's mappen als volgt naar het Ribbon-model:
 **ALTIJD uitvoeren aan het einde van elke sessie** (of na een significante mijlpaal):
 
 Schrijf een update naar:
-`C:\Users\JochemK\.claude\orchestrator\sessions\warmteverlies_latest.md`
+`C:\Users\JoKo\.claude\orchestrator\sessions\warmteverlies_latest.md`
 
 Gebruik dit formaat:
 ```markdown
@@ -217,5 +217,5 @@ Gebruik dit formaat:
 (iets wat relevant is voor pyrevit of report integratie)
 ```
 
-**Orchestrator context:** `C:\Users\JochemK\.claude\orchestrator\context\warmteverlies.md`
-**Project registry:** `C:\Users\JochemK\.claude\orchestrator\project-registry.json`
+**Orchestrator context:** `C:\Users\JoKo\.claude\orchestrator\context\warmteverlies.md`
+**Project registry:** `C:\Users\JoKo\.claude\orchestrator\project-registry.json`
