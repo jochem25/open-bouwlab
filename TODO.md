@@ -1,5 +1,14 @@
 # TODO
 
+## 🧱 Materialendatabase — id als extern contract (2026-09-03)
+
+> `frontend/src/lib/materialsDatabase.ts`: alle 157 ingebouwde materialen hebben nu een expliciet `id`-veld (waarden = de voorheen afgeleide slugs, byte-identiek geverifieerd). Het id is extern contract: Revit-modellen leggen het vast en `ifcMaterialMatcher.ts:96` matcht er exact op. `slug()` blijft fallback voor user-defined materialen; dubbel expliciet id gooit een Error. pyRevit-bron `materialen_database.json` → v2.1 met dezelfde id's (149/150 gematcht).
+
+- [ ] **Divergentie TS ↔ pyrevit-JSON bijtrekken [besluit]** — TS heeft 8 materialen die de JSON mist (`beton-magnesiet-dekvloer` + 7 CLT-varianten); JSON heeft 1 generieke `CLT (Cross Laminated Timber)` zonder id (niet eenduidig te mappen op de 7 TS-varianten). Besluiten: JSON aanvullen tot spiegel van TS, of TS formeel tot enige bron verklaren en de JSON bevriezen.
+- [ ] **Materiaal-hernoemingen zijn nu veilig** — bij hernoemen naam wijzigen, id NOOIT; bij nieuw materiaal id expliciet zetten (conventie vastleggen in bijdrage-docs zodra die er zijn).
+
+---
+
 ## 🔍 Audit 2026-07-02 (norm + code + infra) — fix-rondes
 - [x] **F1 ✅ (02-07)** — C1 ontwerpbinnentemperaturen naar ISSO 51:2023 Tabel 2.11 (`enums.rs`, `constants.ts`, divergente kopie `ConstructionLossChart.tsx` opgeruimd) · C2 Vabi-mapper pint eigen ontwerptemp via `custom_temperature` i.p.v. `internal_air_temperature`. cargo/clippy/tsc/vitest 318/318 groen, golden-fixtures: portiekwoning gepind, woonboot herijkt (+6,7%).
 - [x] **M1 ✅ (02-07)** — Φ_vent = Φ_v − Φ_i (clamp 0) voor systeem A/C, form. 4.4 p.65 + 4.9 p.67 (`crates/isso51-core/src/calc/room_load.rs`); B/D blijft Φ_v, E conservatief Φ_v. Goldens portiekwoning/woonboot geregenereerd (vertrekniveau −3…−14%, gebouwniveau ongewijzigd). 6 nieuwe unit-tests.
