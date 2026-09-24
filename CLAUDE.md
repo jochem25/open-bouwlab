@@ -188,12 +188,13 @@ De 8 huidige pagina's mappen als volgt naar het Ribbon-model:
 
 ---
 
-## Orchestrator — Sessie afsluiting
+## Sessie afsluiting
 
 **ALTIJD uitvoeren aan het einde van elke sessie** (of na een significante mijlpaal):
 
-Schrijf een update naar:
-`C:\Users\JoKo\.claude\orchestrator\sessions\warmteverlies_latest.md`
+Schrijf een update naar `SESSION_STATUS.md` in deze repo (sinds 21-09-2026; de
+orchestrator bestaat niet meer, de handoff reist met de repo mee). Ouder werk:
+`D:\dev\infra\infra-log\archief\warmteverlies_*.md` (alles van voor 21-09).
 
 Gebruik dit formaat:
 ```markdown
@@ -217,5 +218,4 @@ Gebruik dit formaat:
 (iets wat relevant is voor pyrevit of report integratie)
 ```
 
-**Orchestrator context:** `C:\Users\JoKo\.claude\orchestrator\context\warmteverlies.md`
-**Project registry:** `C:\Users\JoKo\.claude\orchestrator\project-registry.json`
+**Achtergrondcontext:** `docs\context-warmteverlies-uit-orchestrator.md`
