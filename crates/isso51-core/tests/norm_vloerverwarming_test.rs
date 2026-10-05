@@ -26,6 +26,9 @@
 //!
 //! Aanleiding: controle van een warmteverliesrapport (projectnr. 3076,
 //! 02-10-2026), bevindingen 1, 2 en de gebouwsom bij systeem D.
+//!
+//! Rekenregels en de vijf norminterpretaties (akkoord 05-10-2026):
+//! `docs/2026-10-05-vloerverwarming-systeemverlies.md`.
 
 use isso51_core::calculate;
 use isso51_core::model::building::Project;

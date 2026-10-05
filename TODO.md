@@ -9,7 +9,7 @@
 - [x] **Tabel 2.17 met beide kolommen** (`calc/system_losses.rs`): begane grondvloer (grond/kruipruimte/buiten/water) vs verdiepingsvloer (boven onderburen). Verdiepingsvloer binnen de woning: Φverlies1 = 0. **Nieuw:** vloerverwarming boven een kruipruimte (`unheated_space`) krijgt nu Φverlies1 (§2.9.1 "bodem/kruipruimte"); voorheen 0.
 - [x] **Norm-fixtures + gebouwniveau-wacht systeem D** (`crates/isso51-core/tests/norm_vloerverwarming_test.rs`, 5 tests, verwachtingen met de hand uit ISSO 51:2023 afgeleid, tegenproef per reparatie gedaan).
 - [ ] **UI/rapport: Φ_sys staat als kolom naast Φ_totaal** (`Results.tsx:401`, `reportBuilder.ts:379/476`) en wordt in `StackedBarChart`/`reportCharts` op de vertrekbalk gestapeld — sinds deze fix telt Φ_sys niet meer in Φ_HL,i. Label "Φ_sys (alleen verdeler)" + uit de vertrekstapel halen.
-- [ ] **Interpretatie vastleggen [USER]:** kolom "begane grondvloer" ook voor vloer boven buitenlucht en boven water (water is geen ISSO 51-categorie); `has_embedded_heating` geldt voor het hele element (norm: "het verwarmde deel") — deels verwarmde vloer = element splitsen.
+- [x] **Interpretaties vastgelegd ✅ (akkoord Jochem 05-10)** — `docs/2026-10-05-vloerverwarming-systeemverlies.md`: begane-grondkolom ook boven buitenlucht/water; kruipruimte krijgt Φverlies1; ΦHL,i in 2.61 = 4.23 zonder Φadd; vlag per element (deels verwarmd = splitsen); Rc-schatting uit U ongewijzigd.
 - [ ] **Overige 3076-bevindingen (niet in deze ronde):** infiltratie zonder f_v (#20), infiltratie in inpandige vertrekken (#8), wederkerigheid binnenwanden (#5), label "Collectieve bijdrage" bij individuele installatie (#22).
 
 ---
