@@ -47,7 +47,9 @@ pub struct RoomResult {
     pub total_heat_loss: f64,
 
     /// Basis heat loss (always occurring) in W.
-    /// Φ_basis = Φ_T,exterior + Φ_T,unheated + Φ_T,ground + Φ_infiltration + Φ_system
+    /// Φ_basis = Φ_T,exterior + Φ_T,unheated + Φ_T,ground + Φ_infiltration
+    /// (formule 4.21). Systeemverliezen staan apart in `system_losses` en
+    /// tellen alleen mee voor het verdelervermogen (formule 4.24).
     pub basis_heat_loss: f64,
 
     /// Extra heat loss (quadratic sum of non-simultaneous) in W.

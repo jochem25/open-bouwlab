@@ -263,6 +263,9 @@ pub fn calculate_room(
     // R_c estimated from U-value: R_c = 1/U - R_si - R_se.
     let mut has_floor_heat = false;
     let mut rc_floor = f64::MAX;
+    // Tabel 2.17 column: "begane grondvloer" unless every heated floor sits
+    // above another dwelling (then "verdiepingsvloer").
+    let mut floor_is_ground_floor = false;
     let mut has_wall_heat = false;
     let mut rc_wall = f64::MAX;
     let mut has_ceil_heat = false;
@@ -272,38 +275,53 @@ pub fn calculate_room(
         if !c.has_embedded_heating {
             continue;
         }
-        // ISSO 51 §2.9.1: system losses apply for embedded heating in
-        // constructions facing exterior, ground, adjacent buildings, or water.
-        // Water boundaries (woonboot use case) behave like ground: the floor
-        // heating loses heat downward through the insulated floor slab.
-        let exterior_facing = matches!(
-            c.boundary_type,
-            BoundaryType::Exterior | BoundaryType::Ground | BoundaryType::AdjacentBuilding | BoundaryType::Water
-        );
-        if !exterior_facing {
-            continue;
-        }
         match c.vertical_position {
             VerticalPosition::Floor => {
+                // ISSO 51 §2.9.1: Φverlies1 for floor heating towards the
+                // ground/crawlspace/outside or a dwelling below. A floor
+                // between rooms of the same dwelling has Φverlies1 = 0.
+                // Water (woonboot use case) behaves like ground.
+                let ground_floor = match c.boundary_type {
+                    BoundaryType::Exterior
+                    | BoundaryType::Ground
+                    | BoundaryType::Water
+                    | BoundaryType::UnheatedSpace => true,
+                    BoundaryType::AdjacentBuilding => false,
+                    BoundaryType::AdjacentRoom => continue,
+                };
                 has_floor_heat = true;
+                floor_is_ground_floor |= ground_floor;
                 let r_se = if matches!(c.boundary_type, BoundaryType::Ground | BoundaryType::Water) { 0.0 } else { 0.04 };
                 rc_floor = rc_floor.min((1.0 / c.u_value - 0.17 - r_se).max(0.0));
             }
-            VerticalPosition::Wall => {
-                has_wall_heat = true;
-                rc_wall = rc_wall.min((1.0 / c.u_value - 0.17).max(0.0));
-            }
-            VerticalPosition::Ceiling => {
-                has_ceil_heat = true;
-                rc_ceil = rc_ceil.min((1.0 / c.u_value - 0.14).max(0.0));
+            VerticalPosition::Wall | VerticalPosition::Ceiling => {
+                // ISSO 51 §2.9.1: Φverlies2/3 only for wall/ceiling heating
+                // towards outside or an adjacent building.
+                let exterior_facing = matches!(
+                    c.boundary_type,
+                    BoundaryType::Exterior | BoundaryType::Ground | BoundaryType::AdjacentBuilding | BoundaryType::Water
+                );
+                if !exterior_facing {
+                    continue;
+                }
+                if c.vertical_position == VerticalPosition::Wall {
+                    has_wall_heat = true;
+                    rc_wall = rc_wall.min((1.0 / c.u_value - 0.17).max(0.0));
+                } else {
+                    has_ceil_heat = true;
+                    rc_ceil = rc_ceil.min((1.0 / c.u_value - 0.14).max(0.0));
+                }
             }
         }
     }
 
-    let f_floor = if has_floor_heat { system_losses::floor_heating_loss_fraction(rc_floor) } else { 0.0 };
+    let f_floor = if has_floor_heat {
+        system_losses::floor_heating_loss_fraction(rc_floor, floor_is_ground_floor)
+    } else {
+        0.0
+    };
     let f_wall = if has_wall_heat { system_losses::wall_heating_loss_fraction(rc_wall) } else { 0.0 };
     let f_ceil = if has_ceil_heat { system_losses::ceiling_heating_loss_fraction(rc_ceil) } else { 0.0 };
-    let f_sys_total = f_floor + f_wall + f_ceil;
 
     // --- Basis & extra heat loss (without system losses) ---
     let phi_t_exterior = h_t_ie * (theta_i - theta_e);
@@ -315,7 +333,7 @@ pub fn calculate_room(
     // `h_t_water_element`, so multiplying by (θ_i - θ_e) recovers the
     // physical A·U·(θ_i - θ_water) flow.
     let phi_t_water = h_t_iw * (theta_i - theta_e);
-    let phi_basis_no_sys =
+    let phi_basis =
         phi_t_exterior + phi_t_adjacent + phi_t_unheated + phi_t_ground + phi_t_water + phi_i;
 
     let phi_t_adj_building = h_t_ib * (theta_i - theta_e);
@@ -327,23 +345,21 @@ pub fn calculate_room(
     let phi_extra =
         quadratic_sum::quadratic_sum(phi_vent, phi_t_adj_building.max(0.0), phi_hu);
 
-    // Algebraic solution for circular dependency:
-    // Φ_system = f × Φ_HL,i and Φ_HL,i = Φ_basis_no_sys + Φ_system + Φ_extra
-    // → Φ_HL,i = (Φ_basis_no_sys + Φ_extra) / (1 - f)
-    let (phi_system, phi_floor_loss, phi_wall_loss, phi_ceiling_loss, phi_basis, total) =
-        if f_sys_total > 0.0 && f_sys_total < 1.0 {
-            let total = (phi_basis_no_sys + phi_extra) / (1.0 - f_sys_total);
-            let fl = f_floor * total;
-            let wl = f_wall * total;
-            let cl = f_ceil * total;
-            let phi_sys = fl + wl + cl;
-            (phi_sys, fl, wl, cl, phi_basis_no_sys + phi_sys, total)
-        } else {
-            (0.0, 0.0, 0.0, 0.0, phi_basis_no_sys, phi_basis_no_sys + phi_extra)
-        };
+    // ΦHL,i = Φbasis + Φextra (formule 4.23). Systeemverliezen horen NIET in
+    // het vertrekvermogen (§4.1 Opmerking), alleen in ΦHL,verdeler
+    // (formule 4.24 / 3.13, zie `lib.rs::build_summary`).
+    let total = phi_basis + phi_extra;
 
     // --- Total ---
     let total = if room.clamp_positive { total.max(0.0) } else { total };
+
+    // Formule 2.61/2.62 (n = 1 bij vertrekberekening): Φverlies = f · ΦHL,i.
+    // Een negatief ΦHL,i geeft geen negatief systeemverlies.
+    let phi_hl_for_sys = total.max(0.0);
+    let phi_floor_loss = f_floor * phi_hl_for_sys;
+    let phi_wall_loss = f_wall * phi_hl_for_sys;
+    let phi_ceiling_loss = f_ceil * phi_hl_for_sys;
+    let phi_system = phi_floor_loss + phi_wall_loss + phi_ceiling_loss;
 
     Ok(RoomResult {
         room_id: room.id.clone(),

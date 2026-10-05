@@ -1,5 +1,18 @@
 # TODO
 
+## 🔥 Rekenkern: vloerverwarming fk = 0 + systeemverlies fvlw (2026-10-05, branch `fix/rekenkern-3076`)
+
+> Aanleiding: controle warmteverliesrapport projectnr. 3076 (02-10). Bevinding 1 (verwarmde vloer dubbel: in Φ_T én als systeemverlies) en 2 (Φ_sys = 0,111·Φ_HL,i i.p.v. fvlw tabel 2.17, en opgeteld bij het vertrekvermogen). Bevinding 3 (systeem C per vertrek) was al opgelost in `60d4ec5`, bevinding 4 (systeem D infiltratie in gebouwtotaal) in `ca5c0db`.
+
+- [x] **fk = 0 voor elementen met `has_embedded_heating`** (`calc/transmission.rs`): §2.5.1 form. 2.6, §2.5.3 fia,k, §2.5.4 form. 2.22, §2.5.5 fig,k, onderburen §2.8.1; water naar analogie.
+- [x] **Φverlies = f · Φ_HL,i (form. 2.61/2.62, n = 1), NIET in het vertrekvermogen** (§4.1 Opmerking, form. 4.23/4.24) (`calc/room_load.rs`). De algebraïsche (1−f)-oplossing is weg; Φ_sys ≥ 0. Gebouw: 3.12 zonder, 3.13 met Φ_sys (ongewijzigd).
+- [x] **Tabel 2.17 met beide kolommen** (`calc/system_losses.rs`): begane grondvloer (grond/kruipruimte/buiten/water) vs verdiepingsvloer (boven onderburen). Verdiepingsvloer binnen de woning: Φverlies1 = 0. **Nieuw:** vloerverwarming boven een kruipruimte (`unheated_space`) krijgt nu Φverlies1 (§2.9.1 "bodem/kruipruimte"); voorheen 0.
+- [x] **Norm-fixtures + gebouwniveau-wacht systeem D** (`crates/isso51-core/tests/norm_vloerverwarming_test.rs`, 5 tests, verwachtingen met de hand uit ISSO 51:2023 afgeleid, tegenproef per reparatie gedaan).
+- [ ] **UI/rapport: Φ_sys staat als kolom naast Φ_totaal** (`Results.tsx:401`, `reportBuilder.ts:379/476`) en wordt in `StackedBarChart`/`reportCharts` op de vertrekbalk gestapeld — sinds deze fix telt Φ_sys niet meer in Φ_HL,i. Label "Φ_sys (alleen verdeler)" + uit de vertrekstapel halen.
+- [ ] **Interpretatie vastleggen [USER]:** kolom "begane grondvloer" ook voor vloer boven buitenlucht en boven water (water is geen ISSO 51-categorie); `has_embedded_heating` geldt voor het hele element (norm: "het verwarmde deel") — deels verwarmde vloer = element splitsen.
+- [ ] **Overige 3076-bevindingen (niet in deze ronde):** infiltratie zonder f_v (#20), infiltratie in inpandige vertrekken (#8), wederkerigheid binnenwanden (#5), label "Collectieve bijdrage" bij individuele installatie (#22).
+
+---
 ## 🧱 Materialendatabase — id als extern contract (2026-09-03)
 
 > `frontend/src/lib/materialsDatabase.ts`: alle 157 ingebouwde materialen hebben nu een expliciet `id`-veld (waarden = de voorheen afgeleide slugs, byte-identiek geverifieerd). Het id is extern contract: Revit-modellen leggen het vast en `ifcMaterialMatcher.ts:96` matcht er exact op. `slug()` blijft fallback voor user-defined materialen; dubbel expliciet id gooit een Error. pyRevit-bron `materialen_database.json` → v2.1 met dezelfde id's (149/150 gematcht).

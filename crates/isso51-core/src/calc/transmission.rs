@@ -317,6 +317,15 @@ pub fn calculate_all_h_t(
     let mut h_t_iw = 0.0;
 
     for element in elements {
+        // ISSO 51:2023 "fk = 0 voor het verwarmde deel van wand/vloer bij
+        // wand-/vloerverwarming": §2.5.1 (formule 2.6), §2.5.3 (fia,k),
+        // §2.5.4 (formule 2.22), §2.5.5 (fig,k); onderburen §2.8.1 (cz = 0).
+        // Vanuit het vertrek gezien geen transmissieverlies; de afgifte naar
+        // de achterzijde is systeemverlies (§2.9.1, zie `room_load.rs`).
+        // Water (niet-norm) volgt dezelfde regel naar analogie.
+        if element.has_embedded_heating {
+            continue;
+        }
         match element.boundary_type {
             BoundaryType::Exterior => {
                 h_t_ie += h_t_exterior_element(element);
