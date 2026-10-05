@@ -118,6 +118,22 @@ pub enum ThermalOrientation {
     Roof,
 }
 
+impl ThermalOrientation {
+    /// Orientation of the same surface seen from the other side.
+    ///
+    /// A construction is described from `room_a`; the ontvanger builds the
+    /// `room_b` side itself. The floor of the room above is the ceiling of
+    /// the room below and vice versa; a roof/ceiling of `room_a` is the floor
+    /// of `room_b`. Walls stay walls.
+    pub fn mirrored(self) -> Self {
+        match self {
+            ThermalOrientation::Wall => ThermalOrientation::Wall,
+            ThermalOrientation::Floor => ThermalOrientation::Ceiling,
+            ThermalOrientation::Ceiling | ThermalOrientation::Roof => ThermalOrientation::Floor,
+        }
+    }
+}
+
 /// A single material layer in a construction assembly.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ThermalLayer {
@@ -390,6 +406,46 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
         }
     }
 
+    // Spiegelregel: een scheiding tussen twee echte ruimten wordt EEN keer
+    // geleverd (beschreven vanuit `room_a`); de ontvanger maakt zelf de
+    // `room_b`-kant. Levert een bron toch beide kanten, dan staat de
+    // scheiding per ruimte dubbel. Niet stil ontdubbelen (twee segmenten
+    // tussen hetzelfde paar zijn legitiem) maar waarschuwen bij een paar dat
+    // vanaf beide kanten met gespiegelde orientatie en (bijna) gelijk
+    // oppervlak binnenkomt.
+    {
+        const DOUBLE_DELIVERY_AREA_TOLERANCE: f64 = 0.05;
+        let between_real: Vec<&ThermalConstruction> = input
+            .constructions
+            .iter()
+            .filter(|c| {
+                real_room_ids.contains(c.room_a.as_str())
+                    && real_room_ids.contains(c.room_b.as_str())
+            })
+            .collect();
+        let mut reported: std::collections::HashSet<&str> = std::collections::HashSet::new();
+        for (i, c1) in between_real.iter().enumerate() {
+            for c2 in between_real.iter().skip(i + 1) {
+                let opposite_sides = c1.room_a == c2.room_b && c1.room_b == c2.room_a;
+                if !opposite_sides || c2.orientation != c1.orientation.mirrored() {
+                    continue;
+                }
+                let max_area = c1.gross_area_m2.max(c2.gross_area_m2);
+                if max_area <= 0.0
+                    || (c1.gross_area_m2 - c2.gross_area_m2).abs() > DOUBLE_DELIVERY_AREA_TOLERANCE * max_area
+                {
+                    continue;
+                }
+                if reported.insert(c2.id.as_str()) {
+                    warnings.push(format!(
+                        "Constructies '{}' en '{}' lijken dezelfde scheiding tussen '{}' en '{}' van beide kanten                          ({:.2} / {:.2} m²). De import maakt de tweede kant zelf; lever een scheiding één keer,                          anders telt hij dubbel.",
+                        c1.id, c2.id, c1.room_a, c1.room_b, c1.gross_area_m2, c2.gross_area_m2
+                    ));
+                }
+            }
+        }
+    }
+
     // Collect raw surfaces from every room for the global catalog (phase 3).
     let mut raw_surfaces: Vec<RawSurface> = Vec::new();
 
@@ -468,7 +524,16 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                     })
                     .unwrap_or(BoundaryType::Exterior);
 
-                let vertical_position = match construction.orientation {
+                // Zijde B ziet hetzelfde vlak van de andere kant: vloer <-> plafond.
+                // De lagen blijven in de volgorde van `room_a`: ze bepalen alleen
+                // de catalogus-vingerafdruk (gedeeld door beide kanten) en niet
+                // het rekenresultaat per vertrek.
+                let orientation = match side {
+                    ConstructionSide::A => construction.orientation,
+                    ConstructionSide::B => construction.orientation.mirrored(),
+                };
+
+                let vertical_position = match orientation {
                     ThermalOrientation::Floor => VerticalPosition::Floor,
                     ThermalOrientation::Ceiling | ThermalOrientation::Roof => {
                         VerticalPosition::Ceiling
@@ -566,7 +631,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                         .clone()
                         .unwrap_or_else(|| "onbekend".to_string()),
                     boundary_type,
-                    orientation: construction.orientation,
+                    orientation,
                     layers: construction.layers.clone(),
                     adjacent_room_id,
                 });

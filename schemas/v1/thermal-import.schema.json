@@ -104,11 +104,11 @@
         },
         "room_a": {
           "type": "string",
-          "description": "Interior room ID (the room this construction belongs to)"
+          "description": "Interior room ID: the room from which orientation and layers are described. A separation between two real rooms (heated/unheated) is delivered ONCE; the receiver creates the room_b side itself (orientation floor<->ceiling mirrored)."
         },
         "room_b": {
           "type": "string",
-          "description": "Adjacent room ID (or pseudo-room: outside/ground/water)"
+          "description": "Adjacent room ID (or pseudo-room: outside/ground/water). Do not deliver the same separation again with room_a and room_b swapped: it would be counted twice (the importer warns)."
         },
         "orientation": {
           "type": "string",

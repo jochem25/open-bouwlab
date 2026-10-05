@@ -392,7 +392,8 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 
 - [ ] **BUG: desktop-IFC-import is stuk** — `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` staat als **0-byte placeholder** in git (`git cat-file -s` = 0) en `build-installer.yml` bouwt geen sidecar, dus de NSIS-installer levert een niet-werkende `ifc-tool`. `_handleImportIfcNative` (`Modeller.tsx`) heeft geen web-ifc-fallback. Bewust laten staan tot de ifc-ruimtebalans-sidecar er is (die vervangt `tools/ifc-tool`); tot dan in de desktop-app alleen IFC via de web-app.
 - [ ] **ifc-tool: server en desktop draaien verschillend** — server `--no-close-gaps` (`handlers/ifc_import.rs`), desktop zonder (`src-tauri/src/commands.rs`). Vervalt bij vervanging; tot dan bekend verschil.
-- [ ] **Thermal-import: gespiegelde zijde draait oriëntatie niet om** — een constructie wordt aan `room_a` én `room_b` gehangen (zie spiegelregel), maar een `floor` van de bovenruimte blijft voor de onderruimte `Floor` i.p.v. `Ceiling` (gemeten 05-10, synthetisch); `layers` worden ook niet omgekeerd. Raakt f_ia (Δθ1/Δθ2) van de onderruimte. Fix in `crates/isso51-core/src/import/thermal.rs` (Side::B).
+- [x] **Thermal-import: gespiegelde zijde draait oriëntatie om ✅ (05-10, branch `fix/spiegelzijde`)** — zijde B: floor↔ceiling, roof→floor; lagen bewust in room_a-volgorde (catalogus); waarschuwing bij een paar dat van beide kanten binnenkomt. Spec: `docs/thermal-import-construction-catalog-spec.md` § Spiegelregel.
+- [ ] **pyRevit-exporter (`revit-raycast`) levert binnenwanden van beide kanten** — fixture `thermal-import-v11-geometry.json`: 33 van 37 ruimteparen dubbel (23 binnen 5 % oppervlak). Met de spiegeling van de ontvanger staan die wanden per ruimte dubbel → H_T,ia te hoog/te laag. Exporter (pyrevit-repo) naar één kant per scheiding, of besluit [USER] om de ontvanger te laten ontdubbelen.
 
 ---
 

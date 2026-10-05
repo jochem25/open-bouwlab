@@ -220,6 +220,23 @@ Wijzigingen aan een catalog entry propageren automatisch naar alle room-surfaces
 
 ---
 
+## Spiegelregel ruimte-aan-ruimte (2026-10-05)
+
+| Regel | Wie |
+|---|---|
+| Een scheiding tussen twee echte ruimten (`heated`/`unheated`) wordt **één keer** geleverd. `room_a` is de ruimte van waaruit `orientation` en `layers` beschreven zijn | leverancier (exporter) |
+| De ontvanger hangt de constructie aan `room_a` (zijde A) én `room_b` (zijde B) | `map_thermal_import` (sinds Bug D, 09-04) |
+| Zijde B krijgt de gespiegelde orientatie: `floor` → `ceiling`, `ceiling`/`roof` → `floor`, `wall` blijft `wall` | `ThermalOrientation::mirrored()` |
+| De lagen blijven in de volgorde van `room_a`. Per vertrek dragen elementen geen lagen; de lagen bepalen alleen de catalogus-vingerafdruk, die beide kanten delen. Omkeren zou één fysieke constructie in twee catalogusregels splitsen | bewust niet omgekeerd |
+| Komt hetzelfde paar van beide kanten binnen (room_a/room_b verwisseld, gespiegelde orientatie, oppervlak binnen 5 %), dan volgt een waarschuwing. Er wordt **niet** stil ontdubbeld: twee segmenten tussen hetzelfde paar vanaf dezelfde kant zijn legitiem | `map_thermal_import` |
+
+Gemeten 05-10-2026: een tussenvloer die alleen als `floor` van de bovenruimte binnenkwam, stond
+voor de onderruimte óók als vloer (`Floor`) in plaats van plafond. Daardoor kreeg H_T,ia het
+verkeerde teken voor de Δθ1/Δθ2-correctie (fixture `thermal-import-v11-geometry.json`: Keuken
+−1,23 → +1,23 W/K). Dezelfde fixture (bron `revit-raycast`) levert 33 van de 37 ruimteparen van
+beide kanten; 23 daarvan krijgen de nieuwe waarschuwing. Tests:
+`crates/isso51-core/tests/thermal_spiegelzijde_test.rs`.
+
 ## Genomen besluiten (review 2026-04-09)
 
 | # | Vraag | Besluit |
