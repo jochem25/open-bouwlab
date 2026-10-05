@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "MCP server for Open Heatloss Studio — heat loss calculation per ISSO 51:2023",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "bin": {
     "ohs-mcp": "dist/ohs-mcp.mjs"
