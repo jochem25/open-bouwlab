@@ -26,7 +26,7 @@ pub fn quadratic_sum(phi_vent: f64, phi_t_adj_building: f64, phi_hu: f64) -> f64
 /// Φ_HL,i = Φ_basis + Φ_extra
 ///
 /// Where:
-/// - Φ_basis = Φ_T,exterior + Φ_T,unheated + Φ_T,ground + Φ_infiltration + Φ_system_losses
+/// - Φ_basis = Φ_T,exterior + Φ_T,unheated + Φ_T,ground + Φ_infiltration
 /// - Φ_extra = √(Φ_vent² + Φ_T,iaBE² + Φ_hu²)
 ///
 /// # Arguments

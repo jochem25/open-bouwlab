@@ -40,6 +40,12 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - Norm-conformiteit regressie-tests WTW + infiltratie SystemD (659b658)
 - NTA8800-cooling Vabi-cross-validatie scaffold (51dc6ae)
 
+## [Unreleased] — 2026-10-05
+
+### 🐛 Bug fixes
+
+- **Vloerverwarming: fk = 0 + systeemverlies volgens tabel 2.17 (ISSO 51:2023)** — constructies met ingebouwde verwarming tellen niet meer in de transmissie van het eigen vertrek; Φverlies = fvlw · ΦHL,i (form. 2.61) met beide kolommen van tabel 2.17 i.p.v. effectief 0,111. **Semantiekwijziging resultaat:** `total_heat_loss` en `basis_heat_loss` per vertrek bevatten het systeemverlies niet meer (§4.1, form. 4.23); dat staat alleen in `system_losses` en telt mee in `phi_hl_verdeler`/`connection_capacity` (form. 4.24/3.13). Projecten met vloerverwarming krijgen daardoor lagere vertrekvermogens. Zie `docs/2026-10-05-vloerverwarming-systeemverlies.md`.
+
 ## [Unreleased] — 2026-05-21
 
 ### 🐛 Bug fixes

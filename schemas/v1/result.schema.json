@@ -202,7 +202,7 @@
       "description": "Calculation result for a single room.",
       "properties": {
         "basis_heat_loss": {
-          "description": "Basis heat loss (always occurring) in W. Φ_basis = Φ_T,exterior + Φ_T,unheated + Φ_T,ground + Φ_infiltration + Φ_system",
+          "description": "Basis heat loss (always occurring) in W. Φ_basis = Φ_T,exterior + Φ_T,unheated + Φ_T,ground + Φ_infiltration (formule 4.21). Systeemverliezen staan apart in `system_losses` en tellen alleen mee voor het verdelervermogen (formule 4.24).",
           "format": "double",
           "type": "number"
         },
