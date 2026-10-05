@@ -259,8 +259,9 @@ pub fn calculate_room(
         heating_up::calculate_heating_up(building, a_g, hu_cooling_k, hu_mass, all_floor_heating)?;
 
     // --- System losses (ISSO 51 §2.9) ---
-    // Scan for embedded heating elements facing exterior/ground/adjacent building.
-    // R_c estimated from U-value: R_c = 1/U - R_si - R_se.
+    // Scan embedded heating elements: floors towards ground/crawlspace/outside/
+    // water or a dwelling below, walls/ceilings towards outside or an adjacent
+    // building (§2.9.1). R_c estimated from U-value: R_c = 1/U - R_si - R_se.
     let mut has_floor_heat = false;
     let mut rc_floor = f64::MAX;
     // Tabel 2.17 column: "begane grondvloer" unless every heated floor sits

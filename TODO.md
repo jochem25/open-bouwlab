@@ -10,6 +10,7 @@
 - [x] **Norm-fixtures + gebouwniveau-wacht systeem D** (`crates/isso51-core/tests/norm_vloerverwarming_test.rs`, 5 tests, verwachtingen met de hand uit ISSO 51:2023 afgeleid, tegenproef per reparatie gedaan).
 - [ ] **UI/rapport: Φ_sys staat als kolom naast Φ_totaal** (`Results.tsx:401`, `reportBuilder.ts:379/476`) en wordt in `StackedBarChart`/`reportCharts` op de vertrekbalk gestapeld — sinds deze fix telt Φ_sys niet meer in Φ_HL,i. Label "Φ_sys (alleen verdeler)" + uit de vertrekstapel halen.
 - [x] **Interpretaties vastgelegd ✅ (akkoord Jochem 05-10)** — `docs/2026-10-05-vloerverwarming-systeemverlies.md`: begane-grondkolom ook boven buitenlucht/water; kruipruimte krijgt Φverlies1; ΦHL,i in 2.61 = 4.23 zonder Φadd; vlag per element (deels verwarmd = splitsen); Rc-schatting uit U ongewijzigd.
+- [ ] **Gemengde verwarmde vloeren in één vertrek** — nu één fvlw met min-Rc en begane-grondkolom zodra één vloer dat is (review 05-10, Low); per-vloer weging of oppervlakte-gewogen f overwegen + test.
 - [ ] **Overige 3076-bevindingen (niet in deze ronde):** infiltratie zonder f_v (#20), infiltratie in inpandige vertrekken (#8), wederkerigheid binnenwanden (#5), label "Collectieve bijdrage" bij individuele installatie (#22).
 
 ---

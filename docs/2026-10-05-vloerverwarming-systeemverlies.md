@@ -40,6 +40,15 @@ Tabel 2.17 heeft twee kolommen; de code kiest per vertrek:
 5. **Rc voor tabel 2.17/2.18 wordt geschat uit U** (Rc = 1/U − Rsi − Rse). Ongewijzigd; de
    tabelvoetnoot gaat uit van Rc inclusief een afwerking van 0,15 m²K/W.
 
+## Bekende randgevallen (review 05-10)
+
+- **Wand- of plafondverwarming naar een onverwarmde ruimte of een vertrek binnen de woning** telt
+  0 W: fk / fia,k = 0 voor het verwarmde deel (§2.5.3, §2.5.4) en Φverlies2/3 = 0 voor wanden op
+  binnenwanden resp. plafonds op tussenvloeren (§2.9.1). Normconform, maar let op bij invoer.
+- **Gemengde verwarmde vloeren in één vertrek** (bv. deels op grond, deels boven onderburen):
+  één fvlw per vertrek met de kleinste Rc en de kolom begane grondvloer zodra één vloer daaronder
+  valt. Conservatief; per-vloer weging is niet geïmplementeerd (open punt in `TODO.md`).
+
 ## Gevolgen
 
 - Vertrekken met vloerverwarming naar grond/kruipruimte/water krijgen een lager vertrekvermogen
