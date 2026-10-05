@@ -374,6 +374,12 @@ DGMR-aanvraag is hiermee **niet meer nodig**.
 
 Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementatieplan.
 
+> **Koers 05-10-2026 (besluit Jochem):** de IFC-route gaat naar de externe engine ifc-ruimtebalans (eigen, privé repo), die thermal.json v1.1 levert aan het bestaande `POST /api/v1/import/thermal` + wizard. Open Bouwlab houdt contract + UI; de IFC-dienst krijgt een eigen route-groep `/api/v1/ifc/*` met een (nu lege) middleware-haak voor latere modules. Eerst rekenkern-reparatie (branch `fix/rekenkern-3076`), dan de integratie. `/ifc-reconstructie` later omvormen tot viewer van die uitvoer.
+
+- [ ] **BUG: desktop-IFC-import is stuk** — `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` staat als **0-byte placeholder** in git (`git cat-file -s` = 0) en `build-installer.yml` bouwt geen sidecar, dus de NSIS-installer levert een niet-werkende `ifc-tool`. `_handleImportIfcNative` (`Modeller.tsx`) heeft geen web-ifc-fallback. Bewust laten staan tot de ifc-ruimtebalans-sidecar er is (die vervangt `tools/ifc-tool`); tot dan in de desktop-app alleen IFC via de web-app.
+- [ ] **ifc-tool: server en desktop draaien verschillend** — server `--no-close-gaps` (`handlers/ifc_import.rs`), desktop zonder (`src-tauri/src/commands.rs`). Vervalt bij vervanging; tot dan bekend verschil.
+- [ ] **Thermal-import: gespiegelde zijde draait oriëntatie niet om** — een constructie wordt aan `room_a` én `room_b` gehangen (zie spiegelregel), maar een `floor` van de bovenruimte blijft voor de onderruimte `Floor` i.p.v. `Ceiling` (gemeten 05-10, synthetisch); `layers` worden ook niet omgekeerd. Raakt f_ia (Δθ1/Δθ2) van de onderruimte. Fix in `crates/isso51-core/src/import/thermal.rs` (Side::B).
+
 ---
 
 ## Fase 1: IFC Parser (Python sidecar) — GROTENDEELS KLAAR

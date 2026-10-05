@@ -16,6 +16,13 @@ tests/references/*.vp
 # Uniec 3 project exports -- contain customer/project data
 *.uniec3
 
+# IFC-modellen en afgeleide IFC-uitvoer (o.a. ifc-ruimtebalans) -- bevatten
+# klant-/projectdata. Testmodellen worden synthetisch in de test opgebouwd.
+*.ifc
+*.ifczip
+*_thermisch.ifc
+*_vlakken.ifc
+
 # Klant-/projectdocumenten (privacy)
 *.docx
 

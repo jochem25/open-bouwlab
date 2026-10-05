@@ -57,7 +57,7 @@ export {
 } from "./ifcx";
 
 // IFCX builder (modeller ↔ IFCX conversion)
-export { modelToIfcx, ifcxToModel } from "./ifcx-builder";
+export { modelToIfcx } from "./ifcx-builder";
 export type { ModelToIfcxOptions } from "./ifcx-builder";
 
 // IFC import (web-ifc based, IFC2x3/IFC4 STEP files)
