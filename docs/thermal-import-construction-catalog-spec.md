@@ -260,8 +260,12 @@ Open Bouwlab).
 | Openingen | per kant geleverd, eigen `id` en `construction_id` van die kant (op een gepaarde constructie spiegelt de opening niet mee) |
 | `open_connections` | ongewijzigd: één keer per paar, geen `pair_id` |
 | `pair_id` in v1.0/v1.1 | genegeerd met waarschuwing; v1.1-gedrag |
+| Lege `pair_id` (`""`) | telt als geen `pair_id` |
+| `pair_id` op een grens met een pseudo-ruimte (`room_a` of `room_b` = outside/ground/water) | geen tweede kant: genegeerd met waarschuwing, v1.1-route (het vlak blijft bij de echte ruimte) |
 | Afwijkend patroon | gebruikt als paar-id, met waarschuwing |
-| QC (informatief, waarschuwing) | per `pair_id`: één kant ontbreekt (de andere ruimte krijgt de scheiding dan niet), of de som van het bruto oppervlak per kant verschilt > 5 %. Niet middelen of corrigeren |
+| QC (informatief, waarschuwing) | per `pair_id`: één kant ontbreekt (de andere ruimte krijgt de scheiding dan niet); de som van het bruto oppervlak per kant verschilt > 5 %; de openingen per kant verschillen in aantal of in oppervlak (> 5 %); meer dan twee ruimten dragen dezelfde `pair_id`. Niet middelen of corrigeren |
+| Catalogus | beide kanten tellen als eigen surface (oppervlak en aantal in de catalogus zijn fysiek dubbel, zoals bij v1.1). Levert de tweede kant zijn lagen vanuit zijn eigen binnenzijde (omgekeerde volgorde), dan krijgt dezelfde fysieke wand twee catalogusregels: de vingerafdruk is volgordegevoelig. Open punt, niet opgelost in v1.2 |
+| 3D-viewer | elke geleverde kant wordt een eigen vlak (`toImportedBoundaries` per constructie); bij samenvallende vertices mogelijk z-fighting. Niet visueel getest |
 | v1.1-melding "van beide kanten" | alleen voor constructies zonder `pair_id` |
 
 Tests: `crates/isso51-core/tests/thermal_v12_test.rs` (synthetisch: ongelijke vrije hoogte 2,6/3,0 m,

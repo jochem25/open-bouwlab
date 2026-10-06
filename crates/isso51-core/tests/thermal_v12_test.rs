@@ -50,7 +50,9 @@ fn import(version: &str, constructions: Vec<Value>, openings: Vec<Value>) -> The
         "version": version, "source": "ifc", "exported_at": "2026-10-06T00:00:00Z",
         "rooms": [
             { "id": "a", "name": "A", "type": "heated", "area_m2": 12.0, "height_m": 2.6 },
-            { "id": "b", "name": "B", "type": "heated", "area_m2": 12.0, "height_m": 3.0 }
+            { "id": "b", "name": "B", "type": "heated", "area_m2": 12.0, "height_m": 3.0 },
+            { "id": "c", "name": "C", "type": "heated", "area_m2": 12.0, "height_m": 2.6 },
+            { "id": "room-outside", "name": "Buiten", "type": "outside" }
         ],
         "constructions": constructions,
         "openings": openings
@@ -135,7 +137,7 @@ fn v12_qc_oppervlak_per_kant_verschilt() {
     let r = v12_beide_kanten();
     let qc: Vec<_> = r.warnings.iter().filter(|w| w.contains(PAIR) && w.contains("verschilt")).collect();
     assert_eq!(qc.len(), 1, "{:?}", r.warnings);
-    assert!(qc[0].contains("13 %"), "{}", qc[0]);
+    assert!(qc[0].contains("13.3 %"), "{}", qc[0]);
     assert!(!qc[0].contains("  "), "dubbele spatie: {}", qc[0]);
     assert!(!r.warnings.iter().any(|w| w.contains("van beide kanten")), "geen v1.1-melding bij pair_id");
 }
@@ -196,4 +198,68 @@ fn v12_afwijkend_pair_id_patroon() {
     assert!(r.warnings.iter().any(|w| w.contains("patroon")), "{:?}", r.warnings);
     let (area_a, _) = adjacent(&r, "a");
     assert!((area_a - 10.0).abs() < EPS, "{area_a}");
+}
+
+/// Openingen per kant: een deur die maar aan één kant geleverd is, geeft
+/// een informatieve melding (op een gepaarde constructie spiegelt hij niet).
+#[test]
+fn v12_qc_opening_aan_een_kant() {
+    let r = import(
+        "1.2",
+        vec![wall("wa", "a", "b", 10.0, Some(PAIR)), wall("wb", "b", "a", 10.0, Some(PAIR))],
+        vec![door("da", "wa")],
+    );
+    let w: Vec<_> = r.warnings.iter().filter(|w| w.contains("openingen per kant")).collect();
+    assert_eq!(w.len(), 1, "{:?}", r.warnings);
+    assert!(!w[0].contains("  "), "{}", w[0]);
+    let (_, doors_b) = adjacent(&r, "b");
+    assert_eq!(doors_b, 0, "deur niet gespiegeld naar b");
+}
+
+/// pair_id op een buitenwand (room_b pseudo): geen tweede kant, dus geen
+/// "kant ontbreekt"-melding; wel een melding dat pair_id genegeerd is, en
+/// de buitenwand blijft gewoon staan.
+#[test]
+fn v12_pair_id_op_pseudo_room_b() {
+    let r = import("1.2", vec![wall("g1", "a", "room-outside", 8.0, Some(PAIR))], vec![]);
+    assert!(!r.warnings.iter().any(|w| w.contains("alleen de kant")), "{:?}", r.warnings);
+    assert!(r.warnings.iter().any(|w| w.contains("pseudo-ruimte")), "{:?}", r.warnings);
+    let a = r.project.rooms.iter().find(|x| x.id == "a").expect("a");
+    let ext: f64 = a.constructions.iter().filter(|c| c.boundary_type == BoundaryType::Exterior).map(|c| c.area).sum();
+    assert!((ext - 8.0).abs() < EPS, "{ext}");
+}
+
+/// pair_id met pseudo room_a (buiten contract): niet stil weggevallen maar
+/// via de v1.1-route bij de echte ruimte, met melding.
+#[test]
+fn v12_pair_id_op_pseudo_room_a_valt_niet_weg() {
+    let r = import("1.2", vec![wall("g1", "room-outside", "a", 8.0, Some(PAIR))], vec![]);
+    assert!(r.warnings.iter().any(|w| w.contains("pseudo-ruimte")), "{:?}", r.warnings);
+    let a = r.project.rooms.iter().find(|x| x.id == "a").expect("a");
+    let total: f64 = a.constructions.iter().map(|c| c.area).sum();
+    assert!((total - 8.0).abs() < EPS, "vlak hoort bij a: {total}");
+}
+
+/// Lege pair_id telt als geen pair_id: v1.1-gedrag (spiegelen), geen melding.
+#[test]
+fn v12_lege_pair_id_is_geen_paar() {
+    let r = import("1.2", vec![wall("wa", "a", "b", 10.0, Some(""))], vec![]);
+    let (area_b, _) = adjacent(&r, "b");
+    assert!((area_b - 10.0).abs() < EPS, "gespiegeld: {area_b}");
+    assert!(!r.warnings.iter().any(|w| w.contains("patroon") || w.contains("Paar")), "{:?}", r.warnings);
+}
+
+/// Drie ruimten met hetzelfde pair_id: contractfout, melding.
+#[test]
+fn v12_drie_ruimten_zelfde_pair_id() {
+    let r = import(
+        "1.2",
+        vec![
+            wall("wa", "a", "b", 10.0, Some(PAIR)),
+            wall("wb", "b", "a", 10.0, Some(PAIR)),
+            wall("wc", "c", "a", 10.0, Some(PAIR)),
+        ],
+        vec![],
+    );
+    assert!(r.warnings.iter().any(|w| w.contains("meer dan twee ruimten")), "{:?}", r.warnings);
 }

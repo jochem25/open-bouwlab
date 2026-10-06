@@ -332,50 +332,71 @@ fn is_valid_pair_id(id: &str) -> bool {
         && id[2..].chars().all(|ch| matches!(ch, '0'..='9' | 'a'..='f'))
 }
 
-/// Informatieve QC per `pair_id` (v1.2): een kant ontbreekt, of het bruto
-/// oppervlak van de twee kanten verschilt meer dan 5 %. Verschil is
-/// toegestaan (eigen vertrekmaat per ruimte); de melding is een signaal.
+/// Informatieve QC per `pair_id` (v1.2), over de constructies die als paar
+/// behandeld worden (beide ruimten echt): een kant ontbreekt, het bruto
+/// oppervlak per kant verschilt meer dan 5 %, of de openingen per kant
+/// verschillen in aantal of in oppervlak (> 5 %). Verschil is toegestaan
+/// (eigen vertrekmaat per ruimte); de melding is een signaal.
 fn pair_qc_warnings(
-    constructions: &[ThermalConstruction],
-    real_room_ids: &std::collections::HashSet<&str>,
+    paired: &[(&str, &ThermalConstruction)],
+    openings_by_construction: &HashMap<&str, Vec<&ThermalOpening>>,
     warnings: &mut Vec<String>,
 ) {
     const PAIR_AREA_TOLERANCE: f64 = 0.05;
-    // pair_id -> (room -> som bruto oppervlak aan die kant), volgorde stabiel.
+    struct Side<'a> {
+        room: &'a str,
+        area: f64,
+        openings: usize,
+        opening_area: f64,
+    }
+    // pair_id -> kanten, volgorde stabiel (invoervolgorde).
     let mut order: Vec<&str> = Vec::new();
-    let mut sides: HashMap<&str, Vec<(&str, f64)>> = HashMap::new();
-    for c in constructions {
-        let Some(pid) = c.pair_id.as_deref() else { continue };
-        if !real_room_ids.contains(c.room_a.as_str()) {
-            continue;
-        }
+    let mut sides: HashMap<&str, Vec<Side>> = HashMap::new();
+    for (pid, c) in paired {
         let entry = sides.entry(pid).or_insert_with(|| {
             order.push(pid);
             Vec::new()
         });
-        match entry.iter_mut().find(|(room, _)| *room == c.room_a.as_str()) {
-            Some((_, area)) => *area += c.gross_area_m2,
-            None => entry.push((c.room_a.as_str(), c.gross_area_m2)),
+        let ops = openings_by_construction.get(c.id.as_str());
+        let n_ops = ops.map(|o| o.len()).unwrap_or(0);
+        let a_ops: f64 = ops
+            .map(|o| o.iter().map(|op| op.width_mm * op.height_mm / 1_000_000.0).sum())
+            .unwrap_or(0.0);
+        match entry.iter_mut().find(|s| s.room == c.room_a.as_str()) {
+            Some(side) => {
+                side.area += c.gross_area_m2;
+                side.openings += n_ops;
+                side.opening_area += a_ops;
+            }
+            None => entry.push(Side { room: c.room_a.as_str(), area: c.gross_area_m2, openings: n_ops, opening_area: a_ops }),
         }
     }
+    let differs = |a: f64, b: f64| {
+        let max = a.max(b);
+        max > 0.0 && (a - b).abs() > PAIR_AREA_TOLERANCE * max
+    };
     for pid in order {
-        let per_side = &sides[pid];
-        match per_side.as_slice() {
-            [(room, _)] => warnings.push(format!(
+        match sides[pid].as_slice() {
+            [one] => warnings.push(format!(
                 "Paar '{}': alleen de kant van '{}' is geleverd; de andere ruimte krijgt deze scheiding niet (constructies met pair_id worden niet gespiegeld).",
-                pid, room
+                pid, one.room
             )),
-            [(ra, a), (rb, b)] => {
-                let max = a.max(*b);
-                if max > 0.0 && (a - b).abs() > PAIR_AREA_TOLERANCE * max {
+            [a, b] => {
+                if differs(a.area, b.area) {
                     warnings.push(format!(
-                        "Paar '{}': oppervlak per kant verschilt {:.0} % ('{}' {:.2} m², '{}' {:.2} m²); informatief, elke ruimte rekent met zijn eigen kant.",
+                        "Paar '{}': oppervlak per kant verschilt {:.1} % ('{}' {:.2} m², '{}' {:.2} m²); informatief, elke ruimte rekent met zijn eigen kant.",
                         pid,
-                        100.0 * (a - b).abs() / max,
-                        ra,
-                        a,
-                        rb,
-                        b
+                        100.0 * (a.area - b.area).abs() / a.area.max(b.area),
+                        a.room,
+                        a.area,
+                        b.room,
+                        b.area
+                    ));
+                }
+                if a.openings != b.openings || differs(a.opening_area, b.opening_area) {
+                    warnings.push(format!(
+                        "Paar '{}': openingen per kant verschillen ('{}' {} stuks / {:.2} m², '{}' {} stuks / {:.2} m²); openingen met pair_id worden niet gespiegeld.",
+                        pid, a.room, a.openings, a.opening_area, b.room, b.openings, b.opening_area
                     ));
                 }
             }
@@ -467,19 +488,43 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
     // v1.2: constructies met `pair_id` zijn per kant geleverd en worden niet
     // gespiegeld; elke ruimte rekent met zijn eigen kant (ISSO 51-vertrekmaat).
     let is_v12 = input.version == "1.2";
-    let paired = |c: &ThermalConstruction| is_v12 && c.pair_id.is_some();
+    // Een constructie telt als paar-kant als: version 1.2, niet-lege pair_id,
+    // en beide ruimten echt. Een pair_id op een grens met een pseudo-room
+    // (outside/ground/water) heeft geen tweede kant: v1.1-route + melding.
+    let pair_key = |c: &ThermalConstruction| -> bool {
+        is_v12
+            && c.pair_id.as_deref().is_some_and(|p| !p.is_empty())
+            && real_room_ids.contains(c.room_a.as_str())
+            && real_room_ids.contains(c.room_b.as_str())
+    };
+    let paired = |c: &ThermalConstruction| pair_key(c);
     {
-        let ignored = input.constructions.iter().filter(|c| c.pair_id.is_some() && !is_v12).count();
-        if ignored > 0 {
-            warnings.push(format!(
-                "{} constructie(s) hebben een pair_id, maar version is '{}' (pair_id vereist 1.2): pair_id genegeerd, scheidingen worden gespiegeld zoals in v1.1.",
-                ignored, input.version
-            ));
-        }
-        if is_v12 {
+        let with_pair_id = |c: &&ThermalConstruction| c.pair_id.as_deref().is_some_and(|p| !p.is_empty());
+        if !is_v12 {
+            let ignored = input.constructions.iter().filter(with_pair_id).count();
+            if ignored > 0 {
+                warnings.push(format!(
+                    "{} constructie(s) hebben een pair_id, maar version is '{}' (pair_id vereist 1.2): pair_id genegeerd, scheidingen worden gespiegeld zoals in v1.1.",
+                    ignored, input.version
+                ));
+            }
+        } else {
+            let on_pseudo = input
+                .constructions
+                .iter()
+                .filter(with_pair_id)
+                .filter(|c| !pair_key(c))
+                .count();
+            if on_pseudo > 0 {
+                warnings.push(format!(
+                    "{} constructie(s) met pair_id grenzen aan een pseudo-ruimte (outside/ground/water): pair_id genegeerd, behandeld als v1.1.",
+                    on_pseudo
+                ));
+            }
             let malformed: Vec<&str> = input
                 .constructions
                 .iter()
+                .filter(|c| pair_key(c))
                 .filter_map(|c| c.pair_id.as_deref())
                 .filter(|id| !is_valid_pair_id(id))
                 .collect();
@@ -490,7 +535,13 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                     first
                 ));
             }
-            pair_qc_warnings(&input.constructions, &real_room_ids, &mut warnings);
+            let paired_list: Vec<(&str, &ThermalConstruction)> = input
+                .constructions
+                .iter()
+                .filter(|c| pair_key(c))
+                .map(|c| (c.pair_id.as_deref().unwrap_or_default(), c))
+                .collect();
+            pair_qc_warnings(&paired_list, &openings_by_construction, &mut warnings);
         }
     }
 
