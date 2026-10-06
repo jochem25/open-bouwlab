@@ -237,6 +237,11 @@ verkeerde teken voor de Δθ1/Δθ2-correctie (fixture `thermal-import-v11-geome
 beide kanten; 23 daarvan krijgen de nieuwe waarschuwing. Tests:
 `crates/isso51-core/tests/thermal_spiegelzijde_test.rs`.
 
+Contracteigenschap bron `ifc` (ifc-ruimtebalans, v1.1, gemeten door de planner 05-10-2026): elk
+ruimtepaar komt van één kant; 0 paren die ook omgekeerd voorkomen (twee projectmodellen: 258 resp.
+27 constructies). Een v1.1-bestand van die bron geeft dus geen dubbel-geleverd-waarschuwing. De
+`_vlakken.ifc` tekent wel beide kanten; dat is de viewer, niet het contract.
+
 ## Genomen besluiten (review 2026-04-09)
 
 | # | Vraag | Besluit |
