@@ -60,6 +60,11 @@ export interface ThermalConstruction {
   layers?: ThermalConstructionLayer[];
   /** 3D surface vertices in meters (v1.1, additive). */
   vertices?: [number, number, number][];
+  /**
+   * Kamerpaar-id (v1.2): `p-` + 16 hex. Een constructie met pair_id is per kant
+   * geleverd en wordt door de import niet gespiegeld.
+   */
+  pair_id?: string;
 }
 
 export type ThermalOpeningType = "window" | "door" | "curtain_wall";
@@ -197,8 +202,8 @@ export function parseThermalImportFile(jsonString: string): ThermalImportFile {
 
   const obj = data as Record<string, unknown>;
 
-  if (obj.version !== "1.0" && obj.version !== "1.1") {
-    throw new Error(`Onbekende versie: ${String(obj.version)}. Verwacht: 1.0 of 1.1`);
+  if (obj.version !== "1.0" && obj.version !== "1.1" && obj.version !== "1.2") {
+    throw new Error(`Onbekende versie: ${String(obj.version)}. Verwacht: 1.0, 1.1 of 1.2`);
   }
 
   if (!Array.isArray(obj.rooms) || obj.rooms.length === 0) {

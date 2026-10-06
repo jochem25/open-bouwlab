@@ -8,7 +8,7 @@
   "properties": {
     "version": {
       "type": "string",
-      "enum": ["1.0", "1.1"]
+      "enum": ["1.0", "1.1", "1.2"]
     },
     "source": {
       "type": "string",
@@ -144,6 +144,11 @@
             "minItems": 3,
             "maxItems": 3
           }
+        },
+        "pair_id": {
+          "type": "string",
+          "pattern": "^p-[0-9a-f]{16}$",
+          "description": "v1.2: room-pair id ('p-' + 16 hex, e.g. sha256 of the two sorted room ids). Constructions measured from BOTH sides carry the same pair_id, each with room_a = its own room. A construction with pair_id belongs to room_a only and is NOT mirrored to room_b (room_b stays the neighbour for its temperature); openings are delivered per side. Without pair_id the v1.1 rule applies (deliver once, receiver mirrors). Only honoured when version is 1.2."
         }
       }
     },

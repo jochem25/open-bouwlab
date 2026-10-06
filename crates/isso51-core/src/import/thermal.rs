@@ -106,6 +106,13 @@ pub struct ThermalConstruction {
     pub layers: Vec<ThermalLayer>,
     #[serde(default)]
     pub vertices: Option<Vec<[f64; 3]>>,
+    /// v1.2: id van het kamerpaar (`p-` + 16 hex). Een constructie met
+    /// `pair_id` is door de leverancier vanuit `room_a` gemeten en de andere
+    /// kant komt als eigen constructie met dezelfde `pair_id`: de ontvanger
+    /// spiegelt hem NIET. Genegeerd (met waarschuwing) als `version` niet
+    /// "1.2" is.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pair_id: Option<String>,
 }
 
 /// Orientation of a construction element.
@@ -318,6 +325,68 @@ struct RawSurface {
     element_index: usize,
 }
 
+/// `p-` gevolgd door 16 kleine hex-tekens (contract v1.2).
+fn is_valid_pair_id(id: &str) -> bool {
+    id.len() == 18
+        && id.starts_with("p-")
+        && id[2..].chars().all(|ch| matches!(ch, '0'..='9' | 'a'..='f'))
+}
+
+/// Informatieve QC per `pair_id` (v1.2): een kant ontbreekt, of het bruto
+/// oppervlak van de twee kanten verschilt meer dan 5 %. Verschil is
+/// toegestaan (eigen vertrekmaat per ruimte); de melding is een signaal.
+fn pair_qc_warnings(
+    constructions: &[ThermalConstruction],
+    real_room_ids: &std::collections::HashSet<&str>,
+    warnings: &mut Vec<String>,
+) {
+    const PAIR_AREA_TOLERANCE: f64 = 0.05;
+    // pair_id -> (room -> som bruto oppervlak aan die kant), volgorde stabiel.
+    let mut order: Vec<&str> = Vec::new();
+    let mut sides: HashMap<&str, Vec<(&str, f64)>> = HashMap::new();
+    for c in constructions {
+        let Some(pid) = c.pair_id.as_deref() else { continue };
+        if !real_room_ids.contains(c.room_a.as_str()) {
+            continue;
+        }
+        let entry = sides.entry(pid).or_insert_with(|| {
+            order.push(pid);
+            Vec::new()
+        });
+        match entry.iter_mut().find(|(room, _)| *room == c.room_a.as_str()) {
+            Some((_, area)) => *area += c.gross_area_m2,
+            None => entry.push((c.room_a.as_str(), c.gross_area_m2)),
+        }
+    }
+    for pid in order {
+        let per_side = &sides[pid];
+        match per_side.as_slice() {
+            [(room, _)] => warnings.push(format!(
+                "Paar '{}': alleen de kant van '{}' is geleverd; de andere ruimte krijgt deze scheiding niet (constructies met pair_id worden niet gespiegeld).",
+                pid, room
+            )),
+            [(ra, a), (rb, b)] => {
+                let max = a.max(*b);
+                if max > 0.0 && (a - b).abs() > PAIR_AREA_TOLERANCE * max {
+                    warnings.push(format!(
+                        "Paar '{}': oppervlak per kant verschilt {:.0} % ('{}' {:.2} m², '{}' {:.2} m²); informatief, elke ruimte rekent met zijn eigen kant.",
+                        pid,
+                        100.0 * (a - b).abs() / max,
+                        ra,
+                        a,
+                        rb,
+                        b
+                    ));
+                }
+            }
+            _ => warnings.push(format!(
+                "Paar '{}': constructies van meer dan twee ruimten dragen hetzelfde pair_id.",
+                pid
+            )),
+        }
+    }
+}
+
 /// Map a `ThermalImport` into a `ThermalImportResult`.
 ///
 /// Creates Room objects only for heated and unheated rooms. Pseudo-rooms (outside,
@@ -395,6 +464,36 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
     // need their own ConstructionElement list.
     let mut constructions_by_room: HashMap<&str, Vec<(&ThermalConstruction, ConstructionSide)>> =
         HashMap::new();
+    // v1.2: constructies met `pair_id` zijn per kant geleverd en worden niet
+    // gespiegeld; elke ruimte rekent met zijn eigen kant (ISSO 51-vertrekmaat).
+    let is_v12 = input.version == "1.2";
+    let paired = |c: &ThermalConstruction| is_v12 && c.pair_id.is_some();
+    {
+        let ignored = input.constructions.iter().filter(|c| c.pair_id.is_some() && !is_v12).count();
+        if ignored > 0 {
+            warnings.push(format!(
+                "{} constructie(s) hebben een pair_id, maar version is '{}' (pair_id vereist 1.2): pair_id genegeerd, scheidingen worden gespiegeld zoals in v1.1.",
+                ignored, input.version
+            ));
+        }
+        if is_v12 {
+            let malformed: Vec<&str> = input
+                .constructions
+                .iter()
+                .filter_map(|c| c.pair_id.as_deref())
+                .filter(|id| !is_valid_pair_id(id))
+                .collect();
+            if let Some(first) = malformed.first() {
+                warnings.push(format!(
+                    "{} pair_id('s) wijken af van het patroon p-<16 hex>, bv. '{}'; ze worden als paar-id gebruikt.",
+                    malformed.len(),
+                    first
+                ));
+            }
+            pair_qc_warnings(&input.constructions, &real_room_ids, &mut warnings);
+        }
+    }
+
     for c in &input.constructions {
         if real_room_ids.contains(c.room_a.as_str()) {
             constructions_by_room
@@ -402,7 +501,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                 .or_default()
                 .push((c, ConstructionSide::A));
         }
-        if real_room_ids.contains(c.room_b.as_str()) {
+        if real_room_ids.contains(c.room_b.as_str()) && !paired(c) {
             constructions_by_room
                 .entry(c.room_b.as_str())
                 .or_default()
@@ -425,6 +524,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
             .filter(|c| {
                 real_room_ids.contains(c.room_a.as_str())
                     && real_room_ids.contains(c.room_b.as_str())
+                    && !paired(c)
             })
             .collect();
         let mut reported: std::collections::HashSet<&str> = std::collections::HashSet::new();
@@ -1726,6 +1826,7 @@ mod tests {
                     revit_type_name: Some("Wand met pui".to_string()),
                     layers: vec![],
                                     vertices: None,
+                    pair_id: None,
 },
                 // Normal construction with area.
                 ThermalConstruction {
@@ -1739,6 +1840,7 @@ mod tests {
                     revit_type_name: Some("Spouwmuur".to_string()),
                     layers: vec![],
                                     vertices: None,
+                    pair_id: None,
 },
             ],
             openings: vec![
@@ -1860,6 +1962,7 @@ mod tests {
                         },
                     ],
                                     vertices: None,
+                    pair_id: None,
 },
                 ThermalConstruction {
                     id: "c2".to_string(),
@@ -1901,6 +2004,7 @@ mod tests {
                         },
                     ],
                                     vertices: None,
+                    pair_id: None,
 },
                 ThermalConstruction {
                     id: "c3".to_string(),
@@ -1942,6 +2046,7 @@ mod tests {
                         },
                     ],
                                     vertices: None,
+                    pair_id: None,
 },
             ],
             openings: vec![],
@@ -2127,6 +2232,7 @@ mod tests {
                         lambda: Some(1.0),
                     }],
                                     vertices: None,
+                    pair_id: None,
 },
                 ThermalConstruction {
                     id: "c2".to_string(),
@@ -2145,6 +2251,7 @@ mod tests {
                         lambda: Some(1.0),
                     }],
                                     vertices: None,
+                    pair_id: None,
 },
                 // Different layer fingerprint (different material), same boundary_type → should NOT group.
                 ThermalConstruction {
@@ -2164,6 +2271,7 @@ mod tests {
                         lambda: Some(0.25),
                     }],
                                     vertices: None,
+                    pair_id: None,
 },
             ],
             openings: vec![],
@@ -2266,6 +2374,7 @@ mod tests {
             revit_type_name: Some(revit_type.to_string()),
             layers: vec![],
                     vertices: None,
+            pair_id: None,
 }
     }
 
@@ -2556,6 +2665,7 @@ mod tests {
             revit_type_name: None,
             layers,
                     vertices: None,
+            pair_id: None,
 }
     }
 
@@ -3537,6 +3647,7 @@ mod tests {
                     lambda: Some(2.5),
                 }],
                             vertices: None,
+                pair_id: None,
 }],
             openings: vec![],
             open_connections: vec![],

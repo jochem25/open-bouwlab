@@ -242,6 +242,32 @@ ruimtepaar komt van één kant; 0 paren die ook omgekeerd voorkomen (twee projec
 27 constructies). Een v1.1-bestand van die bron geeft dus geen dubbel-geleverd-waarschuwing. De
 `_vlakken.ifc` tekent wel beide kanten; dat is de viewer, niet het contract.
 
+## Contract v1.2: `pair_id` (2026-10-06)
+
+Aanleiding: de twee kanten van een scheiding zijn niet gelijk. Gemeten door ifc-ruimtebalans
+op een projectmodel: 41 van 56 ruimteparen verschillen > 1 % en 20 > 5 % in oppervlak (andere
+vrije hoogte, aansluitende wanden), 11 paren hebben een andere opbouw. Spiegelen geeft de tweede
+ruimte dus niet zijn eigen ISSO 51-vertrekmaat. Afgestemd met ifc-ruimtebalans (schema-eigenaar:
+Open Bouwlab).
+
+| Onderwerp | Regel |
+|---|---|
+| `version` | `"1.2"` naast `"1.0"`/`"1.1"` (schema-enum, API-handler, frontend-parser) |
+| `constructions[].pair_id` | optioneel, `^p-[0-9a-f]{16}$` (`p-` + 16 hex, bv. sha256 van de twee gesorteerde room-id's). **Per kamerpaar**, niet per vlak: de vlakken van de twee kanten zijn niet 1-op-1 |
+| Semantiek | Alle constructies tussen X en Y die van beide kanten gemeten zijn dragen dezelfde `pair_id`; per constructie `room_a` = eigen ruimte, `room_b` = buur |
+| Ontvanger | Constructie met `pair_id` hoort alleen bij `room_a`: **niet** spiegelen. `room_b` blijft de buur voor zijn temperatuur. Transmissie tussen de twee ruimten komt per ruimte uit de eigen kant |
+| Zonder `pair_id` | v1.1-regel (één keer leveren, ontvanger spiegelt). Zo blijven holte-paren en eenzijdig gemeten paren werken; mengen binnen één bestand mag |
+| Openingen | per kant geleverd, eigen `id` en `construction_id` van die kant (op een gepaarde constructie spiegelt de opening niet mee) |
+| `open_connections` | ongewijzigd: één keer per paar, geen `pair_id` |
+| `pair_id` in v1.0/v1.1 | genegeerd met waarschuwing; v1.1-gedrag |
+| Afwijkend patroon | gebruikt als paar-id, met waarschuwing |
+| QC (informatief, waarschuwing) | per `pair_id`: één kant ontbreekt (de andere ruimte krijgt de scheiding dan niet), of de som van het bruto oppervlak per kant verschilt > 5 %. Niet middelen of corrigeren |
+| v1.1-melding "van beide kanten" | alleen voor constructies zonder `pair_id` |
+
+Tests: `crates/isso51-core/tests/thermal_v12_test.rs` (synthetisch: ongelijke vrije hoogte 2,6/3,0 m,
+deur per kant, verwachting met de hand). Regressie: de v1.1-fixtures in de repo en twee v1.1-
+leveringen van ifc-ruimtebalans geven een byte-identieke import t.o.v. de code van vóór v1.2.
+
 ## Genomen besluiten (review 2026-04-09)
 
 | # | Vraag | Besluit |
