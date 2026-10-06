@@ -3,6 +3,20 @@ name: Build & Push
 on:
   push:
     branches: [main]
+    # Geen image-build voor commits die alleen docs/tests raken. `paths` met
+    # negaties i.p.v. `paths-ignore`, omdat tests/verification/ build-input is
+    # (Dockerfile COPY; frontend/src/content/help/verificationData.ts) en
+    # alleen `paths` een uitzondering kan terugzetten. Volgorde telt: het
+    # laatste passende patroon wint.
+    paths:
+      - "**"
+      - "!docs/**"
+      - "!tests/**"
+      - "tests/verification/**"
+      - "!crates/*/tests/**"
+      - "!mockups/**"
+      - "!audit-reports/**"
+      - "!**/*.md"
 
 concurrency:
   group: build
