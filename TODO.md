@@ -394,6 +394,7 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [ ] **ifc-tool: server en desktop draaien verschillend** — server `--no-close-gaps` (`handlers/ifc_import.rs`), desktop zonder (`src-tauri/src/commands.rs`). Vervalt bij vervanging; tot dan bekend verschil.
 - [x] **Thermal-import: gespiegelde zijde draait oriëntatie om ✅ (05-10, branch `fix/spiegelzijde`)** — zijde B: floor↔ceiling, roof→floor; lagen bewust in room_a-volgorde (catalogus); waarschuwing bij een paar dat van beide kanten binnenkomt. Spec: `docs/thermal-import-construction-catalog-spec.md` § Spiegelregel.
 - [x] **Thermal-import v1.2 `pair_id` ✅ (06-10, branch `fix/thermal-v12`)** — scheidingen per kant (eigen vertrekmaat), niet gespiegeld; QC bij ontbrekende kant of > 5 % verschil; v1.1 byte-identiek. Spec § Contract v1.2.
+  - [x] **Bronfixture v1.2 (06-10, branch `test/v12-fixture`)** — synthetische levering van ifc-ruimtebalans (ongelijke vrije hoogte, deur per kant) byte-identiek in `tests/fixtures/thermal-import-v12-ongelijke-hoogte.json`; `tests/thermal_v12_fixture_test.rs` 3 tests, verwachting met de hand; tegenproef op 5e7f9a8: 2 falen.
 - [ ] **pyRevit-exporter (`revit-raycast`) levert binnenwanden van beide kanten** — fixture `thermal-import-v11-geometry.json`: 33 van 37 ruimteparen dubbel (23 binnen 5 % oppervlak). Met de spiegeling van de ontvanger staan die wanden per ruimte dubbel → H_T,ia te hoog/te laag. Exporter (pyrevit-repo) naar één kant per scheiding, of besluit [USER] om de ontvanger te laten ontdubbelen.
 
 ---
