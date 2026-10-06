@@ -306,6 +306,10 @@ struct RawSurface {
     boundary_type: BoundaryType,
     orientation: ThermalOrientation,
     revit_type_name: Option<String>,
+    /// `true` for the room_b side (orientation mirrored by the importer).
+    /// Used to keep the catalog's `used_for` order deterministic: the
+    /// delivered (room_a) orientation first.
+    mirrored: bool,
     /// Net area of this single surface in m².
     area_m2: f64,
     /// Coordinates back into the per-room result so we can set
@@ -427,7 +431,12 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
         for (i, c1) in between_real.iter().enumerate() {
             for c2 in between_real.iter().skip(i + 1) {
                 let opposite_sides = c1.room_a == c2.room_b && c1.room_b == c2.room_a;
-                if !opposite_sides || c2.orientation != c1.orientation.mirrored() {
+                // Beide richtingen: `roof` spiegelt naar `floor`, maar `floor`
+                // spiegelt naar `ceiling` - zonder de tweede vergelijking hangt
+                // de melding af van de volgorde in het bestand.
+                let mirrored_pair = c2.orientation == c1.orientation.mirrored()
+                    || c1.orientation == c2.orientation.mirrored();
+                if !opposite_sides || !mirrored_pair {
                     continue;
                 }
                 let max_area = c1.gross_area_m2.max(c2.gross_area_m2);
@@ -438,7 +447,9 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                 }
                 if reported.insert(c2.id.as_str()) {
                     warnings.push(format!(
-                        "Constructies '{}' en '{}' lijken dezelfde scheiding tussen '{}' en '{}' van beide kanten                          ({:.2} / {:.2} m²). De import maakt de tweede kant zelf; lever een scheiding één keer,                          anders telt hij dubbel.",
+                        "Constructies '{}' en '{}' lijken dezelfde scheiding tussen '{}' en '{}' van beide kanten \
+                         ({:.2} / {:.2} m²). De import maakt de tweede kant zelf; lever een scheiding één keer, \
+                         anders telt hij dubbel.",
                         c1.id, c2.id, c1.room_a, c1.room_b, c1.gross_area_m2, c2.gross_area_m2
                     ));
                 }
@@ -487,6 +498,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
             orientation: ThermalOrientation,
             layers: Vec<ThermalLayer>,
             adjacent_room_id: Option<String>,
+            mirrored: bool,
         }
         let mut grouping_infos: Vec<GroupingInfo> = Vec::new();
 
@@ -530,7 +542,13 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                 // het rekenresultaat per vertrek.
                 let orientation = match side {
                     ConstructionSide::A => construction.orientation,
-                    ConstructionSide::B => construction.orientation.mirrored(),
+                    // Alleen spiegelen als room_a een echte ruimte is. Een pseudo-
+                    // room als room_a (outside/ground/water) is buiten contract;
+                    // dan blijft de geleverde orientatie staan (gedrag van voor 05-10).
+                    ConstructionSide::B if real_room_ids.contains(construction.room_a.as_str()) => {
+                        construction.orientation.mirrored()
+                    }
+                    ConstructionSide::B => construction.orientation,
                 };
 
                 let vertical_position = match orientation {
@@ -634,6 +652,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                     orientation,
                     layers: construction.layers.clone(),
                     adjacent_room_id,
+                    mirrored: orientation != construction.orientation,
                 });
 
                 // Map openings as separate ConstructionElements (not grouped).
@@ -907,6 +926,7 @@ pub fn map_thermal_import(input: ThermalImport) -> ThermalImportResult {
                 raw_surfaces.push(RawSurface {
                     fingerprint: layer_fingerprint(&raw_info.layers),
                     layers: raw_info.layers.clone(),
+                    mirrored: raw_info.mirrored,
                     boundary_type: raw_info.boundary_type,
                     orientation: raw_info.orientation,
                     revit_type_name: if raw_info.revit_type_name == "onbekend" {
@@ -1104,17 +1124,31 @@ fn build_construction_catalog(
     let mut pending: Vec<Pending> = Vec::with_capacity(order.len());
     for fingerprint in &order {
         let indices = &groups[fingerprint];
-        let first = &raw_surfaces[indices[0]];
+        // Geleverde kant (room_a) eerst: `used_for[0]` en de naam volgen dan de
+        // bron-orientatie, onafhankelijk van de volgorde van `rooms[]`.
+        let first_idx = indices
+            .iter()
+            .copied()
+            .find(|&i| !raw_surfaces[i].mirrored)
+            .unwrap_or(indices[0]);
+        let first = &raw_surfaces[first_idx];
 
         // Sum total area + count + collect distinct (boundary, orientation).
         let mut total_area = 0.0;
         let mut used_for: Vec<(BoundaryType, ThermalOrientation)> = Vec::new();
         for &i in indices {
-            let s = &raw_surfaces[i];
-            total_area += s.area_m2;
-            let combo = (s.boundary_type, s.orientation);
-            if !used_for.contains(&combo) {
-                used_for.push(combo);
+            total_area += raw_surfaces[i].area_m2;
+        }
+        for pass_mirrored in [false, true] {
+            for &i in indices {
+                let s = &raw_surfaces[i];
+                if s.mirrored != pass_mirrored {
+                    continue;
+                }
+                let combo = (s.boundary_type, s.orientation);
+                if !used_for.contains(&combo) {
+                    used_for.push(combo);
+                }
             }
         }
 
