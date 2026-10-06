@@ -192,9 +192,16 @@ De 8 huidige pagina's mappen als volgt naar het Ribbon-model:
 
 **ALTIJD uitvoeren aan het einde van elke sessie** (of na een significante mijlpaal):
 
-Schrijf een update naar `SESSION_STATUS.md` in deze repo (sinds 21-09-2026; de
-orchestrator bestaat niet meer, de handoff reist met de repo mee). Ouder werk:
+Schrijf een update naar `SESSION_STATUS.md` in de werkmap. Dat bestand is **lokaal**:
+het staat bewust in `.gitignore` (publieke repo; het bevat projectnummers, digests en
+werknotities) en reist dus NIET mee met de repo (besluit Jochem 06-10-2026). Ouder werk:
 `D:\dev\infra\infra-log\archief\warmteverlies_*.md` (alles van voor 21-09).
+
+Wat wel met de repo mee moet reizen, gaat naar een gecommit bestand, zonder klantdata
+(geen adressen, straatnamen of klant-/projectnamen; projectnr-vorm mag):
+- gedragswijziging voor gebruikers of API -> `CHANGELOG.md`
+- norminterpretatie, contract, ontwerpbesluit -> `docs/` (datum-prefix)
+- open werk -> `TODO.md`
 
 Gebruik dit formaat:
 ```markdown
