@@ -1,0 +1,82 @@
+[
+  {
+    "naam": "C14",
+    "f_m_k": 14,
+    "f_v_k": 3.0,
+    "e_0_mean": 7000,
+    "e_0_05": 4700,
+    "rho_k": 290,
+    "rho_mean": 350,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C16",
+    "f_m_k": 16,
+    "f_v_k": 3.2,
+    "e_0_mean": 8000,
+    "e_0_05": 5400,
+    "rho_k": 310,
+    "rho_mean": 370,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C18",
+    "f_m_k": 18,
+    "f_v_k": 3.4,
+    "e_0_mean": 9000,
+    "e_0_05": 6000,
+    "rho_k": 320,
+    "rho_mean": 380,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C20",
+    "f_m_k": 20,
+    "f_v_k": 3.6,
+    "e_0_mean": 9500,
+    "e_0_05": 6400,
+    "rho_k": 330,
+    "rho_mean": 390,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C22",
+    "f_m_k": 22,
+    "f_v_k": 3.8,
+    "e_0_mean": 10000,
+    "e_0_05": 6700,
+    "rho_k": 340,
+    "rho_mean": 410,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C24",
+    "f_m_k": 24,
+    "f_v_k": 4.0,
+    "e_0_mean": 11000,
+    "e_0_05": 7400,
+    "rho_k": 350,
+    "rho_mean": 420,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C27",
+    "f_m_k": 27,
+    "f_v_k": 4.0,
+    "e_0_mean": 11500,
+    "e_0_05": 7700,
+    "rho_k": 370,
+    "rho_mean": 450,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  },
+  {
+    "naam": "C30",
+    "f_m_k": 30,
+    "f_v_k": 4.0,
+    "e_0_mean": 12000,
+    "e_0_05": 8000,
+    "rho_k": 380,
+    "rho_mean": 460,
+    "bron": "EN 338 sterkteklassen, secundaire bron, te verifieren"
+  }
+]

@@ -164,7 +164,10 @@ impl Toets {
             ToetsStatus::NietGetoetst {
                 blokkeert_advies, ..
             } => *blokkeert_advies,
-            ToetsStatus::Voldoet | ToetsStatus::Aanname { .. } => false,
+            // Een aanname mag een overschrijding nooit maskeren: UC > 1 blokkeert altijd.
+            ToetsStatus::Voldoet | ToetsStatus::Aanname { .. } => {
+                self.uc.is_some_and(|uc| uc > 1.0)
+            }
         }
     }
 }
@@ -271,6 +274,22 @@ mod tests {
         // afgerond 1,00 maar onafgerond > 1: voldoet niet.
         assert_eq!(fmt_uc(t.uc.unwrap()), "1,00");
         assert!(matches!(t.status, ToetsStatus::VoldoetNiet));
+    }
+
+    #[test]
+    fn aanname_met_uc_boven_een_blokkeert() {
+        let basis = Toets::nieuw("x", "x", "a <= b", Bron::basis("EC5", "7.3.3"))
+            .waarden(1.5, 1.0, "-")
+            .uc_uit_waarden();
+        assert!(basis.blokkeert());
+        let aanname = basis.aanname("aanname");
+        assert!(matches!(aanname.status, ToetsStatus::Aanname { .. }));
+        assert!(aanname.blokkeert());
+        let ok = Toets::nieuw("x", "x", "a <= b", Bron::basis("EC5", "7.3.3"))
+            .waarden(0.9, 1.0, "-")
+            .uc_uit_waarden()
+            .aanname("aanname");
+        assert!(!ok.blokkeert());
     }
 
     #[test]

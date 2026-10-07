@@ -6,6 +6,7 @@ import { Select } from "../ui/Select";
 import type {
   Gebouwtype,
   Gebruiksfunctie,
+  Houtklasse,
   Materiaal,
   Milieuklasse,
   Reeks,
@@ -34,6 +35,9 @@ const WANDEN: Scheidingswanden[] = ["geen", "tot_een", "tot_twee", "tot_drie"];
 const STAALSOORTEN: Staalsoort[] = ["S235", "S275", "S355"];
 const REEKSEN: Reeks[] = ["IPE", "HEA", "HEB"];
 const STERKTEKLASSEN: Sterkteklasse[] = ["C20/25", "C25/30", "C30/37", "C35/45"];
+const HOUTKLASSEN: Houtklasse[] = ["C14", "C16", "C18", "C20", "C22", "C24", "C27", "C30"];
+const HOH_WAARDEN = [300, 400, 500, 600];
+const HOUT_BREEDTES = [46, 58, 71, 96];
 const MILIEUKLASSEN: Milieuklasse[] = ["XC1", "XC3"];
 
 function Vink({
@@ -170,14 +174,16 @@ export function InvoerKolom({ materiaal, waarde: f, onChange }: Props) {
           value={f.overspanning_m ?? ""}
           onChange={num("overspanning_m")}
         />
-        <Input
-          id={`${idPrefix}-belastingbreedte`}
-          type="number"
-          label={t("constructie.invoer.belastingbreedte")}
-          unit="m"
-          value={f.belastingbreedte_m ?? ""}
-          onChange={num("belastingbreedte_m")}
-        />
+        {!(materiaal === "hout" && f.hout_element === "balklaag") && (
+          <Input
+            id={`${idPrefix}-belastingbreedte`}
+            type="number"
+            label={t("constructie.invoer.belastingbreedte")}
+            unit="m"
+            value={f.belastingbreedte_m ?? ""}
+            onChange={num("belastingbreedte_m")}
+          />
+        )}
         <Input
           id={`${idPrefix}-permanent`}
           type="number"
@@ -210,7 +216,107 @@ export function InvoerKolom({ materiaal, waarde: f, onChange }: Props) {
         />
       </fieldset>
 
-      {materiaal === "staal" ? (
+      {materiaal === "hout" ? (
+        <>
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-1 font-heading text-sm font-medium text-on-surface">
+              {t("constructie.invoer.groepen.hout")}
+            </legend>
+            <Select
+              id={`${idPrefix}-element`}
+              label={t("constructie.invoer.houtElement")}
+              value={f.hout_element}
+              options={opties("houtElement", ["balklaag", "balk"] as const)}
+              onChange={(e) => onChange({ hout_element: e.target.value as Formulier["hout_element"] })}
+            />
+            {f.hout_element === "balklaag" && (
+              <Select
+                id={`${idPrefix}-hoh`}
+                label={t("constructie.invoer.hoh")}
+                value={String(f.hoh_mm ?? 400)}
+                options={HOH_WAARDEN.map((h) => ({ value: String(h), label: `${h} mm` }))}
+                onChange={(e) => onChange({ hoh_mm: Number(e.target.value) })}
+              />
+            )}
+            <Select
+              id={`${idPrefix}-houtklasse`}
+              label={t("constructie.invoer.sterkteklasse")}
+              value={f.houtklasse}
+              options={HOUTKLASSEN.map((s) => ({ value: s, label: s }))}
+              onChange={(e) => onChange({ houtklasse: e.target.value as Houtklasse })}
+            />
+            <Select
+              id={`${idPrefix}-houtbreedte`}
+              label={t("constructie.invoer.houtBreedte")}
+              value={String(f.hout_breedte_mm ?? 71)}
+              options={HOUT_BREEDTES.map((b) => ({ value: String(b), label: `${b} mm` }))}
+              onChange={(e) => onChange({ hout_breedte_mm: Number(e.target.value) })}
+            />
+            <Vink
+              label={t("constructie.invoer.hoogteAutomatisch")}
+              checked={f.hoogte_automatisch}
+              onChange={(v) => onChange({ hoogte_automatisch: v })}
+            />
+            {!f.hoogte_automatisch && (
+              <Input
+                id={`${idPrefix}-hoogte`}
+                type="number"
+                label={t("constructie.invoer.hoogte")}
+                unit="mm"
+                value={f.hoogte_mm ?? ""}
+                onChange={num("hoogte_mm")}
+              />
+            )}
+            <Select
+              id={`${idPrefix}-klimaatklasse`}
+              label={t("constructie.invoer.klimaatklasse")}
+              value={String(f.klimaatklasse)}
+              options={[
+                { value: "1", label: "1" },
+                { value: "2", label: "2" },
+              ]}
+              onChange={(e) => onChange({ klimaatklasse: e.target.value === "2" ? 2 : 1 })}
+            />
+            <Vink
+              label={t("constructie.invoer.drukrandGesteund")}
+              checked={f.drukrand_gesteund}
+              onChange={(v) => onChange({ drukrand_gesteund: v })}
+            />
+          </fieldset>
+          {f.hout_element === "balklaag" && (
+            <fieldset className="flex flex-col gap-3" data-testid="vloerplaat-blok">
+              <legend className="mb-1 font-heading text-sm font-medium text-on-surface">
+                {t("constructie.invoer.groepen.vloerplaat")}
+              </legend>
+              <Input
+                id={`${idPrefix}-plaatdikte`}
+                type="number"
+                label={t("constructie.invoer.vloerplaatDikte")}
+                unit="mm"
+                value={f.vloerplaat_dikte_mm ?? ""}
+                onChange={num("vloerplaat_dikte_mm")}
+              />
+              <Input
+                id={`${idPrefix}-plaat-e`}
+                type="number"
+                label={t("constructie.invoer.vloerplaatE")}
+                unit="N/mm²"
+                value={f.vloerplaat_e_n_mm2 ?? ""}
+                onChange={num("vloerplaat_e_n_mm2")}
+              />
+              <p className="text-xs text-on-surface-secondary">{t("constructie.invoer.vloerplaatEHelp")}</p>
+              <Input
+                id={`${idPrefix}-vloerbreedte`}
+                type="number"
+                label={t("constructie.invoer.vloerbreedte")}
+                unit="m"
+                value={f.vloerbreedte_m ?? ""}
+                onChange={num("vloerbreedte_m")}
+              />
+            </fieldset>
+          )}
+        </>
+      ) : materiaal === "staal" ? (
         <fieldset className="flex flex-col gap-3">
           <legend className="mb-1 font-heading text-sm font-medium text-on-surface">
             {t("constructie.invoer.groepen.staal")}

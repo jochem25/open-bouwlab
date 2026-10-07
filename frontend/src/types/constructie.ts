@@ -68,7 +68,36 @@ export interface BetonInvoer {
   d_g_mm: number;
 }
 
-export type Materiaal = "staal" | "beton";
+export type Houtklasse = "C14" | "C16" | "C18" | "C20" | "C22" | "C24" | "C27" | "C30";
+
+/** Serde-tag is `type` (intern getagd), varianten in snake_case. */
+export type HoutElement =
+  | { type: "balklaag"; hoh_mm: number }
+  | { type: "balk"; belastingbreedte_m: number };
+
+export interface Vloerplaat {
+  dikte_mm: number;
+  e_mean_n_mm2: number;
+}
+
+export interface HoutInvoer {
+  algemeen: AlgemeneInvoer;
+  element: HoutElement;
+  sterkteklasse: Houtklasse;
+  breedte_mm: number;
+  hoogte_automatisch: boolean;
+  hoogte_mm?: number;
+  klimaatklasse: 1 | 2;
+  drukrand_gesteund: boolean;
+  /** Alleen bij balklaag. */
+  vloerplaat?: Vloerplaat;
+  /** Alleen bij balklaag. */
+  vloerbreedte_m?: number;
+}
+
+export type ConstructieInvoer = StaalInvoer | BetonInvoer | HoutInvoer;
+
+export type Materiaal = "staal" | "beton" | "hout";
 
 export interface Bron {
   norm: string;

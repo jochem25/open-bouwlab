@@ -12,7 +12,7 @@
 - [ ] **Desktop/Tauri**: module verborgen in deel 1; rekenkern via Tauri-command later
 - [x] **O2 staal** (aanvulling planner 07-10): flensklasse, lijfplooigrens 72 eps/eta en M-V-reductie (6.29/6.30) zitten in de kern
 - [ ] **Open punten uit de spec**: O4 (profielbron), O7 (mu_1)
-- [ ] **Hout** (deel 2): wacht op O1, O3, O5
+- [ ] **Hout** (deel 2, branch `feat/constructie-hout`): kern + API klaar, golden H1 (met en zonder vloerplaat) groen tegen een onafhankelijk script; frontend Hout, review en merge volgen. Sterkteklassen uit een secundaire bron, te verifieren aan EN 338
 
 ## 🔥 Rekenkern: vloerverwarming fk = 0 + systeemverlies fvlw (2026-10-05, branch `fix/rekenkern-3076`)
 

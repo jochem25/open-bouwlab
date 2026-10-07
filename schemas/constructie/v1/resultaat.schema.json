@@ -405,7 +405,7 @@
           "format": "double"
         },
         "eigenfrequentie_hz": {
-          "description": "Eigenfrequentie in Hz, alleen indien berekend (in v1 niet).",
+          "description": "Eigenfrequentie in Hz, alleen indien berekend (hout, balklaag).",
           "type": [
             "number",
             "null"

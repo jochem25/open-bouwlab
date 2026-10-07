@@ -40,7 +40,7 @@ fn korrel_default() -> f64 {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Materiaal {
-    /// Hout: nog niet beschikbaar (deel 2).
+    /// Hout, massief naaldhout.
     Hout,
     /// Gewalste staalprofielen.
     Staal,
@@ -375,6 +375,153 @@ impl BetonInvoer {
     }
 }
 
+/// Sterkteklasse hout (naaldhout, EN 338).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+pub enum Houtklasse {
+    /// C14.
+    C14,
+    /// C16.
+    C16,
+    /// C18.
+    C18,
+    /// C20.
+    C20,
+    /// C22.
+    C22,
+    /// C24.
+    C24,
+    /// C27.
+    C27,
+    /// C30.
+    C30,
+}
+
+impl Houtklasse {
+    /// Naam van de klasse, zoals in de klassendata.
+    pub fn naam(self) -> &'static str {
+        match self {
+            Houtklasse::C14 => "C14",
+            Houtklasse::C16 => "C16",
+            Houtklasse::C18 => "C18",
+            Houtklasse::C20 => "C20",
+            Houtklasse::C22 => "C22",
+            Houtklasse::C24 => "C24",
+            Houtklasse::C27 => "C27",
+            Houtklasse::C30 => "C30",
+        }
+    }
+}
+
+/// Type houten element met de bijbehorende belastingstrook.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
+pub enum HoutElement {
+    /// Balklaag: balken op hart-op-hart-afstand; belastingstrook is gelijk aan de hoh-afstand.
+    Balklaag {
+        /// Hart-op-hart-afstand in mm (200 - 1200; gangbaar 300, 400, 500, 600).
+        hoh_mm: f64,
+    },
+    /// Losse balk met een opgegeven belastingbreedte.
+    Balk {
+        /// Belastingbreedte in m.
+        belastingbreedte_m: f64,
+    },
+}
+
+/// Vloerplaat (beplanking) op een balklaag; de stijfheid is invoer van de gebruiker.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Vloerplaat {
+    /// Plaatdikte in mm.
+    pub dikte_mm: f64,
+    /// Gemiddelde elasticiteitsmodulus in N/mm2 (bron: invoer gebruiker, per productsoort).
+    pub e_mean_n_mm2: f64,
+}
+
+fn breedte_default() -> f64 {
+    71.0
+}
+fn klimaatklasse_default() -> u8 {
+    1
+}
+
+/// Invoer voor een houten balk of balklaag.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct HoutInvoer {
+    /// Gemeenschappelijke invoer.
+    pub algemeen: Algemeen,
+    /// Type element en belastingstrook.
+    pub element: HoutElement,
+    /// Sterkteklasse.
+    pub sterkteklasse: Houtklasse,
+    /// Breedte in mm (assortiment 46, 58, 71, 96; andere waarden toegestaan).
+    #[serde(default = "breedte_default")]
+    pub breedte_mm: f64,
+    /// Hoogte automatisch kiezen uit het assortiment.
+    #[serde(default = "waar")]
+    pub hoogte_automatisch: bool,
+    /// Vaste hoogte in mm, verplicht als `hoogte_automatisch` onwaar is.
+    #[serde(default)]
+    pub hoogte_mm: Option<f64>,
+    /// Klimaatklasse (1 of 2).
+    #[serde(default = "klimaatklasse_default")]
+    #[schemars(range(min = 1, max = 2))]
+    pub klimaatklasse: u8,
+    /// Drukrand doorgaand gesteund (kip: k_crit = 1).
+    #[serde(default = "waar")]
+    pub drukrand_gesteund: bool,
+    /// Vloerplaat op de balklaag (alleen balklaag).
+    #[serde(default)]
+    pub vloerplaat: Option<Vloerplaat>,
+    /// Vloerbreedte B in m (dwars op de balken; alleen balklaag).
+    #[serde(default)]
+    pub vloerbreedte_m: Option<f64>,
+}
+
+impl HoutInvoer {
+    /// Controleer de invoer.
+    pub fn valideer(&self) -> Result<()> {
+        self.algemeen.valideer()?;
+        match self.element {
+            HoutElement::Balklaag { hoh_mm } => bereik("hoh_mm", hoh_mm, 200.0, 1200.0)?,
+            HoutElement::Balk { belastingbreedte_m } => {
+                bereik("belastingbreedte_m", belastingbreedte_m, 0.1, 30.0)?
+            }
+        }
+        bereik("breedte_mm", self.breedte_mm, 20.0, 400.0)?;
+        if !matches!(self.klimaatklasse, 1 | 2) {
+            return Err(ConstructieFout::Invoer(
+                "klimaatklasse moet 1 of 2 zijn".into(),
+            ));
+        }
+        if !self.hoogte_automatisch {
+            match self.hoogte_mm {
+                Some(h) => bereik("hoogte_mm", h, 50.0, 1000.0)?,
+                None => {
+                    return Err(ConstructieFout::Invoer(
+                        "hoogte_mm is verplicht als hoogte_automatisch onwaar is".into(),
+                    ))
+                }
+            }
+        }
+        if let Some(p) = &self.vloerplaat {
+            bereik("vloerplaat.dikte_mm", p.dikte_mm, 5.0, 100.0)?;
+            bereik("vloerplaat.e_mean_n_mm2", p.e_mean_n_mm2, 100.0, 30000.0)?;
+        }
+        if let Some(b) = self.vloerbreedte_m {
+            bereik("vloerbreedte_m", b, 1.0, 50.0)?;
+        }
+        let balklaag = matches!(self.element, HoutElement::Balklaag { .. });
+        if !balklaag && (self.vloerplaat.is_some() || self.vloerbreedte_m.is_some()) {
+            return Err(ConstructieFout::Invoer(
+                "vloerplaat en vloerbreedte_m gelden alleen voor een balklaag".into(),
+            ));
+        }
+        Ok(())
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Uitvoer
 // ---------------------------------------------------------------------------
@@ -458,7 +605,7 @@ pub struct Kengetallen {
     pub eigen_gewicht_kn_m: f64,
     /// Massa in kg/m (alleen staal).
     pub gewicht_kg_m: Option<f64>,
-    /// Eigenfrequentie in Hz, alleen indien berekend (in v1 niet).
+    /// Eigenfrequentie in Hz, alleen indien berekend (hout, balklaag).
     pub eigenfrequentie_hz: Option<f64>,
 }
 
@@ -533,3 +680,5 @@ pub struct Resultaat {
 pub type StaalResultaat = Resultaat;
 /// Resultaat voor beton.
 pub type BetonResultaat = Resultaat;
+/// Resultaat voor hout.
+pub type HoutResultaat = Resultaat;

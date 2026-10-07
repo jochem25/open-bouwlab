@@ -16,6 +16,15 @@ function bronTekst(bron: Bron, nbLabel: string): string {
 function StatusCel({ toets }: { toets: Toets }) {
   const { t } = useTranslation();
   const s = toets.status;
+  // Een aanname (of voldoet) met UC > 1 blokkeert het advies: nooit als aanname of voldoet tonen.
+  const overschreden = toets.uc !== null && toets.uc > 1;
+  if (overschreden && (s.status === "voldoet" || s.status === "aanname")) {
+    return (
+      <span className="font-medium text-[var(--theme-danger-color)]">
+        {t("constructie.status.voldoetNiet")}
+      </span>
+    );
+  }
   switch (s.status) {
     case "voldoet":
       return <span className="font-medium text-green-600">{t("constructie.status.voldoet")}</span>;

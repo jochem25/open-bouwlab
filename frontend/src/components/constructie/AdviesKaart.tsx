@@ -21,7 +21,7 @@ interface Props {
 export function AdviesKaart({ titel, materiaal, advies, materiaalTekst, overspanningM }: Props) {
   const { t } = useTranslation();
   const uc = maxUc(advies);
-  const groot = materiaal === "beton" && !advies.naam.includes("mm") ? `${advies.naam} mm` : advies.naam;
+  const groot = materiaal !== "staal" && !advies.naam.includes("mm") ? `${advies.naam} mm` : advies.naam;
   const b = advies.beton;
   return (
     <Card title={titel}>

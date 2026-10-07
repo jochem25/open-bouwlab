@@ -87,6 +87,12 @@ export function Uitkomst({
                     ` (${formatGetal(advies.kengetallen.gewicht_kg_m, 1)} kg/m)`}
                 </dd>
               </div>
+              {advies.kengetallen.eigenfrequentie_hz != null && (
+                <div>
+                  <dt className="text-xs text-on-surface-secondary">{t("constructie.kengetallen.eigenfrequentie")}</dt>
+                  <dd className="font-mono">{formatGetal(advies.kengetallen.eigenfrequentie_hz, 1)} Hz</dd>
+                </div>
+              )}
             </dl>
           </Card>
 
@@ -94,7 +100,7 @@ export function Uitkomst({
             <SchemaSvg
               overspanningM={overspanningM}
               qD={kandidaat?.tussenwaarden["q_d"]}
-              mEd={kandidaat?.tussenwaarden["m_ed"]}
+              mEd={kandidaat?.tussenwaarden["m_ed"] ?? kandidaat?.tussenwaarden["m_d"]}
             />
           </Card>
         </>
