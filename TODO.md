@@ -1,5 +1,15 @@
 # TODO
 
+## Constructiemodule deel 1 (2026-10-07, branch `feat/constructiemodule`, worktree)
+
+- [x] **Rekenkern `crates/constructie-core`**: staal en beton, belastingen en combinaties, advieslogica, rapport-JSON; goldens S1/B1 groen
+- [ ] **Golden S1 IPE 200 w_3**: genoteerd 8,6 mm, berekend 8,547 mm (UC klopt). Gemeld aan de planner, test `s1_gemelde_afwijking_ipe200_w3`
+- [ ] **API** `/api/v1/constructie/*` achter een Authentik-entitlement (naam: besluit planner)
+- [ ] **Frontend**: sidebar Constructie (Hout/Staal/Beton) en schermen volgens de mockup, met de vaste disclaimer
+- [ ] **Rapport A4** via openaec-reports: rapport-JSON valideren tegen het schema
+- [ ] **Open punten uit de spec**: O2 (formules EC3 6.18/6.22/rho, flensklasse), O4 (profielbron), O7 (mu_1)
+- [ ] **Hout** (deel 2): wacht op O1, O3, O5
+
 ## 🔥 Rekenkern: vloerverwarming fk = 0 + systeemverlies fvlw (2026-10-05, branch `fix/rekenkern-3076`)
 
 > Aanleiding: controle warmteverliesrapport projectnr. 3076 (02-10). Bevinding 1 (verwarmde vloer dubbel: in Φ_T én als systeemverlies) en 2 (Φ_sys = 0,111·Φ_HL,i i.p.v. fvlw tabel 2.17, en opgeteld bij het vertrekvermogen). Bevinding 3 (systeem C per vertrek) was al opgelost in `60d4ec5`, bevinding 4 (systeem D infiltratie in gebouwtotaal) in `ca5c0db`.

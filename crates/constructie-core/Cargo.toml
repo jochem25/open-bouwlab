@@ -1,0 +1,15 @@
+[package]
+name = "constructie-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Indicatieve voordimensionering van liggers (staal, beton) volgens de Eurocodes met Nederlandse nationale bijlagen"
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+schemars = "0.8"
+thiserror = "2"
+
+[dev-dependencies]
+approx = "0.5"
