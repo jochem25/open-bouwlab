@@ -1,13 +1,13 @@
 //! # constructie-core
 //!
 //! Rekenkern voor indicatieve voordimensionering van vrij opgelegde liggers
-//! (gewalst staal en gewapend beton) in het ontwerpstadium.
+//! (gewalst staal, gewapend beton en massief hout) in het ontwerpstadium.
 //!
 //! De kern is puur: geen I/O, geen async, geen unsafe. Invoer en uitvoer zijn
 //! serde-structs of JSON. Elke toets draagt een bronverwijzing (norm en artikel,
 //! nationale bijlage apart). De crate bevat geen normtekst.
 //!
-//! Het materiaal hout is in deze versie niet beschikbaar (deel 2).
+//! Sterkteklassewaarden van hout komen uit een secundaire bron en zijn te verifieren.
 //!
 //! ```rust,no_run
 //! use constructie_core::bereken_staal_from_json;
@@ -21,13 +21,17 @@ pub mod advies;
 pub mod belasting;
 pub mod beton;
 pub mod error;
+pub mod hout;
 pub mod model;
 pub mod rapport;
 pub mod staal;
 pub mod toets;
 
 pub use error::{ConstructieFout, Result};
-pub use model::{BetonInvoer, BetonResultaat, Materiaal, Resultaat, StaalInvoer, StaalResultaat};
+pub use model::{
+    BetonInvoer, BetonResultaat, HoutInvoer, HoutResultaat, Materiaal, Resultaat, StaalInvoer,
+    StaalResultaat,
+};
 pub use toets::fmt_uc;
 
 /// Versie van de rekenkern.
@@ -56,6 +60,11 @@ pub fn bereken_beton(invoer: &BetonInvoer) -> Result<BetonResultaat> {
     beton::bereken_beton(invoer)
 }
 
+/// Voordimensionering van een houten balk of balklaag.
+pub fn bereken_hout(invoer: &HoutInvoer) -> Result<HoutResultaat> {
+    hout::bereken_hout(invoer)
+}
+
 /// Als [`bereken_staal`], met JSON in en uit.
 pub fn bereken_staal_from_json(invoer_json: &str) -> Result<String> {
     let invoer: StaalInvoer = serde_json::from_str(invoer_json)?;
@@ -68,14 +77,18 @@ pub fn bereken_beton_from_json(invoer_json: &str) -> Result<String> {
     Ok(serde_json::to_string_pretty(&bereken_beton(&invoer)?)?)
 }
 
-/// Rekent met JSON voor het gekozen materiaal. Hout geeft [`ConstructieFout::NietBeschikbaar`].
+/// Als [`bereken_hout`], met JSON in en uit.
+pub fn bereken_hout_from_json(invoer_json: &str) -> Result<String> {
+    let invoer: HoutInvoer = serde_json::from_str(invoer_json)?;
+    Ok(serde_json::to_string_pretty(&bereken_hout(&invoer)?)?)
+}
+
+/// Rekent met JSON voor het gekozen materiaal.
 pub fn bereken_van_materiaal_json(materiaal: Materiaal, invoer_json: &str) -> Result<String> {
     match materiaal {
         Materiaal::Staal => bereken_staal_from_json(invoer_json),
         Materiaal::Beton => bereken_beton_from_json(invoer_json),
-        Materiaal::Hout => Err(ConstructieFout::NietBeschikbaar(
-            "hout is niet beschikbaar in deze versie (deel 2)".to_string(),
-        )),
+        Materiaal::Hout => bereken_hout_from_json(invoer_json),
     }
 }
 
@@ -89,7 +102,12 @@ pub fn beton_invoer_schema() -> String {
     schema_json(schemars::schema_for!(BetonInvoer))
 }
 
-/// JSON-schema van [`Resultaat`] (staal en beton).
+/// JSON-schema van [`HoutInvoer`].
+pub fn hout_invoer_schema() -> String {
+    schema_json(schemars::schema_for!(HoutInvoer))
+}
+
+/// JSON-schema van [`Resultaat`] (staal, beton en hout).
 pub fn resultaat_schema() -> String {
     schema_json(schemars::schema_for!(Resultaat))
 }
@@ -103,10 +121,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn hout_geeft_nette_fout() {
-        let e = bereken_van_materiaal_json(Materiaal::Hout, "{}").unwrap_err();
-        assert!(matches!(e, ConstructieFout::NietBeschikbaar(_)));
-        assert!(e.to_string().contains("deel 2"));
+    fn hout_via_materiaal_geeft_resultaat() {
+        let json = r#"{ "algemeen": { "overspanning_m": 4.2, "permanent_kn_m2": 0.75 },
+            "element": { "type": "balklaag", "hoh_mm": 400 }, "sterkteklasse": "C24" }"#;
+        let uit = bereken_van_materiaal_json(Materiaal::Hout, json).unwrap();
+        let r: Resultaat = serde_json::from_str(&uit).unwrap();
+        assert_eq!(r.disclaimer, DISCLAIMER);
+        assert!(!r.kandidaten.is_empty());
+        // Ongeldige invoer blijft een nette fout.
+        assert!(bereken_van_materiaal_json(Materiaal::Hout, "{}").is_err());
     }
 
     #[test]

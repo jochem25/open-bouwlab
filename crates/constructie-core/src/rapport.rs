@@ -8,9 +8,10 @@ use serde_json::{json, Value};
 
 use crate::belasting::{bepaal_belasting, combinatie};
 use crate::beton::{dekking, materiaal};
+use crate::hout::{k_def, k_mod, Duur, GAMMA_M, K_CR};
 use crate::model::{
-    Advies, BetonInvoer, BetonResultaat, Gebouwtype, Kandidaat, Resultaat, StaalInvoer,
-    StaalResultaat,
+    Advies, BetonInvoer, BetonResultaat, Gebouwtype, HoutElement, HoutInvoer, HoutResultaat,
+    Kandidaat, Resultaat, StaalInvoer, StaalResultaat,
 };
 use crate::toets::{fmt_getal, fmt_uc, Melding, MeldingSoort, Toets, ToetsStatus};
 use crate::{DISCLAIMER, KERN_VERSIE, NORMEDITIES};
@@ -31,6 +32,13 @@ pub enum RapportBerekening<'a> {
         invoer: &'a BetonInvoer,
         /// Resultaat.
         resultaat: &'a BetonResultaat,
+    },
+    /// Houten balk of balklaag.
+    Hout {
+        /// Invoer.
+        invoer: &'a HoutInvoer,
+        /// Resultaat.
+        resultaat: &'a HoutResultaat,
     },
 }
 
@@ -176,6 +184,15 @@ pub fn rapport_json(invoer: &RapportInvoer<'_>) -> Value {
             resultaat,
             beton_invoerrijen(i),
             beton_uitgangspunten(i, resultaat),
+        ),
+        RapportBerekening::Hout {
+            invoer: i,
+            resultaat,
+        } => (
+            "Voordimensionering houten balk of balklaag",
+            resultaat,
+            hout_invoerrijen(i),
+            hout_uitgangspunten(i, resultaat),
         ),
     };
 
@@ -346,6 +363,119 @@ fn beton_invoerrijen(i: &BetonInvoer) -> Vec<Vec<String>> {
         "Grootste korrelafmeting",
         format!("{} mm", fmt_getal(i.d_g_mm, 0)),
     ));
+    rijen
+}
+
+fn hout_invoerrijen(i: &HoutInvoer) -> Vec<Vec<String>> {
+    let mut rijen = algemene_invoerrijen(&i.algemeen);
+    let r = |n: &str, w: String| vec![n.to_string(), w];
+    match i.element {
+        HoutElement::Balklaag { hoh_mm } => {
+            rijen.push(r("Element", "balklaag".to_string()));
+            rijen.push(r(
+                "Hart-op-hart-afstand",
+                format!("{} mm", fmt_getal(hoh_mm, 0)),
+            ));
+        }
+        HoutElement::Balk { belastingbreedte_m } => {
+            rijen.push(r("Element", "balk".to_string()));
+            rijen.push(r(
+                "Belastingbreedte",
+                format!("{} m", fmt_getal(belastingbreedte_m, 2)),
+            ));
+        }
+    }
+    rijen.push(r("Sterkteklasse", i.sterkteklasse.naam().to_string()));
+    rijen.push(r("Breedte", format!("{} mm", fmt_getal(i.breedte_mm, 0))));
+    rijen.push(r(
+        "Hoogte",
+        if i.hoogte_automatisch {
+            "automatisch (assortiment 146 - 296 mm)".to_string()
+        } else {
+            format!("{} mm", fmt_getal(i.hoogte_mm.unwrap_or(0.0), 0))
+        },
+    ));
+    rijen.push(r("Klimaatklasse", i.klimaatklasse.to_string()));
+    rijen.push(r(
+        "Drukrand doorgaand gesteund",
+        ja_nee(i.drukrand_gesteund).to_string(),
+    ));
+    if let Some(p) = &i.vloerplaat {
+        rijen.push(r(
+            "Vloerplaat",
+            format!(
+                "dikte {} mm; E = {} N/mm2 (invoer gebruiker)",
+                fmt_getal(p.dikte_mm, 0),
+                fmt_getal(p.e_mean_n_mm2, 0)
+            ),
+        ));
+    }
+    if let Some(b) = i.vloerbreedte_m {
+        rijen.push(r("Vloerbreedte B", format!("{} m", fmt_getal(b, 2))));
+    }
+    rijen
+}
+
+fn hout_uitgangspunten(i: &HoutInvoer, res: &Resultaat) -> Vec<Vec<String>> {
+    let mut rijen = algemene_uitgangspunten(&i.algemeen, res);
+    rijen.push(vec![
+        format!("Klasse {}", i.sterkteklasse.naam()),
+        "waarden per klasse uit de klassendata van de kern".to_string(),
+        "EN 338 sterkteklassen, secundaire bron, te verifieren".to_string(),
+    ]);
+    if let Some(k) = res.kandidaten.first() {
+        let tw = &k.tussenwaarden;
+        if let (Some(kr), Some(f_m_d), Some(f_v_d)) =
+            (tw.get("k_r"), tw.get("f_m_d"), tw.get("f_v_d"))
+        {
+            rijen.push(vec![
+                "Reductiefactor puntlastmoment k_r".to_string(),
+                fmt_getal(*kr, 3),
+                "EC5 NB 5.2(5)".to_string(),
+            ]);
+            rijen.push(vec![
+                "f_m,d / f_v,d bij k_mod voor G + Q (eerste kandidaat)".to_string(),
+                format!("{} / {} N/mm2", fmt_getal(*f_m_d, 2), fmt_getal(*f_v_d, 2)),
+                "EC5 2.4.1 (2.14)".to_string(),
+            ]);
+        }
+    }
+    rijen.push(vec![
+        "k_mod blijvend / lang / middellang / kort / zeer kort".to_string(),
+        [
+            Duur::Blijvend,
+            Duur::Lang,
+            Duur::Middellang,
+            Duur::Kort,
+            Duur::ZeerKort,
+        ]
+        .iter()
+        .map(|d| fmt_getal(k_mod(*d), 2))
+        .collect::<Vec<_>>()
+        .join(" / "),
+        "EC5 tabel 3.1".to_string(),
+    ]);
+    rijen.push(vec![
+        "Belastingduur: eigen gewicht blijvend; vloerbelasting middellang; sneeuw en dak H kort"
+            .to_string(),
+        "kortste duur in de combinatie; G alleen met k_mod blijvend".to_string(),
+        "EC5 NB 2.3.1.2 tabel 2.2; EC5 2.3.1.2 tabel 2.1; 3.1.3(2)".to_string(),
+    ]);
+    rijen.push(vec![
+        "k_def".to_string(),
+        fmt_getal(k_def(i.klimaatklasse), 2),
+        "EC5 tabel 3.2".to_string(),
+    ]);
+    rijen.push(vec![
+        "gamma_M; k_cr".to_string(),
+        format!("{}; {}", fmt_getal(GAMMA_M, 2), fmt_getal(K_CR, 1)),
+        "EC5 tabel 2.3; EC5 NB 6.1.7(2)".to_string(),
+    ]);
+    rijen.push(vec![
+        "Eigen gewicht hout".to_string(),
+        "rho_mean / 100 kN/m3".to_string(),
+        "EC1-1 tabel A.3".to_string(),
+    ]);
     rijen
 }
 

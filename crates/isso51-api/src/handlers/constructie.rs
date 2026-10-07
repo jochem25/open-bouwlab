@@ -1,4 +1,4 @@
-//! Constructiemodule: voordimensionering van liggers (staal, beton).
+//! Constructiemodule: voordimensionering van liggers (staal, beton, hout).
 //!
 //! Alle routes vereisen een ingelogde gebruiker (`AuthClaims`, 401 zonder login)
 //! en het entitlement `constructie` (403 zonder), zie [`crate::entitlements`].
@@ -10,7 +10,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use constructie_core::rapport::{rapport_json, RapportBerekening, RapportInvoer};
-use constructie_core::{BetonInvoer, Materiaal, StaalInvoer};
+use constructie_core::{BetonInvoer, HoutInvoer, Materiaal, StaalInvoer};
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -48,6 +48,7 @@ pub fn constructie_routes() -> Router<AppState> {
     Router::new()
         .route("/constructie/staal", post(staal))
         .route("/constructie/beton", post(beton))
+        .route("/constructie/hout", post(hout))
         .route("/constructie/rapport", post(rapport))
         .route("/constructie/schema/{naam}", get(schema))
 }
@@ -83,6 +84,18 @@ async fn beton(
     let invoer: BetonInvoer =
         serde_json::from_str(&body).map_err(constructie_core::ConstructieFout::from)?;
     Ok(Json(constructie_core::bereken_beton(&invoer)?))
+}
+
+/// POST /constructie/hout — voordimensionering houten balk of balklaag.
+async fn hout(
+    State(state): State<AppState>,
+    AuthClaims(claims): AuthClaims,
+    body: String,
+) -> Result<Json<constructie_core::HoutResultaat>, ApiError> {
+    toegang(&state, &claims)?;
+    let invoer: HoutInvoer =
+        serde_json::from_str(&body).map_err(constructie_core::ConstructieFout::from)?;
+    Ok(Json(constructie_core::bereken_hout(&invoer)?))
 }
 
 /// Rekent opnieuw en bouwt de rapport-JSON. De disclaimer zit altijd in het
@@ -137,10 +150,15 @@ fn bouw_rapport(body: &str, claims: &OidcClaims) -> Result<Value, ApiError> {
                 resultaat: &resultaat,
             }))
         }
-        Materiaal::Hout => Err(ConstructieFout::NietBeschikbaar(
-            "hout is niet beschikbaar in deze versie (deel 2)".to_string(),
-        )
-        .into()),
+        Materiaal::Hout => {
+            let invoer: HoutInvoer =
+                serde_json::from_value(aanvraag.invoer).map_err(ConstructieFout::from)?;
+            let resultaat = constructie_core::bereken_hout(&invoer)?;
+            Ok(rapport(RapportBerekening::Hout {
+                invoer: &invoer,
+                resultaat: &resultaat,
+            }))
+        }
     }
 }
 
@@ -155,7 +173,7 @@ async fn rapport(
     super::report::proxy_report(&state, &claims, json.to_string()).await
 }
 
-/// GET /constructie/schema/{naam} — JSON-schema (`staal-invoer`, `beton-invoer`, `resultaat`).
+/// GET /constructie/schema/{naam} — JSON-schema (`staal-invoer`, `beton-invoer`, `hout-invoer`, `resultaat`).
 async fn schema(
     State(state): State<AppState>,
     AuthClaims(claims): AuthClaims,
@@ -165,6 +183,7 @@ async fn schema(
     let tekst = match naam.as_str() {
         "staal-invoer" => constructie_core::staal_invoer_schema(),
         "beton-invoer" => constructie_core::beton_invoer_schema(),
+        "hout-invoer" => constructie_core::hout_invoer_schema(),
         "resultaat" => constructie_core::resultaat_schema(),
         _ => return Err(ApiError::NotFound(format!("schema '{naam}' bestaat niet"))),
     };
@@ -180,6 +199,8 @@ mod tests {
     use tower::ServiceExt;
 
     const S1: &str = r#"{"algemeen":{"overspanning_m":5.4,"permanent_kn_m2":0.75,"gevolgklasse":"CC2"},"belastingbreedte_m":3.6,"staalsoort":"S235","reeksen":["IPE","HEA"]}"#;
+
+    const H1: &str = r#"{"algemeen":{"overspanning_m":4.2,"permanent_kn_m2":0.75,"eigen_gewicht_automatisch":false,"gevolgklasse":"CC2"},"element":{"type":"balklaag","hoh_mm":400},"sterkteklasse":"C24"}"#;
 
     async fn app() -> Router {
         let db = sqlx::sqlite::SqlitePoolOptions::new()
@@ -235,6 +256,47 @@ mod tests {
         let advies = serde_json::to_string(&json["advies"]).expect("advies");
         assert!(advies.contains("IPE 200"), "advies: {advies}");
         assert!(json["disclaimer"].as_str().is_some_and(|d| !d.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn hout_h1_met_entitlement_geeft_200_met_advies() {
+        let (status, json) = antwoord(
+            app().await,
+            verzoek(
+                "POST",
+                "/constructie/hout",
+                Some(DEFAULT_CONSTRUCTIE_GROUP),
+                H1,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["advies"]["naam"], "71 x 296");
+        assert!(json["disclaimer"].as_str().is_some_and(|d| !d.is_empty()));
+    }
+
+    #[tokio::test]
+    async fn hout_zonder_groep_403_en_onbekend_veld_422() {
+        let (status, json) = antwoord(
+            app().await,
+            verzoek("POST", "/constructie/hout", Some("andere-groep"), H1),
+        )
+        .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(json["error"], GEEN_TOEGANG);
+        let body = H1.replace("\"sterkteklasse\"", "\"onzin\":1,\"sterkteklasse\"");
+        let (status, json) = antwoord(
+            app().await,
+            verzoek(
+                "POST",
+                "/constructie/hout",
+                Some(DEFAULT_CONSTRUCTIE_GROUP),
+                &body,
+            ),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(json["detail"].as_str().is_some_and(|d| d.contains("onzin")));
     }
 
     #[tokio::test]
@@ -327,8 +389,11 @@ mod tests {
         assert_eq!(json["author"], "A. B.");
         let tekst = json.to_string();
         assert!(tekst.contains(constructie_core::DISCLAIMER));
-        // Hout en onbekende velden zijn invoerfouten.
+        // Lege hout-invoer en onbekende velden zijn invoerfouten.
         assert!(bouw_rapport(r#"{"materiaal":"hout","invoer":{}}"#, &claims).is_err());
+        let hout = format!(r#"{{"materiaal":"hout","invoer":{H1}}}"#);
+        let json = bouw_rapport(&hout, &claims).expect("hout-rapport");
+        assert!(json.to_string().contains(constructie_core::DISCLAIMER));
         assert!(bouw_rapport(r#"{"materiaal":"staal","invoer":{},"x":1}"#, &claims).is_err());
     }
 }

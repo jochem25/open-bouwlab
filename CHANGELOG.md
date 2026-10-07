@@ -40,6 +40,12 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - Norm-conformiteit regressie-tests WTW + infiltratie SystemD (659b658)
 - NTA8800-cooling Vabi-cross-validatie scaffold (51dc6ae)
 
+## [Unreleased] — 2026-10-07 (branch `feat/constructie-hout`)
+
+### Nieuw
+
+- **Constructiemodule hout (rekenkern + API)**: balk of balklaag van gezaagd naaldhout C14-C30 (EC5 met NB). Toetsen: buiging en afschuiving, ook onder alleen permanente belasting; kip; doorbuiging met kruip; trilling van woningvloeren (eigenfrequentie, doorbuiging onder 1 kN met lastspreiding b_ef, snelheidsrespons). `POST /api/v1/constructie/hout`. De sterkteklassewaarden komen uit een secundaire bron en worden nog geverifieerd aan EN 338. Een aanname met UC > 1 blokkeert het advies nu altijd.
+
 ## [Unreleased] — 2026-10-07 (branch `feat/constructiemodule`)
 
 ### Beveiliging

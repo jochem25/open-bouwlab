@@ -2,7 +2,9 @@
 //! (submodule `libs/openaec-reports`). Zonder uitgecheckte submodule wordt de test overgeslagen.
 
 use constructie_core::rapport::{rapport_json, RapportBerekening, RapportInvoer};
-use constructie_core::{bereken_beton, bereken_staal, BetonInvoer, StaalInvoer};
+use constructie_core::{
+    bereken_beton, bereken_hout, bereken_staal, BetonInvoer, HoutInvoer, StaalInvoer,
+};
 use serde_json::Value;
 
 const SCHEMA: &str = concat!(
@@ -59,6 +61,21 @@ fn b1_rapport_valideert() {
     .unwrap();
     let r = bereken_beton(&i).unwrap();
     valideer(&rapport_json(&invoer(RapportBerekening::Beton {
+        invoer: &i,
+        resultaat: &r,
+    })));
+}
+
+#[test]
+fn h1_rapport_valideert() {
+    let i: HoutInvoer = serde_json::from_str(
+        r#"{"algemeen":{"overspanning_m":4.2,"permanent_kn_m2":0.75,"eigen_gewicht_automatisch":false,"gevolgklasse":"CC2"},
+        "element":{"type":"balklaag","hoh_mm":400},"sterkteklasse":"C24",
+        "vloerplaat":{"dikte_mm":18,"e_mean_n_mm2":4000},"vloerbreedte_m":4.0}"#,
+    )
+    .unwrap();
+    let r = bereken_hout(&i).unwrap();
+    valideer(&rapport_json(&invoer(RapportBerekening::Hout {
         invoer: &i,
         resultaat: &r,
     })));
