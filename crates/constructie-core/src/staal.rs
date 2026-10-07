@@ -125,6 +125,14 @@ fn vloeigrens(staalsoort: Staalsoort, t: f64) -> f64 {
     }
 }
 
+/// Klasse 1, 2 of 3 uit c/t en de grenzen voor klasse 1-3; 4.0 als ook klasse 3 niet wordt gehaald.
+fn klasse_uit_grenzen(ct: f64, grenzen: [f64; 3]) -> f64 {
+    grenzen
+        .iter()
+        .position(|&g| ct <= g)
+        .map_or(4.0, |i| (i + 1) as f64)
+}
+
 fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaat {
     let alg = &invoer.algemeen;
     let fy = vloeigrens(invoer.staalsoort, p.t_f);
@@ -168,69 +176,99 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
         );
     }
 
-    // Dwarsdoorsnedeklasse (EC3 tabel 5.2).
+    // Dwarsdoorsnedeklasse (EC3 tabel 5.2): lijf inwendig deel op buiging (blad 1),
+    // flens uitstekend deel op druk (blad 2). Klasse 3/4 valt buiten scope v1.
     let c_lijf = p.h - 2.0 * p.t_f - 2.0 * p.r;
     let ct_lijf = c_lijf / p.t_w;
     let c_flens = (p.b - p.t_w - 2.0 * p.r) / 2.0;
     let ct_flens = c_flens / p.t_f;
     tw.insert("c_t_lijf".into(), ct_lijf);
     tw.insert("c_t_flens".into(), ct_flens);
-    let (klasse, grens_klasse) = if ct_lijf <= 72.0 * eps {
-        (1.0, 72.0 * eps)
-    } else if ct_lijf <= 83.0 * eps {
-        (2.0, 83.0 * eps)
-    } else {
-        (0.0, 83.0 * eps)
-    };
-    tw.insert("klasse_lijf".into(), klasse);
-    let mut t = Toets::nieuw(
-        "klasse_lijf",
-        "Dwarsdoorsnedeklasse lijf",
-        "c/t <= 72 eps (klasse 1), <= 83 eps (klasse 2)",
-        Bron::basis("EC3", "tabel 5.2"),
-    )
-    .waarden(ct_lijf, grens_klasse, "-");
-    if klasse == 0.0 {
-        t = t.niet_getoetst("lijf klasse 3 of 4: buiten scope v1", true);
-    }
-    toetsen.push(t);
-
-    // O2: flensgrens (tabel 5.2 blad 2) ontbreekt in de bron; niet getoetst.
-    toetsen.push(
-        Toets::nieuw(
+    let klasse_lijf = klasse_uit_grenzen(ct_lijf, [72.0 * eps, 83.0 * eps, 124.0 * eps]);
+    let klasse_flens = klasse_uit_grenzen(ct_flens, [9.0 * eps, 10.0 * eps, 14.0 * eps]);
+    tw.insert("klasse_lijf".into(), klasse_lijf);
+    tw.insert("klasse_flens".into(), klasse_flens);
+    for (id, naam, formule, ct, klasse, grens_kl2) in [
+        (
+            "klasse_lijf",
+            "Dwarsdoorsnedeklasse lijf",
+            "c/t <= 72 eps (klasse 1), <= 83 eps (klasse 2)",
+            ct_lijf,
+            klasse_lijf,
+            83.0 * eps,
+        ),
+        (
             "klasse_flens",
             "Dwarsdoorsnedeklasse flens",
-            "c/t flens (grens volgt)",
-            Bron::basis("EC3", "tabel 5.2"),
-        )
-        .aanname("flensklasse niet getoetst: grenswaarde volgt (O2); gewalste profielen aangenomen klasse 1/2"),
-    );
-    if let Some(t) = toetsen.last_mut() {
-        t.waarde = Some(ct_flens);
-        t.eenheid = "-".to_string();
+            "c/t <= 9 eps (klasse 1), <= 10 eps (klasse 2)",
+            ct_flens,
+            klasse_flens,
+            10.0 * eps,
+        ),
+    ] {
+        let mut t = Toets::nieuw(id, naam, formule, Bron::basis("EC3", "tabel 5.2"))
+            .waarden(ct, grens_kl2, "-");
+        if klasse > 2.0 {
+            t = t.niet_getoetst(
+                "klasse 3 of 4: elastische of effectieve doorsnede buiten scope v1 - constructeur",
+                true,
+            );
+        }
+        toetsen.push(t);
     }
 
-    // Buiging (EC3 6.2.5, formule 6.13).
-    let m_rd = p.w_pl_y * fy / 1e6;
-    tw.insert("m_pl_rd".into(), m_rd);
-    toetsen.push(
-        Toets::nieuw(
-            "buiging",
-            "Buiging",
-            "M_Ed <= M_pl,Rd",
-            Bron::basis("EC3", "6.2.5 (6.13)"),
-        )
-        .waarden(ugt.m_ed, m_rd, "kNm")
-        .uc_uit_waarden(),
-    );
-
-    // Dwarskracht (EC3 6.2.6(2), 6.2.6(3)a). O2 VERIFIEER 6.18: formule-afbeelding ontbreekt.
+    // Dwarskracht (EC3 6.2.6(2) formule 6.18, A_v volgens 6.2.6(3)a, eta = 1,0 veilige kant).
     let eta = 1.0;
     let h_w = p.h - 2.0 * p.t_f;
     let a_v = (p.a - 2.0 * p.b * p.t_f + (p.t_w + 2.0 * p.r) * p.t_f).max(eta * h_w * p.t_w);
     let v_rd = a_v * fy / 3f64.sqrt() / 1e3;
     tw.insert("a_v".into(), a_v);
     tw.insert("v_pl_rd".into(), v_rd);
+
+    // Interactie M-V (EC3 6.2.8(2)-(3), formules 6.29 en 6.30). Conservatief: V_Ed bij de
+    // oplegging gecombineerd met M_Ed in het veld.
+    let ratio_v = ugt.v_ed / v_rd;
+    let m_pl_rd = p.w_pl_y * fy / 1e6;
+    let (rho, m_rd) = if ratio_v <= 0.5 {
+        (0.0, m_pl_rd)
+    } else {
+        let rho = (2.0 * ratio_v - 1.0).powi(2);
+        let a_w = h_w * p.t_w;
+        let m_v_rd = (p.w_pl_y - rho * a_w * a_w / (4.0 * p.t_w)) * fy / 1e6;
+        (rho, m_v_rd.min(m_pl_rd))
+    };
+    tw.insert("rho_mv".into(), rho);
+    tw.insert("m_pl_rd".into(), m_pl_rd);
+    tw.insert("m_rd".into(), m_rd);
+    let mv = Toets::nieuw(
+        "interactie_mv",
+        "Interactie moment en dwarskracht",
+        "V_Ed <= 0,5 V_pl,Rd: geen reductie; anders M_y,V,Rd",
+        Bron::basis("EC3", "6.2.8 (6.29), (6.30)"),
+    )
+    .waarden(ratio_v, 0.5, "-");
+    toetsen.push(if rho > 0.0 {
+        mv.aanname("V_Ed > 0,5 V_pl,Rd: buigweerstand gereduceerd tot M_y,V,Rd")
+    } else {
+        mv
+    });
+
+    // Buiging (EC3 6.2.5, formule 6.13; klasse 1/2 plastisch).
+    toetsen.push(
+        Toets::nieuw(
+            "buiging",
+            "Buiging",
+            if rho > 0.0 {
+                "M_Ed <= M_y,V,Rd"
+            } else {
+                "M_Ed <= M_pl,Rd"
+            },
+            Bron::basis("EC3", "6.2.5 (6.13)"),
+        )
+        .waarden(ugt.m_ed, m_rd, "kNm")
+        .uc_uit_waarden(),
+    );
+
     toetsen.push(
         Toets::nieuw(
             "dwarskracht",
@@ -242,35 +280,26 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
         .uc_uit_waarden(),
     );
 
-    // Lijfplooi (EC3 6.2.6(6), formule 6.22). O2: grens ontbreekt in de bron.
-    toetsen.push(
-        Toets::nieuw(
-            "lijfplooi",
-            "Plooi van het lijf",
-            "lijfplooi (6.22)",
-            Bron::basis("EC3", "6.2.6(6) (6.22)"),
-        )
-        .aanname(
-            "lijfplooi niet getoetst: voor gewalste profielen niet maatgevend verondersteld (O2)",
-        ),
-    );
-
-    // Interactie M-V (EC3 6.2.8(2)). O2: rho-formule ontbreekt in de bron.
-    let ratio_v = ugt.v_ed / v_rd;
-    let mut t = Toets::nieuw(
-        "interactie_mv",
-        "Interactie moment en dwarskracht",
-        "V_Ed < 0,5 V_pl,Rd",
-        Bron::basis("EC3", "6.2.8(2)"),
+    // Lijfplooi (EC3 6.2.6(6), formule 6.22): toetsen volgens EN 1993-1-5 nodig als
+    // h_w/t_w > 72 eps/eta. Die toets zit niet in v1.
+    let hw_tw = h_w / p.t_w;
+    let grens_plooi = 72.0 * eps / eta;
+    tw.insert("h_w_t_w".into(), hw_tw);
+    let plooi = Toets::nieuw(
+        "lijfplooi",
+        "Plooi van het lijf",
+        "h_w/t_w <= 72 eps/eta",
+        Bron::basis("EC3", "6.2.6(6) (6.22)"),
     )
-    .waarden(ratio_v, 0.5, "-");
-    if ratio_v >= 0.5 {
-        t = t.niet_getoetst(
-            "V_Ed >= 0,5 V_pl,Rd: reductie van het moment (rho) niet beschikbaar in v1 - constructeur",
+    .waarden(hw_tw, grens_plooi, "-");
+    toetsen.push(if hw_tw > grens_plooi {
+        plooi.niet_getoetst(
+            "h_w/t_w > 72 eps/eta: plooitoets (EN 1993-1-5) buiten scope v1 - constructeur",
             true,
-        );
-    }
-    toetsen.push(t);
+        )
+    } else {
+        plooi
+    });
 
     // Kip (EC3 6.3.2.1(2)).
     let kip = Toets::nieuw(
@@ -380,6 +409,7 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::toets::ToetsStatus;
 
     fn invoer(json: &str) -> StaalInvoer {
         serde_json::from_str(json).unwrap()
@@ -434,5 +464,62 @@ mod tests {
         p.truncate(1);
         let r = bereken_staal_met_profielen(&invoer(BASIS), &p).unwrap();
         assert_eq!(r.kandidaten.len(), 1);
+    }
+
+    fn toets<'a>(k: &'a Kandidaat, id: &str) -> &'a Toets {
+        k.toetsen.iter().find(|t| t.id == id).unwrap()
+    }
+
+    #[test]
+    fn gewalste_profielen_zijn_klasse_1_en_lijfplooi_voldoet() {
+        let r = bereken_staal(&invoer(BASIS)).unwrap();
+        for k in &r.kandidaten {
+            assert_eq!(k.tussenwaarden["klasse_lijf"], 1.0, "{}", k.naam);
+            assert_eq!(k.tussenwaarden["klasse_flens"], 1.0, "{}", k.naam);
+            assert_eq!(toets(k, "lijfplooi").status, ToetsStatus::Voldoet);
+        }
+    }
+
+    #[test]
+    fn slanke_flens_is_klasse_4_en_blokkeert() {
+        let mut p = standaard_profielen().unwrap();
+        p.truncate(1);
+        p[0].b = 300.0;
+        let r = bereken_staal_met_profielen(&invoer(BASIS), &p).unwrap();
+        let k = &r.kandidaten[0];
+        assert_eq!(k.tussenwaarden["klasse_flens"], 4.0);
+        assert!(toets(k, "klasse_flens").blokkeert());
+        assert!(r.advies.is_none());
+    }
+
+    #[test]
+    fn klasse_uit_grenzen_randen() {
+        assert_eq!(klasse_uit_grenzen(9.0, [9.0, 10.0, 14.0]), 1.0);
+        assert_eq!(klasse_uit_grenzen(9.5, [9.0, 10.0, 14.0]), 2.0);
+        assert_eq!(klasse_uit_grenzen(14.0, [9.0, 10.0, 14.0]), 3.0);
+        assert_eq!(klasse_uit_grenzen(14.1, [9.0, 10.0, 14.0]), 4.0);
+    }
+
+    #[test]
+    fn hoge_dwarskracht_reduceert_buigweerstand() {
+        let json = r#"{ "algemeen": { "overspanning_m": 1.0, "permanent_kn_m2": 15.0 },
+            "belastingbreedte_m": 10.0, "staalsoort": "S235", "reeksen": ["IPE"] }"#;
+        let r = bereken_staal(&invoer(json)).unwrap();
+        let k = r.kandidaten.iter().find(|k| k.naam == "IPE 180").unwrap();
+        let t = &k.tussenwaarden;
+        let ratio = t["v_ed"] / t["v_pl_rd"];
+        assert!(ratio > 0.5, "ratio {ratio}");
+        let rho = (2.0 * ratio - 1.0).powi(2);
+        assert!((t["rho_mv"] - rho).abs() < 1e-12);
+        // (6.30) met h_w = h - 2 t_f, A_w = h_w t_w; IPE 180: h_w 164, t_w 5,3.
+        let a_w: f64 = 164.0 * 5.3;
+        let verwacht = (166.4e3 - rho * a_w * a_w / (4.0 * 5.3)) * 235.0 / 1e6;
+        assert!((t["m_rd"] - verwacht).abs() < 1e-9);
+        assert!(t["m_rd"] < t["m_pl_rd"]);
+        assert!(matches!(
+            toets(k, "interactie_mv").status,
+            ToetsStatus::Aanname { .. }
+        ));
+        assert_eq!(toets(k, "buiging").grens, Some(t["m_rd"]));
     }
 }

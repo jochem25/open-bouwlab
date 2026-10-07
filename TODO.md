@@ -7,7 +7,8 @@
 - [ ] **API** `/api/v1/constructie/*` achter een Authentik-entitlement (naam: besluit planner)
 - [ ] **Frontend**: sidebar Constructie (Hout/Staal/Beton) en schermen volgens de mockup, met de vaste disclaimer
 - [ ] **Rapport A4** via openaec-reports: rapport-JSON valideren tegen het schema
-- [ ] **Open punten uit de spec**: O2 (formules EC3 6.18/6.22/rho, flensklasse), O4 (profielbron), O7 (mu_1)
+- [x] **O2 staal** (aanvulling planner 07-10): flensklasse, lijfplooigrens 72 eps/eta en M-V-reductie (6.29/6.30) zitten in de kern
+- [ ] **Open punten uit de spec**: O4 (profielbron), O7 (mu_1)
 - [ ] **Hout** (deel 2): wacht op O1, O3, O5
 
 ## 🔥 Rekenkern: vloerverwarming fk = 0 + systeemverlies fvlw (2026-10-05, branch `fix/rekenkern-3076`)
