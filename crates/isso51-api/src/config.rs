@@ -30,6 +30,13 @@ pub struct Config {
     pub tenants_config: Option<String>,
     /// Default tenant slug (used when no tenant header in request).
     pub default_tenant: Option<String>,
+    /// Entitlement-gating voor de constructiemodule.
+    ///
+    /// Env `CONSTRUCTIE_ENTITLEMENT_GROUP`: Authentik-groep die toegang geeft
+    /// (default `openbouwlab-constructie`, exacte match).
+    /// Env `CONSTRUCTIE_ENABLED`: `false`/`0`/`no`/`off` zet de module voor
+    /// iedereen uit (default aan). Zie `crate::entitlements`.
+    pub entitlements: crate::entitlements::Config,
 }
 
 impl Config {
@@ -68,6 +75,7 @@ impl Config {
             default_tenant: env::var("DEFAULT_TENANT")
                 .ok()
                 .filter(|s| !s.is_empty()),
+            entitlements: crate::entitlements::Config::from_env(),
         }
     }
 }

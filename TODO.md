@@ -1,5 +1,19 @@
 # TODO
 
+## Constructiemodule deel 1 (2026-10-07, branch `feat/constructiemodule`, worktree)
+
+- [x] **Rekenkern `crates/constructie-core`**: staal en beton, belastingen en combinaties, advieslogica, rapport-JSON; goldens S1/B1 groen
+- [x] **Besluiten planner 07-10 verwerkt**: golden S1 IPE 200 w_3 = 8,5 (spec gecorrigeerd); dwarskracht uit puntlast Q_k bij oplegging (staal/beton); waarschuwing trilling beton niet getoetst; entitlement-groep openbouwlab-constructie bevestigd
+- [x] **API** `/api/v1/constructie/*` achter een Authentik-entitlement (env CONSTRUCTIE_ENTITLEMENT_GROUP, default openbouwlab-constructie, bevestigd)
+- [x] **Frontend**: sidebar Constructie (Hout/Staal/Beton) en schermen Staal/Beton, met de vaste disclaimer; end-to-end getest tegen de lokale API (met en zonder groep)
+- [x] **Rapport-JSON** valideert tegen het openaec-reports schema (test)
+- [ ] **Rapport-PDF visueel controleren** op de server (lokaal geen service-token; lokale MCP-brand faalt)
+- [ ] **Authentik**: groep aanmaken en Jochem toevoegen (infra, na akkoord)
+- [ ] **Desktop/Tauri**: module verborgen in deel 1; rekenkern via Tauri-command later
+- [x] **O2 staal** (aanvulling planner 07-10): flensklasse, lijfplooigrens 72 eps/eta en M-V-reductie (6.29/6.30) zitten in de kern
+- [ ] **Open punten uit de spec**: O4 (profielbron), O7 (mu_1)
+- [ ] **Hout** (deel 2): wacht op O1, O3, O5
+
 ## 🔥 Rekenkern: vloerverwarming fk = 0 + systeemverlies fvlw (2026-10-05, branch `fix/rekenkern-3076`)
 
 > Aanleiding: controle warmteverliesrapport projectnr. 3076 (02-10). Bevinding 1 (verwarmde vloer dubbel: in Φ_T én als systeemverlies) en 2 (Φ_sys = 0,111·Φ_HL,i i.p.v. fvlw tabel 2.17, en opgeteld bij het vertrekvermogen). Bevinding 3 (systeem C per vertrek) was al opgelost in `60d4ec5`, bevinding 4 (systeem D infiltratie in gebouwtotaal) in `ca5c0db`.

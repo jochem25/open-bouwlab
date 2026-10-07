@@ -3,11 +3,12 @@
 mod beng;
 mod calculation;
 mod cloud;
+mod constructie;
 mod cooling;
 mod ifc_import;
 mod ifcx;
 mod projects;
-mod report;
+pub(super) mod report;
 mod thermal_import;
 mod uniec_import;
 mod user;
@@ -15,6 +16,7 @@ mod user;
 pub use beng::beng_calculate;
 pub use uniec_import::import_uniec3_handler;
 pub use calculation::{calculate, calculate_v2, get_schema, health, list_schemas};
+pub use constructie::constructie_routes;
 pub use cooling::{simplified_cooling, tojuli_calculate};
 pub use cloud::{
     cloud_list_calculations, cloud_list_models, cloud_list_projects, cloud_save_calculation,

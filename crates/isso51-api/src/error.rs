@@ -30,6 +30,17 @@ pub enum ApiError {
     ReportService(String),
     /// Service not configured / unavailable.
     ServiceUnavailable(String),
+    /// Constructie-rekenkern: invoerfout of niet beschikbaar (HTTP 422).
+    Constructie(constructie_core::ConstructieFout),
+    /// Module niet geactiveerd voor dit account (HTTP 403). De tekst is de
+    /// letterlijke `error`-waarde in de response.
+    ModuleNietGeactiveerd(String),
+}
+
+impl From<constructie_core::ConstructieFout> for ApiError {
+    fn from(err: constructie_core::ConstructieFout) -> Self {
+        ApiError::Constructie(err)
+    }
 }
 
 impl From<sqlx::Error> for ApiError {
@@ -65,6 +76,32 @@ impl IntoResponse for ApiError {
             }
             ApiError::ServiceUnavailable(msg) => {
                 (StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", msg)
+            }
+            ApiError::Constructie(err) => {
+                use constructie_core::ConstructieFout;
+                match &err {
+                    ConstructieFout::Json(_) => {
+                        (StatusCode::UNPROCESSABLE_ENTITY, "json_error", err.to_string())
+                    }
+                    ConstructieFout::Invoer(_) => {
+                        (StatusCode::UNPROCESSABLE_ENTITY, "invalid_input", err.to_string())
+                    }
+                    ConstructieFout::NietBeschikbaar(_) => {
+                        (StatusCode::UNPROCESSABLE_ENTITY, "not_available", err.to_string())
+                    }
+                    ConstructieFout::Data(_) => {
+                        tracing::error!("Constructie-profieldata ongeldig: {err}");
+                        (
+                            StatusCode::INTERNAL_SERVER_ERROR,
+                            "internal_error",
+                            "interne fout in de rekenkern".to_string(),
+                        )
+                    }
+                }
+            }
+            ApiError::ModuleNietGeactiveerd(msg) => {
+                let body = serde_json::json!({ "error": msg });
+                return (StatusCode::FORBIDDEN, axum::Json(body)).into_response();
             }
         };
 

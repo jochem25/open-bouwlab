@@ -1,0 +1,669 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Resultaat",
+  "description": "Resultaat van een voordimensionering (staal of beton).",
+  "type": "object",
+  "required": [
+    "alternatieven",
+    "disclaimer",
+    "gevolgklasse",
+    "kandidaten",
+    "kern_versie",
+    "meldingen",
+    "normedities"
+  ],
+  "properties": {
+    "advies": {
+      "description": "Advies; `None` als er binnen bereik geen kandidaat voldoet.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Advies"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "alternatieven": {
+      "description": "Alternatieven rond het advies.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Alternatief"
+      }
+    },
+    "disclaimer": {
+      "description": "Vaste tekst E1; altijd aanwezig.",
+      "type": "string"
+    },
+    "gevolgklasse": {
+      "description": "Toegepaste gevolgklasse.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Gevolgklasse"
+        }
+      ]
+    },
+    "kandidaten": {
+      "description": "Alle doorgerekende kandidaten, oplopend.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Kandidaat"
+      }
+    },
+    "kern_versie": {
+      "description": "Versie van de rekenkern.",
+      "type": "string"
+    },
+    "laagste_bouwhoogte": {
+      "description": "Laagste bouwhoogte (alleen staal).",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Advies"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "meldingen": {
+      "description": "Meldingen (waarschuwingen, signaleringen, info).",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Melding"
+      }
+    },
+    "normedities": {
+      "description": "Gebruikte normedities (sleutel, editie).",
+      "type": "array",
+      "items": {
+        "type": "array",
+        "items": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "maxItems": 2,
+        "minItems": 2
+      }
+    }
+  },
+  "definitions": {
+    "Advies": {
+      "description": "Een gekozen kandidaat (advies of laagste bouwhoogte).",
+      "type": "object",
+      "required": [
+        "hoogte_mm",
+        "kengetallen",
+        "naam",
+        "toetsen"
+      ],
+      "properties": {
+        "beton": {
+          "description": "Gekozen wapening (alleen beton).",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BetonKeuze"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hoogte_mm": {
+          "description": "Constructiehoogte in mm.",
+          "type": "number",
+          "format": "double"
+        },
+        "kengetallen": {
+          "description": "Kengetallen.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Kengetallen"
+            }
+          ]
+        },
+        "maatgevend": {
+          "description": "Maatgevende toets.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Maatgevend"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "naam": {
+          "description": "Naam van de kandidaat.",
+          "type": "string"
+        },
+        "toetsen": {
+          "description": "Alle toetsen van deze kandidaat.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Toets"
+          }
+        }
+      }
+    },
+    "Alternatief": {
+      "description": "Alternatief naast het advies.",
+      "type": "object",
+      "required": [
+        "naam",
+        "positie",
+        "toelichting",
+        "voldoet"
+      ],
+      "properties": {
+        "maatgevend": {
+          "description": "Naam van de maatgevende toets.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_uc": {
+          "description": "Hoogste UC.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "naam": {
+          "description": "Naam van de kandidaat.",
+          "type": "string"
+        },
+        "positie": {
+          "description": "Positie ten opzichte van het advies.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/AlternatiefPositie"
+            }
+          ]
+        },
+        "toelichting": {
+          "description": "Toelichting.",
+          "type": "string"
+        },
+        "voldoet": {
+          "description": "Voldoet de kandidaat?",
+          "type": "boolean"
+        }
+      }
+    },
+    "AlternatiefPositie": {
+      "description": "Positie van een alternatief ten opzichte van het advies.",
+      "oneOf": [
+        {
+          "description": "Direct onder het advies (laat zien waarom het niet kan).",
+          "type": "string",
+          "enum": [
+            "onder"
+          ]
+        },
+        {
+          "description": "Boven het advies.",
+          "type": "string",
+          "enum": [
+            "boven"
+          ]
+        }
+      ]
+    },
+    "BetonKeuze": {
+      "description": "Gekozen wapening en beugels (beton).",
+      "type": "object",
+      "required": [
+        "a_s_prov_mm2",
+        "aantal",
+        "beugel_diameter_mm",
+        "beugel_s_mm",
+        "cot_theta",
+        "diameter_mm"
+      ],
+      "properties": {
+        "a_s_prov_mm2": {
+          "description": "Aanwezig staaloppervlak in mm2.",
+          "type": "number",
+          "format": "double"
+        },
+        "aantal": {
+          "description": "Aantal hoofdstaven in een laag.",
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "beugel_diameter_mm": {
+          "description": "Beugeldiameter in mm.",
+          "type": "number",
+          "format": "double"
+        },
+        "beugel_s_mm": {
+          "description": "Beugelafstand in mm (naar beneden afgerond op 10 mm).",
+          "type": "number",
+          "format": "double"
+        },
+        "cot_theta": {
+          "description": "Gekozen cot(theta) voor de dwarskrachtwapening.",
+          "type": "number",
+          "format": "double"
+        },
+        "diameter_mm": {
+          "description": "Staafdiameter in mm.",
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "Bron": {
+      "description": "Verwijzing naar een norm: alleen sleutel en artikel, geen normtekst.",
+      "type": "object",
+      "required": [
+        "artikel",
+        "nb",
+        "norm"
+      ],
+      "properties": {
+        "artikel": {
+          "description": "Artikel of tabel (bijv. \"6.2.5 (6.13)\").",
+          "type": "string"
+        },
+        "nb": {
+          "description": "`true` als de waarde of regel uit de nationale bijlage komt.",
+          "type": "boolean"
+        },
+        "norm": {
+          "description": "Normsleutel, zoals in [`crate::NORMEDITIES`] (bijv. \"EC3\").",
+          "type": "string"
+        }
+      }
+    },
+    "Gevolgklasse": {
+      "description": "Gevolgklasse.",
+      "oneOf": [
+        {
+          "description": "Gevolgklasse 1.",
+          "type": "string",
+          "enum": [
+            "CC1"
+          ]
+        },
+        {
+          "description": "Gevolgklasse 2.",
+          "type": "string",
+          "enum": [
+            "CC2"
+          ]
+        },
+        {
+          "description": "Gevolgklasse 3 (buiten scope v1).",
+          "type": "string",
+          "enum": [
+            "CC3"
+          ]
+        }
+      ]
+    },
+    "Kandidaat": {
+      "description": "Een doorgerekende kandidaat (profiel of betonhoogte) met al zijn toetsen.",
+      "type": "object",
+      "required": [
+        "eigen_gewicht_kn_m",
+        "hoogte_mm",
+        "meldingen",
+        "naam",
+        "toetsen",
+        "tussenwaarden"
+      ],
+      "properties": {
+        "afgewezen": {
+          "description": "Reden waarom de kandidaat is afgewezen (bijv. wapening past niet).",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "beton": {
+          "description": "Gekozen wapening (alleen beton).",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/BetonKeuze"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "eigen_gewicht_kn_m": {
+          "description": "Eigen gewicht in kN/m.",
+          "type": "number",
+          "format": "double"
+        },
+        "gewicht_kg_m": {
+          "description": "Massa in kg/m (alleen staal).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "hoogte_mm": {
+          "description": "Constructiehoogte in mm.",
+          "type": "number",
+          "format": "double"
+        },
+        "meldingen": {
+          "description": "Meldingen die bij deze kandidaat horen.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Melding"
+          }
+        },
+        "naam": {
+          "description": "Naam (profielnaam of \"300 x 450\").",
+          "type": "string"
+        },
+        "toetsen": {
+          "description": "Alle toetsen.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Toets"
+          }
+        },
+        "tussenwaarden": {
+          "description": "Tussenwaarden (q_d, M_Ed, ...) op de onafgeronde waarde.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      }
+    },
+    "Kengetallen": {
+      "description": "Kengetallen van een gekozen kandidaat.",
+      "type": "object",
+      "required": [
+        "constructiehoogte_mm",
+        "eigen_gewicht_kn_m",
+        "l_h"
+      ],
+      "properties": {
+        "constructiehoogte_mm": {
+          "description": "Constructiehoogte in mm.",
+          "type": "number",
+          "format": "double"
+        },
+        "eigen_gewicht_kn_m": {
+          "description": "Eigen gewicht in kN/m.",
+          "type": "number",
+          "format": "double"
+        },
+        "eigenfrequentie_hz": {
+          "description": "Eigenfrequentie in Hz, alleen indien berekend (in v1 niet).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "gewicht_kg_m": {
+          "description": "Massa in kg/m (alleen staal).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "l_h": {
+          "description": "Verhouding overspanning / hoogte.",
+          "type": "number",
+          "format": "double"
+        }
+      }
+    },
+    "Maatgevend": {
+      "description": "Toets met de hoogste UC en een korte uitleg.",
+      "type": "object",
+      "required": [
+        "naam",
+        "toets_id",
+        "uc",
+        "uitleg"
+      ],
+      "properties": {
+        "naam": {
+          "description": "Naam van de toets.",
+          "type": "string"
+        },
+        "toets_id": {
+          "description": "Sleutel van de toets.",
+          "type": "string"
+        },
+        "uc": {
+          "description": "Unity check (onafgerond).",
+          "type": "number",
+          "format": "double"
+        },
+        "uitleg": {
+          "description": "Korte uitleg.",
+          "type": "string"
+        }
+      }
+    },
+    "Melding": {
+      "description": "Een melding bij het resultaat.",
+      "type": "object",
+      "required": [
+        "soort",
+        "tekst"
+      ],
+      "properties": {
+        "bron": {
+          "description": "Optionele bron.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Bron"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "soort": {
+          "description": "Soort.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/MeldingSoort"
+            }
+          ]
+        },
+        "tekst": {
+          "description": "Tekst.",
+          "type": "string"
+        }
+      }
+    },
+    "MeldingSoort": {
+      "description": "Soort melding.",
+      "oneOf": [
+        {
+          "description": "Aandachtspunt dat het resultaat beinvloedt.",
+          "type": "string",
+          "enum": [
+            "waarschuwing"
+          ]
+        },
+        {
+          "description": "Signalering van iets dat buiten de toetsing valt.",
+          "type": "string",
+          "enum": [
+            "signalering"
+          ]
+        },
+        {
+          "description": "Informatie.",
+          "type": "string",
+          "enum": [
+            "info"
+          ]
+        }
+      ]
+    },
+    "Toets": {
+      "description": "Een afzonderlijke toets met waarde, grens, unity check en bron.",
+      "type": "object",
+      "required": [
+        "bron",
+        "eenheid",
+        "formule",
+        "id",
+        "naam",
+        "status"
+      ],
+      "properties": {
+        "bron": {
+          "description": "Bronverwijzing.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Bron"
+            }
+          ]
+        },
+        "eenheid": {
+          "description": "Eenheid van waarde en grens.",
+          "type": "string"
+        },
+        "formule": {
+          "description": "Korte eigen formulenotatie (bijv. \"M_Ed <= M_pl,Rd\").",
+          "type": "string"
+        },
+        "grens": {
+          "description": "Grenswaarde (capaciteit of limiet).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "id": {
+          "description": "Stabiele sleutel (bijv. \"buiging\").",
+          "type": "string"
+        },
+        "naam": {
+          "description": "Weergavenaam.",
+          "type": "string"
+        },
+        "status": {
+          "description": "Status.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ToetsStatus"
+            }
+          ]
+        },
+        "uc": {
+          "description": "Unity check (onafgerond); `None` als de toets geen verhouding kent.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "waarde": {
+          "description": "Optredende waarde (belasting-, doorbuigings- of verhoudingswaarde).",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      }
+    },
+    "ToetsStatus": {
+      "description": "Uitkomst van een toets.",
+      "oneOf": [
+        {
+          "description": "Alle eisen vervuld.",
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "voldoet"
+              ]
+            }
+          }
+        },
+        {
+          "description": "Eis overschreden.",
+          "type": "object",
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "voldoet_niet"
+              ]
+            }
+          }
+        },
+        {
+          "description": "De tool kan deze toets niet uitvoeren.",
+          "type": "object",
+          "required": [
+            "blokkeert_advies",
+            "reden",
+            "status"
+          ],
+          "properties": {
+            "blokkeert_advies": {
+              "description": "`true` als er door deze toets geen advies mag worden gegeven.",
+              "type": "boolean"
+            },
+            "reden": {
+              "description": "Waarom de toets niet is uitgevoerd.",
+              "type": "string"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "niet_getoetst"
+              ]
+            }
+          }
+        },
+        {
+          "description": "De toets rust op een aanname die de gebruiker moet kennen.",
+          "type": "object",
+          "required": [
+            "status",
+            "tekst"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "aanname"
+              ]
+            },
+            "tekst": {
+              "description": "Beschrijving van de aanname.",
+              "type": "string"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

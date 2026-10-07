@@ -1,0 +1,389 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "StaalInvoer",
+  "description": "Invoer voor een stalen ligger.",
+  "type": "object",
+  "required": [
+    "algemeen",
+    "belastingbreedte_m",
+    "reeksen",
+    "staalsoort"
+  ],
+  "properties": {
+    "algemeen": {
+      "description": "Gemeenschappelijke invoer.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Algemeen"
+        }
+      ]
+    },
+    "belastingbreedte_m": {
+      "description": "Belastingbreedte in m.",
+      "type": "number",
+      "format": "double"
+    },
+    "bovenflens_gesteund": {
+      "description": "Bovenflens doorgaand zijdelings gesteund; `false` is buiten scope v1.",
+      "default": true,
+      "type": "boolean"
+    },
+    "element": {
+      "description": "Element (staal: alleen ligger).",
+      "default": "ligger",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Element"
+        }
+      ]
+    },
+    "reeksen": {
+      "description": "Te beschouwen profielreeksen.",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Reeks"
+      }
+    },
+    "staalsoort": {
+      "description": "Staalsoort.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Staalsoort"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Algemeen": {
+      "description": "Invoer die voor alle materialen geldt.",
+      "type": "object",
+      "required": [
+        "overspanning_m",
+        "permanent_kn_m2"
+      ],
+      "properties": {
+        "dak_afschot_procent": {
+          "description": "Dak: afschot in procent (0 - 100).",
+          "default": 1.6,
+          "type": "number",
+          "format": "double"
+        },
+        "dak_beloopbaar": {
+          "description": "Dak: beloopbaar (belasting als vloer).",
+          "default": false,
+          "type": "boolean"
+        },
+        "dak_hellingshoek_graden": {
+          "description": "Dak: hellingshoek in graden (0 - 60).",
+          "default": 0.0,
+          "type": "number",
+          "format": "double"
+        },
+        "eigen_gewicht_automatisch": {
+          "description": "Eigen gewicht van het element automatisch meenemen.",
+          "default": true,
+          "type": "boolean"
+        },
+        "gebouwtype": {
+          "description": "Gebouwtype; bepaalt de minimale gevolgklasse.",
+          "default": "eengezinswoning1_tot3",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Gebouwtype"
+            }
+          ]
+        },
+        "gebruiksfunctie": {
+          "description": "Gebruiksfunctie (bij dak alleen van belang als het dak beloopbaar is).",
+          "default": "woon_vloer",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Gebruiksfunctie"
+            }
+          ]
+        },
+        "gevolgklasse": {
+          "description": "Gevolgklasse; `None` volgt het gebouwtype. Lager dan de default is niet toegestaan.",
+          "default": null,
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Gevolgklasse"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "lichte_scheidingswanden": {
+          "description": "Klasse lichte scheidingswanden.",
+          "default": "geen",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Scheidingswanden"
+            }
+          ]
+        },
+        "overspanning_m": {
+          "description": "Overspanning l in m (1,0 - 12,0).",
+          "type": "number",
+          "format": "double"
+        },
+        "permanent_kn_m2": {
+          "description": "Permanente belasting g_k in kN/m2, zonder eigen gewicht van het element (0 - 15).",
+          "type": "number",
+          "format": "double"
+        },
+        "scheurgevoelige_scheidingswanden": {
+          "description": "Scheurgevoelige scheidingswanden aanwezig.",
+          "default": false,
+          "type": "boolean"
+        },
+        "toepassing": {
+          "description": "Toepassing: vloer of dak.",
+          "default": "vloer",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Toepassing"
+            }
+          ]
+        },
+        "uiterlijk_van_belang": {
+          "description": "Uiterlijk van belang (toets op w_max).",
+          "default": true,
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Element": {
+      "description": "Type element.",
+      "oneOf": [
+        {
+          "description": "Houten balklaag.",
+          "type": "string",
+          "enum": [
+            "balklaag"
+          ]
+        },
+        {
+          "description": "Stalen ligger.",
+          "type": "string",
+          "enum": [
+            "ligger"
+          ]
+        },
+        {
+          "description": "Betonbalk.",
+          "type": "string",
+          "enum": [
+            "balk"
+          ]
+        }
+      ]
+    },
+    "Gebouwtype": {
+      "description": "Gebouwtype (bepaalt de minimale gevolgklasse).",
+      "oneOf": [
+        {
+          "description": "Eengezinswoning, 1 tot 3 bouwlagen.",
+          "type": "string",
+          "enum": [
+            "eengezinswoning1_tot3"
+          ]
+        },
+        {
+          "description": "Eengezinswoning, 4 of meer bouwlagen.",
+          "type": "string",
+          "enum": [
+            "eengezinswoning4_plus"
+          ]
+        },
+        {
+          "description": "Woongebouw.",
+          "type": "string",
+          "enum": [
+            "woongebouw"
+          ]
+        },
+        {
+          "description": "Kantoorgebouw.",
+          "type": "string",
+          "enum": [
+            "kantoorgebouw"
+          ]
+        }
+      ]
+    },
+    "Gebruiksfunctie": {
+      "description": "Gebruiksfunctie van de vloer (bepaalt categorie en veranderlijke belasting).",
+      "oneOf": [
+        {
+          "description": "Categorie A, woonfunctie, vloer.",
+          "type": "string",
+          "enum": [
+            "woon_vloer"
+          ]
+        },
+        {
+          "description": "Categorie A, woonfunctie, trap.",
+          "type": "string",
+          "enum": [
+            "woon_trap"
+          ]
+        },
+        {
+          "description": "Categorie A, woonfunctie, balkon.",
+          "type": "string",
+          "enum": [
+            "woon_balkon"
+          ]
+        },
+        {
+          "description": "Categorie A, gemeenschappelijke ruimte (vloer, trap, balkon).",
+          "type": "string",
+          "enum": [
+            "gemeenschappelijk"
+          ]
+        },
+        {
+          "description": "Categorie B, kantoor.",
+          "type": "string",
+          "enum": [
+            "kantoor"
+          ]
+        }
+      ]
+    },
+    "Gevolgklasse": {
+      "description": "Gevolgklasse.",
+      "oneOf": [
+        {
+          "description": "Gevolgklasse 1.",
+          "type": "string",
+          "enum": [
+            "CC1"
+          ]
+        },
+        {
+          "description": "Gevolgklasse 2.",
+          "type": "string",
+          "enum": [
+            "CC2"
+          ]
+        },
+        {
+          "description": "Gevolgklasse 3 (buiten scope v1).",
+          "type": "string",
+          "enum": [
+            "CC3"
+          ]
+        }
+      ]
+    },
+    "Reeks": {
+      "description": "Profielreeks staal.",
+      "oneOf": [
+        {
+          "description": "IPE-profielen.",
+          "type": "string",
+          "enum": [
+            "IPE"
+          ]
+        },
+        {
+          "description": "HEA-profielen.",
+          "type": "string",
+          "enum": [
+            "HEA"
+          ]
+        },
+        {
+          "description": "HEB-profielen.",
+          "type": "string",
+          "enum": [
+            "HEB"
+          ]
+        }
+      ]
+    },
+    "Scheidingswanden": {
+      "description": "Klasse lichte scheidingswanden (gewicht per strekkende meter wand).",
+      "oneOf": [
+        {
+          "description": "Geen lichte scheidingswanden.",
+          "type": "string",
+          "enum": [
+            "geen"
+          ]
+        },
+        {
+          "description": "Wandgewicht tot 1,0 kN/m.",
+          "type": "string",
+          "enum": [
+            "tot_een"
+          ]
+        },
+        {
+          "description": "Wandgewicht tot 2,0 kN/m.",
+          "type": "string",
+          "enum": [
+            "tot_twee"
+          ]
+        },
+        {
+          "description": "Wandgewicht tot 3,0 kN/m.",
+          "type": "string",
+          "enum": [
+            "tot_drie"
+          ]
+        }
+      ]
+    },
+    "Staalsoort": {
+      "description": "Staalsoort.",
+      "oneOf": [
+        {
+          "description": "S235.",
+          "type": "string",
+          "enum": [
+            "S235"
+          ]
+        },
+        {
+          "description": "S275.",
+          "type": "string",
+          "enum": [
+            "S275"
+          ]
+        },
+        {
+          "description": "S355.",
+          "type": "string",
+          "enum": [
+            "S355"
+          ]
+        }
+      ]
+    },
+    "Toepassing": {
+      "description": "Toepassing van het veld.",
+      "oneOf": [
+        {
+          "description": "Vloer.",
+          "type": "string",
+          "enum": [
+            "vloer"
+          ]
+        },
+        {
+          "description": "Dak.",
+          "type": "string",
+          "enum": [
+            "dak"
+          ]
+        }
+      ]
+    }
+  }
+}

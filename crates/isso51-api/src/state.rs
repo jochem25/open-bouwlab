@@ -29,6 +29,8 @@ pub struct AppState {
     pub tenants: Arc<TenantsRegistry>,
     /// Default tenant slug (fallback when token has no tenant claim).
     pub default_tenant: Option<String>,
+    /// Entitlement-configuratie (module-gating via Authentik-groepen).
+    pub entitlements: crate::entitlements::Config,
 }
 
 impl AppState {
@@ -51,6 +53,7 @@ impl AppState {
             ifc_tool_path: ifc_tool_path.unwrap_or_else(|| DEFAULT_IFC_TOOL_PATH.to_string()),
             tenants: Arc::new(tenants),
             default_tenant,
+            entitlements: crate::entitlements::Config::default(),
         }
     }
 

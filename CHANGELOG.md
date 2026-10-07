@@ -40,6 +40,17 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - Norm-conformiteit regressie-tests WTW + infiltratie SystemD (659b658)
 - NTA8800-cooling Vabi-cross-validatie scaffold (51dc6ae)
 
+## [Unreleased] — 2026-10-07 (branch `feat/constructiemodule`)
+
+### Beveiliging
+
+- **Auth: geen header-pad meer bij Authorization of X-API-Key.** Een request met een Authorization-header die geen `Bearer ak-*` is, of met een `X-API-Key`, krijgt nu 401. Voorheen viel zo'n request door naar de `X-Authentik-*`-headers, en die kon de client zelf meesturen omdat Caddy forward_auth voor deze requests overslaat. Zie `docs/2026-07-02-forward-auth-trust-boundary.md`, aanvulling 2026-10-07.
+
+### Nieuw
+
+- **Constructiemodule, rekenkern (crate `constructie-core`)**: indicatieve voordimensionering van een stalen ligger (IPE/HEA, EC3) en een gewapende betonbalk (EC2), met belastingen en combinaties volgens EC0/EC1 en de Nederlandse NB's. Elke toets heeft een bronverwijzing en een status (voldoet, voldoet niet, niet getoetst met reden, aanname). Het advies is de lichtste of laagste kandidaat met alle UC <= 1,00; voor staal komt daar de laagste bouwhoogte bij. De rapport-JSON voor openaec-reports bevat altijd de vaste disclaimer. Hout volgt in deel 2. De staalprofieldata zijn voorlopig en staan in een los databestand.
+- **Constructiemodule, API en schermen**: `POST /api/v1/constructie/{staal,beton,rapport}` en `GET .../schema/{naam}`, alleen voor accounts in de Authentik-groep uit `CONSTRUCTIE_ENTITLEMENT_GROUP` (module uit met `CONSTRUCTIE_ENABLED=false`). `/api/v1/me` heeft een nieuw veld `entitlements`. In de sidebar staat een groep Constructie met de schermen Staal en Beton, en Hout als 'volgt'.
+
 ## [Unreleased] — 2026-10-05
 
 ### 🐛 Bug fixes

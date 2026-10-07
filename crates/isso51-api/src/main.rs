@@ -8,6 +8,7 @@
 mod auth;
 mod config;
 mod cors;
+mod entitlements;
 mod error;
 mod handlers;
 mod ratelimit;
@@ -124,6 +125,9 @@ async fn main() {
         config.default_tenant.clone(),
     );
 
+    let mut app_state = app_state;
+    app_state.entitlements = config.entitlements.clone();
+
     // --- Routes ---
     // Publieke reken-routes: geen auth (bewust — publieke reken-API), maar
     // CPU-intensief. Daarom een eigen, strak begrensd `DefaultBodyLimit` plus
@@ -153,6 +157,15 @@ async fn main() {
     let uniec_import = Router::new()
         .route("/beng/import-uniec3", post(handlers::import_uniec3_handler))
         .layer(DefaultBodyLimit::max(UNIEC_IMPORT_BODY_LIMIT))
+        .layer(axum::middleware::from_fn_with_state(
+            rate_limiter.clone(),
+            ratelimit::rate_limit,
+        ));
+
+    // Constructiemodule: auth + entitlement per handler. Zelfde body-limit en
+    // per-IP rate-limit als de reken-routes.
+    let constructie = handlers::constructie_routes()
+        .layer(DefaultBodyLimit::max(COMPUTE_BODY_LIMIT))
         .layer(axum::middleware::from_fn_with_state(
             rate_limiter.clone(),
             ratelimit::rate_limit,
@@ -188,7 +201,8 @@ async fn main() {
         // overschrijden; een 413 zou een stille save-failure zijn. De
         // onderlegger (base64 PDF/afbeelding) blijft bewust uit de envelope —
         // 20 MB is ruime headroom voor puur project-JSON.
-        .layer(DefaultBodyLimit::max(20 * 1024 * 1024));
+        .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
+        .merge(constructie);
 
     // Cloud storage routes (authenticated).
     let cloud_routes = Router::new()

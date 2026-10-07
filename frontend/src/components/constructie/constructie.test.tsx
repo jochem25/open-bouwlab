@@ -1,0 +1,152 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { createInstance } from "i18next";
+import { I18nextProvider, initReactI18next } from "react-i18next";
+import { MemoryRouter } from "react-router-dom";
+import type { ReactElement } from "react";
+import { describe, expect, it, vi } from "vitest";
+
+import nlCommon from "../../i18n/locales/nl/common.json";
+import { CONSTRUCTIE_DISCLAIMER } from "../../lib/constructieFormat";
+import type { Resultaat, Toets } from "../../types/constructie";
+import { Sidebar } from "../layout/Sidebar";
+import { ConstructiePagina } from "./ConstructiePagina";
+import { ToetsingTabel } from "./ToetsingTabel";
+import { Uitkomst } from "./Uitkomst";
+
+const entitlement = vi.hoisted(() => ({ waarde: "uit" as "laden" | "aan" | "uit" }));
+vi.mock("../../hooks/useConstructieEntitlement", () => ({
+  useConstructieEntitlement: () => entitlement.waarde,
+}));
+
+function render(el: ReactElement): string {
+  const i18n = createInstance();
+  void i18n.use(initReactI18next).init({
+    lng: "nl",
+    resources: { nl: { common: nlCommon } },
+    defaultNS: "common",
+    interpolation: { escapeValue: false },
+    initImmediate: false,
+  });
+  return renderToStaticMarkup(
+    <I18nextProvider i18n={i18n}>
+      <MemoryRouter>{el}</MemoryRouter>
+    </I18nextProvider>,
+  );
+}
+
+const bron = { norm: "EC3", artikel: "6.2.5", nb: false };
+
+function toets(patch: Partial<Toets>): Toets {
+  return {
+    id: "t",
+    naam: "Toets",
+    formule: "a <= b",
+    waarde: 1,
+    grens: 2,
+    eenheid: "kNm",
+    uc: 0.5,
+    bron,
+    status: { status: "voldoet" },
+    ...patch,
+  };
+}
+
+describe("ToetsingTabel", () => {
+  it("toont 'niet getoetst' met reden en nooit 'voldoet' voor die rij", () => {
+    const html = render(
+      <ToetsingTabel
+        toetsen={[
+          toets({
+            id: "trilling",
+            naam: "Trilling",
+            uc: null,
+            waarde: null,
+            grens: null,
+            status: { status: "niet_getoetst", reden: "Invoer ontbreekt voor trillingstoets", blokkeert_advies: false },
+          }),
+        ]}
+      />,
+    );
+    expect(html).toContain("Niet getoetst");
+    expect(html).toContain("Invoer ontbreekt voor trillingstoets");
+    expect(html).not.toContain("Voldoet");
+    expect(html).not.toContain("✓");
+    expect(html).not.toContain("✔");
+  });
+
+  it("toont de aanname-tekst, UC met komma en markeert de maatgevende rij", () => {
+    const html = render(
+      <ToetsingTabel
+        maatgevendId="buiging"
+        toetsen={[
+          toets({ id: "buiging", naam: "Buiging", uc: 0.845 }),
+          toets({ id: "a", naam: "Aangenomen", status: { status: "aanname", tekst: "Opleglengte 100 mm" } }),
+        ]}
+      />,
+    );
+    expect(html).toContain("0,85");
+    expect(html).toContain("Opleglengte 100 mm");
+    expect(html).toContain('data-maatgevend="true"');
+    expect(html.match(/data-maatgevend/g)?.length).toBe(1);
+  });
+
+  it("toont NB bij een bron uit de nationale bijlage", () => {
+    const html = render(<ToetsingTabel toetsen={[toets({ bron: { norm: "EC2", artikel: "6.1", nb: true } })]} />);
+    expect(html).toContain("EC2 NB 6.1");
+  });
+});
+
+describe("DisclaimerBanner", () => {
+  it("staat ook zonder resultaat op de pagina", () => {
+    const html = render(<ConstructiePagina materiaal="staal" />);
+    expect(html).toContain('data-testid="constructie-banner"');
+    expect(html).toContain(CONSTRUCTIE_DISCLAIMER);
+  });
+
+  it("staat bij beton ook zonder resultaat op de pagina", () => {
+    expect(render(<ConstructiePagina materiaal="beton" />)).toContain(CONSTRUCTIE_DISCLAIMER);
+  });
+});
+
+describe("Uitkomst zonder advies", () => {
+  it("toont een duidelijke melding en geen advieskaart", () => {
+    const resultaat: Resultaat = {
+      disclaimer: CONSTRUCTIE_DISCLAIMER,
+      kern_versie: "x",
+      normedities: [],
+      gevolgklasse: "CC2",
+      kandidaten: [],
+      advies: null,
+      laagste_bouwhoogte: null,
+      alternatieven: [],
+      meldingen: [],
+    };
+    const html = render(
+      <Uitkomst
+        materiaal="staal"
+        resultaat={resultaat}
+        overspanningM={5}
+        materiaalTekst="S235"
+        rapportBezig={false}
+        rapportFout={null}
+        onRapport={() => {}}
+      />,
+    );
+    expect(html).toContain("Geen advies binnen bereik");
+    expect(html).not.toContain("advies-naam");
+  });
+});
+
+describe("Sidebar", () => {
+  it("toont de groep Constructie alleen met entitlement", () => {
+    entitlement.waarde = "uit";
+    const zonder = render(<Sidebar />);
+    expect(zonder).not.toContain("/constructie/staal");
+
+    entitlement.waarde = "aan";
+    const met = render(<Sidebar />);
+    expect(met).toContain("/constructie/staal");
+    expect(met).toContain("/constructie/beton");
+    expect(met).toContain("Hout (volgt)");
+  });
+});
