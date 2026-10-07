@@ -17,6 +17,9 @@ pub struct UserProfile {
     pub preferred_username: String,
     pub first_seen_at: String,
     pub last_login_at: String,
+    /// Actieve module-entitlements (bv. `"constructie"`). Additief veld.
+    #[serde(default)]
+    pub entitlements: Vec<String>,
 }
 
 /// GET /me — Return the current user's profile, creating it if it doesn't exist.
@@ -66,6 +69,7 @@ pub async fn get_profile(
         preferred_username: row.preferred_username,
         first_seen_at: row.first_seen_at,
         last_login_at: row.last_login_at,
+        entitlements: crate::entitlements::entitlements_van(&claims, &state.entitlements),
     }))
 }
 

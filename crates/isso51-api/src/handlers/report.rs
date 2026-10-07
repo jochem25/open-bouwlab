@@ -15,7 +15,7 @@ use axum::extract::State;
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 
-use crate::auth::AuthClaims;
+use crate::auth::{AuthClaims, OidcClaims};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -31,6 +31,18 @@ use crate::state::AppState;
 pub async fn generate_report(
     State(state): State<AppState>,
     AuthClaims(claims): AuthClaims,
+    body: String,
+) -> Result<Response, ApiError> {
+    proxy_report(&state, &claims, body).await
+}
+
+/// Stuur rapport-JSON door naar de Reports API en geef de PDF terug.
+///
+/// Gedeeld door `/report/generate` en de constructiemodule; het gedrag
+/// (service-token, tenant-header, foutmapping) is identiek.
+pub(crate) async fn proxy_report(
+    state: &AppState,
+    claims: &OidcClaims,
     body: String,
 ) -> Result<Response, ApiError> {
     let base_url = state.reports_api_url.as_deref().ok_or_else(|| {

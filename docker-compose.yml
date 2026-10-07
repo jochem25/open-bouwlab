@@ -12,6 +12,9 @@ services:
     environment:
       - TENANTS_CONFIG=/etc/openaec/tenants.json
       - DEFAULT_TENANT=3bm
+      # Constructiemodule (defaults getoond; groep = Authentik-entitlement):
+      # - CONSTRUCTIE_ENABLED=true
+      # - CONSTRUCTIE_ENTITLEMENT_GROUP=openbouwlab-constructie
     volumes:
       - warmteverlies-data:/data
       - ./tenants.json:/etc/openaec/tenants.json:ro

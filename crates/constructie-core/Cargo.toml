@@ -13,3 +13,4 @@ thiserror = "2"
 
 [dev-dependencies]
 approx = "0.5"
+jsonschema = { version = "0.30", default-features = false }
