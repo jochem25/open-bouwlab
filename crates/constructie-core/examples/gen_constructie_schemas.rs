@@ -1,5 +1,5 @@
 //! Genereert de JSON-schema's naar `schemas/constructie/v1/`.
-//! Draai vanuit de workspace-root: `cargo run -p constructie-core --example gen_schemas`
+//! Draai vanuit de workspace-root: `cargo run -p constructie-core --example gen_constructie_schemas`
 use constructie_core::{beton_invoer_schema, resultaat_schema, staal_invoer_schema};
 
 fn main() {
