@@ -12,7 +12,8 @@ use crate::advies::stel_resultaat_samen;
 use crate::belasting::{bepaal_belasting, Belasting, Leidend};
 use crate::error::{ConstructieFout, Result};
 use crate::model::{
-    Gebruiksfunctie, HoutElement, HoutInvoer, HoutResultaat, Kandidaat, Toepassing,
+    Gebruiksfunctie, HoutElement, HoutInvoer, HoutResultaat, Kandidaat, Toepassing, Vloerlaag,
+    VloerlaagSoort,
 };
 use crate::toets::{Bron, Melding, Toets, ToetsStatus, UC_PLAFOND};
 
@@ -30,6 +31,23 @@ const F1_GRENS: f64 = 8.0;
 const ZETA: f64 = 0.01;
 /// Parameter b voor de snelheidsrespons (EC5 NB 7.3.3(2)).
 const B_SNELHEID: f64 = 120.0;
+/// Bepaalt of een eerste eigenfrequentie f_1 <= 8 Hz het advies blokkeert.
+///
+/// Wisselpunt voor een open besluit; `true` is het huidige gedrag. Bij `false` blijft de
+/// f_1-toets zichtbaar als niet getoetst, maar blokkeert hij het advies niet.
+pub const F1_LAAG_BLOKKEERT: bool = true;
+/// Vaste waarschuwing als de gebruiker de trillingstoets heeft uitgezet.
+pub const TRILLING_UIT_ZIN: &str = "Trillingen (EC5 7.3 / NB) niet beoordeeld op verzoek van de gebruiker; laat dit beoordelen door de constructeur.";
+/// Reden bij een uitgezette trillingstoets.
+const REDEN_UIT: &str = "uitgezet door gebruiker";
+/// Reden bij w_1kN en v als f_1 <= 8 Hz (waarde wel berekend, niet beslissend).
+const REDEN_INFORMATIEF: &str = "informatief: f_1 <= 8 Hz, nader onderzoek";
+/// Breedtes uit het assortiment in mm (eigen keuze, geen norm; te bevestigen).
+const BREEDTES_MM: [f64; 4] = [46.0, 58.0, 71.0, 96.0];
+/// Aanname bij w_1kN met dwarsverbinding.
+const DWARS_AANNAME: &str = "(9.19) geldt voor een doorgaand, mechanisch verbonden element in het midden van de overspanning; losse klossen of klossen op 1/3-punten: effect laten bevestigen door constructeur";
+/// Bron van (EI)_T als som van de lagen.
+const BRON_EI_T: &str = "EN 1995-1-1:2026 9.3.1.3(4)";
 /// Hoogteassortiment in mm (eigen keuze, geen norm; te bevestigen).
 pub const HOOGTES_MM: [f64; 7] = [146.0, 171.0, 196.0, 221.0, 246.0, 271.0, 296.0];
 
@@ -141,6 +159,31 @@ pub fn k_r(hoh_m: f64, ei_plaat_nm2_m: f64) -> f64 {
     (0.37 + 0.8 * hoh_m - ei_plaat_nm2_m / EI_REF).clamp(0.0, 1.0)
 }
 
+/// Buigstijfheid (EI)_T in Nm2/m: som van E t^3 / 12 over de lagen, zonder samenwerking.
+///
+/// Geeft `None` zonder lagen.
+pub fn ei_t(lagen: &[Vloerlaag]) -> Option<f64> {
+    if lagen.is_empty() {
+        None
+    } else {
+        Some(
+            lagen
+                .iter()
+                .map(|l| ei_plaat(l.dikte_mm, l.e_mean_n_mm2))
+                .sum(),
+        )
+    }
+}
+
+/// Buigstijfheid van alleen de lagen van soort vloerplaat in Nm2/m (voor k_r).
+pub fn ei_vloerplaten(lagen: &[Vloerlaag]) -> f64 {
+    lagen
+        .iter()
+        .filter(|l| l.soort == VloerlaagSoort::Vloerplaat)
+        .map(|l| ei_plaat(l.dikte_mm, l.e_mean_n_mm2))
+        .sum()
+}
+
 /// k_crit uit de relatieve slankheid (EC5 6.3.3, formule 6.34).
 pub fn k_crit(lambda_rel: f64) -> f64 {
     if lambda_rel <= 0.75 {
@@ -159,6 +202,18 @@ pub fn bereken_hout(invoer: &HoutInvoer) -> Result<HoutResultaat> {
 
 /// Als [`bereken_hout`], met eigen klassendata (bijv. na verificatie aan EN 338).
 pub fn bereken_hout_met_klassen(invoer: &HoutInvoer, klassen: &[Klasse]) -> Result<HoutResultaat> {
+    bereken_intern(invoer, klassen, F1_LAAG_BLOKKEERT, true)
+}
+
+/// Rekenkern met de f_1-regel als parameter (voor tests van beide standen).
+///
+/// `zoek_alternatief` staat uit bij de ene extra rondgang over andere breedtes.
+fn bereken_intern(
+    invoer: &HoutInvoer,
+    klassen: &[Klasse],
+    f1_blokkeert: bool,
+    zoek_alternatief: bool,
+) -> Result<HoutResultaat> {
     invoer.valideer()?;
     let bel = bepaal_belasting(&invoer.algemeen)?;
     let klasse = klassen
@@ -178,7 +233,7 @@ pub fn bereken_hout_met_klassen(invoer: &HoutInvoer, klassen: &[Klasse]) -> Resu
     };
     let kandidaten: Vec<Kandidaat> = hoogtes
         .iter()
-        .map(|&h| toets_hoogte(invoer, &bel, klasse, h))
+        .map(|&h| toets_hoogte(invoer, &bel, klasse, h, f1_blokkeert))
         .collect();
 
     let mut meldingen = bel.meldingen.clone();
@@ -188,12 +243,19 @@ pub fn bereken_hout_met_klassen(invoer: &HoutInvoer, klassen: &[Klasse]) -> Resu
     meldingen.push(Melding::info(
         "Opleggingen star aangenomen (geen elastische opleggingen).",
     ));
-    if let (HoutElement::Balklaag { hoh_mm }, Some(p)) = (&invoer.element, &invoer.vloerplaat) {
-        if k_r(hoh_mm / 1000.0, ei_plaat(p.dikte_mm, p.e_mean_n_mm2)) <= 0.0 {
+    let lagen = invoer.lagen();
+    let heeft_vloerplaat = lagen.iter().any(|l| l.soort == VloerlaagSoort::Vloerplaat);
+    if let (HoutElement::Balklaag { hoh_mm }, true) = (&invoer.element, heeft_vloerplaat) {
+        if k_r(hoh_mm / 1000.0, ei_vloerplaten(&lagen)) <= 0.0 {
             meldingen.push(Melding::waarschuwing(
                 "k_r valt op de ondergrens: de puntlast telt niet mee in het buigend moment door de stijve vloerplaat - controle constructeur.",
             ));
         }
+    }
+    let balklaag_vloer =
+        matches!(invoer.element, HoutElement::Balklaag { .. }) && bel.vloergedrag();
+    if balklaag_vloer && !invoer.trillingstoets {
+        meldingen.push(Melding::waarschuwing(TRILLING_UIT_ZIN));
     }
     if bel.leidend == Leidend::DakH {
         meldingen.push(
@@ -223,6 +285,23 @@ pub fn bereken_hout_met_klassen(invoer: &HoutInvoer, klassen: &[Klasse]) -> Resu
     }
 
     let mut res = stel_resultaat_samen(kandidaten, bel.gevolgklasse, bel.l_m, meldingen, false);
+    if zoek_alternatief
+        && res.advies.is_none()
+        && balklaag_vloer
+        && invoer.trillingstoets
+        && (!heeft_vloerplaat || invoer.vloerbreedte_m.is_none())
+        && trilling_w1kn_maatgevend(&res)
+    {
+        res.meldingen.push(Melding::waarschuwing(
+            "Vul vloerplaat (dikte, E) en vloerbreedte in: dan rekent de tool met lastspreiding.",
+        ));
+        let tekst = match kleinste_voldoende_zonder_spreiding(invoer, klassen, f1_blokkeert) {
+            Some(naam) => format!("Zonder lastspreiding voldoet: {naam} mm"),
+            None => "Ook een bredere balk uit het assortiment voldoet zonder lastspreiding niet."
+                .to_string(),
+        };
+        res.meldingen.push(Melding::waarschuwing(&tekst));
+    }
     if let Some(a) = res.advies.as_mut() {
         a.kengetallen.eigenfrequentie_hz = res
             .kandidaten
@@ -231,6 +310,46 @@ pub fn bereken_hout_met_klassen(invoer: &HoutInvoer, klassen: &[Klasse]) -> Resu
             .and_then(|k| k.tussenwaarden.get("f_1").copied());
     }
     Ok(res)
+}
+
+/// `true` als bij de hoogste kandidaat w_1kN de maatgevende blokkerende toets is.
+fn trilling_w1kn_maatgevend(res: &HoutResultaat) -> bool {
+    let Some(k) = res.kandidaten.last() else {
+        return false;
+    };
+    k.toetsen
+        .iter()
+        .filter(|t| t.blokkeert())
+        .max_by(|a, b| {
+            a.uc.unwrap_or(0.0)
+                .partial_cmp(&b.uc.unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
+        .is_some_and(|t| t.id == "trilling_w1kn")
+}
+
+/// Kleinste voldoende b x h (oplopend op oppervlak) over de andere assortimentsbreedtes,
+/// met dezelfde overige invoer. Een extra rondgang, zonder nieuwe alternatievenzoektocht.
+fn kleinste_voldoende_zonder_spreiding(
+    invoer: &HoutInvoer,
+    klassen: &[Klasse],
+    f1_blokkeert: bool,
+) -> Option<String> {
+    let mut beste: Option<(f64, String)> = None;
+    for b in BREEDTES_MM.iter().filter(|&&b| b != invoer.breedte_mm) {
+        let mut i = invoer.clone();
+        i.breedte_mm = *b;
+        let Ok(r) = bereken_intern(&i, klassen, f1_blokkeert, false) else {
+            continue;
+        };
+        if let Some(a) = r.advies {
+            let oppervlak = b * a.hoogte_mm;
+            if beste.as_ref().is_none_or(|(o, _)| oppervlak < *o) {
+                beste = Some((oppervlak, a.naam));
+            }
+        }
+    }
+    beste.map(|(_, n)| n)
 }
 
 /// Hulp: UC van de kip voor moment `m_knm` en `f_m_d`; geeft (UC, sigma_crit, lambda, k_crit).
@@ -252,7 +371,13 @@ fn kip_uc(
     (sigma / (kc * f_m_d), sigma_crit, lambda, kc)
 }
 
-fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -> Kandidaat {
+fn toets_hoogte(
+    invoer: &HoutInvoer,
+    bel: &Belasting,
+    klasse: &Klasse,
+    h: f64,
+    f1_blokkeert: bool,
+) -> Kandidaat {
     let b = invoer.breedte_mm;
     let l_m = bel.l_m;
     let l_mm = l_m * 1000.0;
@@ -275,11 +400,10 @@ fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -
     let ugt = bel.ugt(g, q);
 
     // k_r op het puntlastmoment (alleen balklaag).
-    let ei_pl = invoer
-        .vloerplaat
-        .map(|p| ei_plaat(p.dikte_mm, p.e_mean_n_mm2));
+    let lagen = invoer.lagen();
+    let ei_totaal = ei_t(&lagen);
     let kr = match hoh_m {
-        Some(a) => k_r(a, ei_pl.unwrap_or(0.0)),
+        Some(a) => k_r(a, ei_vloerplaten(&lagen)),
         None => 1.0,
     };
 
@@ -316,6 +440,9 @@ fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -
     tw.insert("g_lijn".into(), g);
     tw.insert("q_lijn".into(), q);
     tw.insert("k_r".into(), kr);
+    if let Some(e) = ei_totaal {
+        tw.insert("ei_t".into(), e);
+    }
     tw.insert("k_h".into(), kh);
     tw.insert("k_mod_gq".into(), kmod_gq);
     tw.insert("k_mod_g".into(), kmod_g);
@@ -473,17 +600,24 @@ fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -
                 .niet_getoetst(reden, false),
             );
         } else {
-            trilling(
-                &mut toetsen,
-                &mut tw,
-                invoer,
-                bel,
-                klasse,
-                eigen_gewicht,
-                hoh_m,
-                ei_pl,
-                traagheid,
-            );
+            if invoer.trillingstoets {
+                trilling(
+                    &mut toetsen,
+                    &mut tw,
+                    invoer,
+                    bel,
+                    klasse,
+                    eigen_gewicht,
+                    hoh_m,
+                    ei_totaal,
+                    traagheid,
+                    f1_blokkeert,
+                );
+            } else {
+                toetsen.push(f1_toets().niet_getoetst(REDEN_UIT, false));
+                toetsen.push(w1kn_toets().niet_getoetst(REDEN_UIT, false));
+                toetsen.push(v_toets().niet_getoetst(REDEN_UIT, false));
+            }
         }
     }
 
@@ -500,6 +634,36 @@ fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -
     }
 }
 
+fn f1_toets() -> Toets {
+    Toets::nieuw(
+        "trilling_f1",
+        "Trilling: eigenfrequentie",
+        "f_1 > 8 Hz",
+        Bron::basis("EC5", "7.3.3(1), (7.5)"),
+    )
+}
+
+fn w1kn_toets() -> Toets {
+    Toets::nieuw(
+        "trilling_w1kn",
+        "Trilling: statische puntlast",
+        "w_1kN <= a (a = 1 mm/kN)",
+        Bron::nb("EC5", "7.3.3(2), (7.3)"),
+    )
+}
+
+fn v_toets() -> Toets {
+    Toets::nieuw(
+        "trilling_v",
+        "Trilling: snelheidsrespons",
+        "v <= b^(f_1 zeta - 1)",
+        Bron::nb(
+            "EC5",
+            &format!("7.3.3(2), (7.4), (7.6), (7.7); (EI)_T: {BRON_EI_T}"),
+        ),
+    )
+}
+
 /// Trillingstoetsen voor een woonvloer (balklaag): f_1, w/F en snelheidsrespons.
 #[allow(clippy::too_many_arguments)]
 fn trilling(
@@ -510,8 +674,9 @@ fn trilling(
     klasse: &Klasse,
     eigen_gewicht: f64,
     hoh_m: f64,
-    ei_pl: Option<f64>,
+    ei_totaal: Option<f64>,
     traagheid: f64,
+    f1_blokkeert: bool,
 ) {
     let l = bel.l_m;
     // Massa uit alleen permanente belasting (EC5 7.3.3(3)), in kg/m2.
@@ -523,59 +688,55 @@ fn trilling(
     tw.insert("ei_l".into(), ei_l);
     tw.insert("f_1".into(), f1);
 
-    let f1_toets = Toets::nieuw(
-        "trilling_f1",
-        "Trilling: eigenfrequentie",
-        "f_1 > 8 Hz",
-        Bron::basis("EC5", "7.3.3(1), (7.5)"),
-    )
-    .waarden(f1, F1_GRENS, "Hz");
-    if f1 <= F1_GRENS {
-        toetsen.push(f1_toets.niet_getoetst(
-            "eigenfrequentie <= 8 Hz: nader onderzoek - constructeur",
-            true,
+    let laag = f1 <= F1_GRENS;
+    let f1_t = f1_toets().waarden(f1, F1_GRENS, "Hz");
+    if laag {
+        toetsen.push(f1_t.niet_getoetst(
+            "eigenfrequentie <= 8 Hz: nader onderzoek constructeur (EC5 7.3.3(1))",
+            f1_blokkeert,
         ));
     } else {
-        toetsen.push(f1_toets);
+        toetsen.push(f1_t);
     }
 
     // Statische puntlast: w_1kN = F l^3 / (48 (EI)_L b_ef), F = 1 kN, in mm.
     let vloerbreedte = invoer.vloerbreedte_m;
     // Zonder vloerbreedte geen begrenzing door B mogelijk: conservatief b_ef = hoh.
-    let b_ef = match (ei_pl, vloerbreedte) {
-        (Some(ei_t), Some(bb)) => (0.95 * l * (ei_t / ei_l).powf(0.25)).min(bb).max(hoh_m),
+    let dwars = invoer.dwarsverbinding.map(|d| d.ei_nm2);
+    let b_ef = match (dwars, ei_totaal, vloerbreedte) {
+        // EN 1995-1-1:2026 (9.19): doorgaand dwarselement in het midden.
+        (Some(ei_d), _, Some(bb)) => {
+            let ei_t = ei_totaal.unwrap_or(0.0);
+            (1.075 * l.powf(0.75) * ((ei_d + 0.63 * l * ei_t) / ei_l).powf(0.25))
+                .min(bb)
+                .max(hoh_m)
+        }
+        (None, Some(ei_t), Some(bb)) => (0.95 * l * (ei_t / ei_l).powf(0.25)).min(bb).max(hoh_m),
         _ => hoh_m,
     };
+    let dwars_actief = dwars.is_some() && vloerbreedte.is_some();
     let w1 = 1e6 * l.powi(3) / (48.0 * ei_l * b_ef);
     tw.insert("b_ef".into(), b_ef);
     tw.insert("w_1kn".into(), w1);
-    let mut t = Toets::nieuw(
-        "trilling_w1kn",
-        "Trilling: statische puntlast",
-        "w_1kN <= a (a = 1 mm/kN)",
-        Bron::nb("EC5", "7.3.3(2), (7.3)"),
-    )
-    .waarden(w1, A_GRENS, "mm/kN")
-    .uc_uit_waarden();
-    if matches!(t.status, ToetsStatus::Voldoet) {
-        let tekst = match ei_pl {
-            Some(_) if vloerbreedte.is_none() => "zonder vloerbreedte: lastspreiding over een balk (b_ef = hoh); vul de vloerbreedte in voor lastspreiding",
-            Some(_) => "lastspreiding volgens EN 1995-1-1:2026 9.3.2.5 (2e generatie); de geldende 1e generatie geeft geen methode",
-            None => "zonder vloerplaat: lastspreiding over een balk (b_ef = hoh)",
+    let mut t = w1kn_toets().waarden(w1, A_GRENS, "mm/kN").uc_uit_waarden();
+    if dwars_actief {
+        t.bron = Bron::basis("EN 1995-1-1:2026", "9.3.2.5 (9.19)");
+    }
+    if laag {
+        t = t.niet_getoetst(REDEN_INFORMATIEF, false);
+    } else if matches!(t.status, ToetsStatus::Voldoet) {
+        let tekst = match ei_totaal {
+            _ if dwars_actief => DWARS_AANNAME.to_string(),
+            Some(_) if vloerbreedte.is_none() => "zonder vloerbreedte: lastspreiding over een balk (b_ef = hoh); vul de vloerbreedte in voor lastspreiding".to_string(),
+            Some(_) => format!("lastspreiding volgens EN 1995-1-1:2026 9.3.2.5 (2e generatie); (EI)_T volgens {BRON_EI_T}; de geldende 1e generatie geeft geen methode"),
+            None => "zonder vloerlagen: lastspreiding over een balk (b_ef = hoh)".to_string(),
         };
-        t = t.aanname(tekst);
+        t = t.aanname(&tekst);
     }
     toetsen.push(t);
 
-    // Snelheidsrespons (7.4, 7.6, 7.7): alleen met vloerplaat en vloerbreedte.
-    let v_bron = Bron::nb("EC5", "7.3.3(2), (7.4), (7.6), (7.7)");
-    let v_toets = Toets::nieuw(
-        "trilling_v",
-        "Trilling: snelheidsrespons",
-        "v <= b^(f_1 zeta - 1)",
-        v_bron,
-    );
-    let rekenbaar = match (ei_pl, vloerbreedte) {
+    // Snelheidsrespons (7.4, 7.6, 7.7): alleen met vloerlagen en vloerbreedte.
+    let rekenbaar = match (ei_totaal, vloerbreedte) {
         (Some(ei_t), Some(bb)) if ei_t < ei_l => Some((ei_t, bb)),
         _ => None,
     };
@@ -589,14 +750,19 @@ fn trilling(
             tw.insert("n_40".into(), n40);
             tw.insert("v".into(), v);
             tw.insert("v_grens".into(), grens);
-            toetsen.push(v_toets.waarden(v, grens, "m/(N s2)").uc_uit_waarden());
+            let vt = v_toets().waarden(v, grens, "m/(N s2)").uc_uit_waarden();
+            toetsen.push(if laag {
+                vt.niet_getoetst(REDEN_INFORMATIEF, false)
+            } else {
+                vt
+            });
         }
         None => {
-            let reden = match (ei_pl, vloerbreedte) {
-                (Some(_), Some(_)) => "snelheidsrespons niet getoetst: vloerplaat stijver dan de balklaag ((EI)_T >= (EI)_L) - constructeur",
+            let reden = match (ei_totaal, vloerbreedte) {
+                (Some(_), Some(_)) => "snelheidsrespons niet getoetst: vloerlagen stijver dan de balklaag ((EI)_T >= (EI)_L) - constructeur",
                 _ => "snelheidsrespons niet getoetst: vloerplaat en vloerbreedte invoeren",
             };
-            toetsen.push(v_toets.niet_getoetst(reden, false))
+            toetsen.push(v_toets().niet_getoetst(reden, false))
         }
     }
 }
@@ -817,5 +983,197 @@ mod tests {
         assert_eq!(klassen.len(), 8);
         klassen.retain(|k| k.naam != "C24");
         assert!(bereken_hout_met_klassen(&invoer("", ""), &klassen).is_err());
+    }
+
+    fn invoer_l(l: f64, extra: &str) -> HoutInvoer {
+        serde_json::from_str(&format!(
+            r#"{{"algemeen":{{"overspanning_m":{l},"permanent_kn_m2":0.75,
+                "eigen_gewicht_automatisch":false,"gevolgklasse":"CC2"}},
+              "element":{{"type":"balklaag","hoh_mm":400}},
+              "sterkteklasse":"C24"{extra}}}"#
+        ))
+        .unwrap()
+    }
+
+    fn status_van<'a>(k: &'a Kandidaat, id: &str) -> &'a ToetsStatus {
+        &toets(k, id).status
+    }
+
+    #[test]
+    fn lagen_som_en_k_r_alleen_vloerplaat() {
+        let lagen = [
+            Vloerlaag {
+                soort: VloerlaagSoort::Vloerplaat,
+                dikte_mm: 18.0,
+                e_mean_n_mm2: 4000.0,
+            },
+            Vloerlaag {
+                soort: VloerlaagSoort::Plafond,
+                dikte_mm: 12.5,
+                e_mean_n_mm2: 2000.0,
+            },
+        ];
+        assert_relative_eq!(ei_t(&lagen).unwrap(), 2269.5, epsilon = 0.05);
+        assert_relative_eq!(ei_vloerplaten(&lagen), 1944.0, epsilon = 1e-9);
+        assert!(ei_t(&[]).is_none());
+        assert_relative_eq!(
+            k_r(0.4, ei_vloerplaten(&lagen)),
+            0.37 + 0.32 - 0.03888,
+            epsilon = 1e-12
+        );
+        // Plafond telt wel mee in (EI)_T maar niet in k_r.
+        let r = bereken_hout(&invoer(
+            r#","vloerlagen":[{"soort":"plafond","dikte_mm":12.5,"e_mean_n_mm2":2000}]"#,
+            "",
+        ))
+        .unwrap();
+        let tw = &r.kandidaten[0].tussenwaarden;
+        assert_relative_eq!(tw["k_r"], 0.69, epsilon = 1e-12);
+        assert_relative_eq!(tw["ei_t"], 325.5, epsilon = 0.05);
+    }
+
+    #[test]
+    fn legacy_vloerplaat_is_een_laag() {
+        let oud = bereken_hout(&invoer(
+            r#","vloerplaat":{"dikte_mm":18,"e_mean_n_mm2":4000},"vloerbreedte_m":4.0"#,
+            "",
+        ))
+        .unwrap();
+        let nieuw = bereken_hout(&invoer(
+            r#","vloerlagen":[{"soort":"vloerplaat","dikte_mm":18,"e_mean_n_mm2":4000}],"vloerbreedte_m":4.0"#,
+            "",
+        ))
+        .unwrap();
+        assert_eq!(oud.kandidaten, nieuw.kandidaten);
+        // Beide tegelijk is een invoerfout.
+        assert!(bereken_hout(&invoer(
+            r#","vloerplaat":{"dikte_mm":18,"e_mean_n_mm2":4000},
+               "vloerlagen":[{"soort":"vloerplaat","dikte_mm":18,"e_mean_n_mm2":4000}]"#,
+            "",
+        ))
+        .is_err());
+        // Bereik per laag.
+        assert!(bereken_hout(&invoer(
+            r#","vloerlagen":[{"soort":"overig","dikte_mm":3,"e_mean_n_mm2":4000}]"#,
+            "",
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn trillingstoets_uit_h1_geeft_71x171_en_melding() {
+        let r = bereken_hout(&invoer(r#","trillingstoets":false"#, "")).unwrap();
+        let a = r.advies.as_ref().expect("advies");
+        assert_eq!(a.naam, "71 x 171");
+        let k146 = &r.kandidaten[0];
+        assert!(toets(k146, "buiging").uc.unwrap() > 1.0);
+        let k = &r.kandidaten[1];
+        assert_relative_eq!(toets(k, "buiging").uc.unwrap(), 0.79, epsilon = 0.005);
+        assert_relative_eq!(
+            toets(k, "doorbuiging_w2w3").uc.unwrap(),
+            0.65,
+            epsilon = 0.005
+        );
+        assert_relative_eq!(
+            toets(k, "doorbuiging_wmax").uc.unwrap(),
+            0.60,
+            epsilon = 0.005
+        );
+        for id in ["trilling_f1", "trilling_w1kn", "trilling_v"] {
+            assert!(matches!(
+                status_van(k, id),
+                ToetsStatus::NietGetoetst { reden, blokkeert_advies: false } if reden == "uitgezet door gebruiker"
+            ));
+        }
+        assert!(r
+            .meldingen
+            .iter()
+            .any(|m| m.tekst == TRILLING_UIT_ZIN
+                && m.soort == crate::toets::MeldingSoort::Waarschuwing));
+        // Standaard (aan): de zin ontbreekt.
+        let r = bereken_hout(&invoer("", "")).unwrap();
+        assert!(r.meldingen.iter().all(|m| m.tekst != TRILLING_UIT_ZIN));
+    }
+
+    #[test]
+    fn f1_regel_beide_standen() {
+        let klassen = standaard_klassen().unwrap();
+        let i = invoer(
+            r#","vloerplaat":{"dikte_mm":18,"e_mean_n_mm2":4000},"vloerbreedte_m":4.0"#,
+            "",
+        );
+        // 146 mm: f_1 = 7,25 Hz.
+        let blokkerend = bereken_intern(&i, &klassen, true, true).unwrap();
+        let k = &blokkerend.kandidaten[0];
+        assert!(matches!(
+            status_van(k, "trilling_f1"),
+            ToetsStatus::NietGetoetst { reden, blokkeert_advies: true } if reden.contains("nader onderzoek constructeur (EC5 7.3.3(1))")
+        ));
+        let vrij = bereken_intern(&i, &klassen, false, true).unwrap();
+        let k = &vrij.kandidaten[0];
+        assert!(matches!(
+            status_van(k, "trilling_f1"),
+            ToetsStatus::NietGetoetst {
+                blokkeert_advies: false,
+                ..
+            }
+        ));
+        // In beide standen: w_1kN en v informatief, met waarde, grens en UC.
+        for r in [&blokkerend, &vrij] {
+            let k = &r.kandidaten[0];
+            for id in ["trilling_w1kn", "trilling_v"] {
+                let t = toets(k, id);
+                assert!(matches!(
+                    &t.status,
+                    ToetsStatus::NietGetoetst { reden, blokkeert_advies: false }
+                        if reden == "informatief: f_1 <= 8 Hz, nader onderzoek"
+                ));
+                assert!(t.waarde.is_some() && t.grens.is_some() && t.uc.is_some());
+                assert!(!t.blokkeert());
+            }
+        }
+        assert!(blokkerend.kandidaten[0]
+            .toetsen
+            .iter()
+            .any(Toets::blokkeert));
+    }
+
+    #[test]
+    fn geen_advies_meldt_lastspreiding_en_geen_alternatief() {
+        // 75 mm breed, 6 m: ook 96 mm voldoet zonder lastspreiding niet.
+        let i = invoer_l(6.0, r#","breedte_mm":75"#);
+        let r = bereken_hout(&i).unwrap();
+        assert!(r.advies.is_none());
+        let teksten: Vec<&str> = r.meldingen.iter().map(|m| m.tekst.as_str()).collect();
+        assert!(teksten.contains(
+            &"Vul vloerplaat (dikte, E) en vloerbreedte in: dan rekent de tool met lastspreiding."
+        ));
+        assert!(teksten.contains(
+            &"Ook een bredere balk uit het assortiment voldoet zonder lastspreiding niet."
+        ));
+        // Met vloerplaat en vloerbreedte geen extra melding.
+        let i = invoer_l(
+            6.0,
+            r#","breedte_mm":75,"vloerplaat":{"dikte_mm":18,"e_mean_n_mm2":4000},"vloerbreedte_m":4.0"#,
+        );
+        let r = bereken_hout(&i).unwrap();
+        assert!(r
+            .meldingen
+            .iter()
+            .all(|m| !m.tekst.starts_with("Vul vloerplaat")));
+    }
+
+    #[test]
+    fn geen_advies_meldt_kleinste_voldoende_alternatief() {
+        let i = invoer_l(4.4, "");
+        let r = bereken_hout(&i).unwrap();
+        assert!(r.advies.is_none());
+        let alt = r
+            .meldingen
+            .iter()
+            .find(|m| m.tekst.starts_with("Zonder lastspreiding voldoet: "))
+            .expect("alternatief");
+        assert!(alt.tekst.starts_with("Zonder lastspreiding voldoet: 96 x "));
+        assert!(alt.tekst.ends_with(" mm"));
     }
 }

@@ -438,6 +438,40 @@ pub struct Vloerplaat {
     pub e_mean_n_mm2: f64,
 }
 
+/// Soort laag op de balklaag voor de stijfheid (EI)_T.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum VloerlaagSoort {
+    /// Vloerplaat (beplanking); alleen dit soort telt mee in k_r.
+    Vloerplaat,
+    /// Dekvloer.
+    Dekvloer,
+    /// Plafond (onderzijde).
+    Plafond,
+    /// Overige laag.
+    Overig,
+}
+
+/// Laag op de balklaag die bijdraagt aan (EI)_T; de stijfheid is invoer van de gebruiker.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Vloerlaag {
+    /// Soort laag.
+    pub soort: VloerlaagSoort,
+    /// Laagdikte in mm.
+    pub dikte_mm: f64,
+    /// Gemiddelde elasticiteitsmodulus in N/mm2 (bron: invoer gebruiker, per product).
+    pub e_mean_n_mm2: f64,
+}
+
+/// Doorgaand dwarselement (klossen, kruisverband) in het midden van de overspanning.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Dwarsverbinding {
+    /// Buigstijfheid EI van het doorgaande dwarselement in Nm2 (heel element; 1e3 - 1e8).
+    pub ei_nm2: f64,
+}
+
 fn breedte_default() -> f64 {
     71.0
 }
@@ -471,15 +505,38 @@ pub struct HoutInvoer {
     /// Drukrand doorgaand gesteund (kip: k_crit = 1).
     #[serde(default = "waar")]
     pub drukrand_gesteund: bool,
-    /// Vloerplaat op de balklaag (alleen balklaag).
-    #[serde(default)]
+    /// Verouderd: vloerplaat op de balklaag. Wordt intern een laag van soort vloerplaat;
+    /// niet combineerbaar met `vloerlagen`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub vloerplaat: Option<Vloerplaat>,
+    /// Lagen op de balklaag voor (EI)_T (alleen balklaag). Alleen lagen van soort
+    /// vloerplaat tellen mee in k_r; de lagen tellen niet mee in (EI)_L.
+    #[serde(default)]
+    pub vloerlagen: Vec<Vloerlaag>,
+    /// Dwarsverbinding midden overspanning (alleen balklaag); vergroot b_ef voor w_1kN.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dwarsverbinding: Option<Dwarsverbinding>,
+    /// Trillingstoets (EC5 7.3) meenemen; bij onwaar wordt trilling niet beoordeeld.
+    #[serde(default = "waar")]
+    pub trillingstoets: bool,
     /// Vloerbreedte B in m (dwars op de balken; alleen balklaag).
     #[serde(default)]
     pub vloerbreedte_m: Option<f64>,
 }
 
 impl HoutInvoer {
+    /// Alle lagen voor (EI)_T; het verouderde veld `vloerplaat` telt als laag van soort vloerplaat.
+    pub fn lagen(&self) -> Vec<Vloerlaag> {
+        match &self.vloerplaat {
+            Some(p) => vec![Vloerlaag {
+                soort: VloerlaagSoort::Vloerplaat,
+                dikte_mm: p.dikte_mm,
+                e_mean_n_mm2: p.e_mean_n_mm2,
+            }],
+            None => self.vloerlagen.clone(),
+        }
+    }
+
     /// Controleer de invoer.
     pub fn valideer(&self) -> Result<()> {
         self.algemeen.valideer()?;
@@ -505,17 +562,36 @@ impl HoutInvoer {
                 }
             }
         }
-        if let Some(p) = &self.vloerplaat {
-            bereik("vloerplaat.dikte_mm", p.dikte_mm, 5.0, 100.0)?;
-            bereik("vloerplaat.e_mean_n_mm2", p.e_mean_n_mm2, 100.0, 30000.0)?;
+        if self.vloerplaat.is_some() && !self.vloerlagen.is_empty() {
+            return Err(ConstructieFout::Invoer(
+                "vloerplaat en vloerlagen niet tegelijk opgeven: gebruik alleen vloerlagen".into(),
+            ));
+        }
+        for (n, l) in self.lagen().iter().enumerate() {
+            bereik(&format!("vloerlagen[{n}].dikte_mm"), l.dikte_mm, 5.0, 100.0)?;
+            bereik(
+                &format!("vloerlagen[{n}].e_mean_n_mm2"),
+                l.e_mean_n_mm2,
+                100.0,
+                30000.0,
+            )?;
+        }
+        if let Some(d) = &self.dwarsverbinding {
+            bereik("dwarsverbinding.ei_nm2", d.ei_nm2, 1e3, 1e8)?;
         }
         if let Some(b) = self.vloerbreedte_m {
             bereik("vloerbreedte_m", b, 1.0, 50.0)?;
         }
         let balklaag = matches!(self.element, HoutElement::Balklaag { .. });
-        if !balklaag && (self.vloerplaat.is_some() || self.vloerbreedte_m.is_some()) {
+        if !balklaag
+            && (self.vloerplaat.is_some()
+                || !self.vloerlagen.is_empty()
+                || self.dwarsverbinding.is_some()
+                || self.vloerbreedte_m.is_some())
+        {
             return Err(ConstructieFout::Invoer(
-                "vloerplaat en vloerbreedte_m gelden alleen voor een balklaag".into(),
+                "vloerlagen, dwarsverbinding en vloerbreedte_m gelden alleen voor een balklaag"
+                    .into(),
             ));
         }
         Ok(())

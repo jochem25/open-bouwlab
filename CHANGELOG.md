@@ -40,6 +40,17 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - Norm-conformiteit regressie-tests WTW + infiltratie SystemD (659b658)
 - NTA8800-cooling Vabi-cross-validatie scaffold (51dc6ae)
 
+## [Unreleased] — 2026-10-07 (branch `feat/constructie-hout-trilling`)
+
+### Nieuw
+
+- **Hout: trillingstoets optioneel.** De toets staat standaard aan. Staat hij uit, dan worden f_1, w_1kN en v niet getoetst. Scherm en rapport tonen dan altijd een melding die de gebruiker niet kan wegklikken.
+- **Hout: vloerlagen voor de dwarsstijfheid (EI)_T.** Vloerplaat, dekvloer, plafond en overige lagen tellen mee zonder samenwerking. Ze tellen niet mee in (EI)_L, en k_r rekent alleen met de vloerplaat. Het oude veld `vloerplaat` blijft werken.
+- **Hout: dwarsverbinding midden in de overspanning.** De lastspreiding b_ef volgt uit EN 1995-1-1:2026 (9.19), met de status aanname.
+- **Hout: melding bij geen advies** wanneer de toets w_1kN zonder lastspreiding beslist, met de kleinste bredere balk die wel voldoet.
+- **Hout: f_1 <= 8 Hz** geeft 'niet getoetst - nader onderzoek' en blokkeert het advies zolang de trillingstoets aan staat. w_1kN en v worden dan ter informatie getoond.
+- **Rapport-proxy:** een request zonder tenant-claim geeft nu een waarschuwing in de log. Voorheen viel de proxy stil terug op de tenant van het service-account.
+
 ## [Unreleased] — 2026-10-07 (branch `feat/constructie-hout`)
 
 ### Nieuw

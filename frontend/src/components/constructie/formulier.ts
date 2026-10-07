@@ -19,7 +19,30 @@ import type {
   Staalsoort,
   Sterkteklasse,
   Toepassing,
+  Vloerlaag,
+  VloerlaagSoort,
 } from "../../types/constructie";
+
+/** Een rij in de lagenlijst; een leeg E-veld betekent: de laag telt niet mee. */
+export interface VloerlaagRij {
+  /** Stabiele sleutel voor de lijst; wordt niet naar de API gestuurd. */
+  sleutel: string;
+  soort: VloerlaagSoort;
+  dikte_mm: number | null;
+  e_n_mm2: number | null;
+}
+
+let rijTeller = 0;
+
+/** Nieuwe, lege laag (soort vloerplaat, geen dikte, geen E-waarde). */
+export function nieuweLaag(soort: VloerlaagSoort = "vloerplaat"): VloerlaagRij {
+  rijTeller += 1;
+  return { sleutel: `laag-${rijTeller}`, soort, dikte_mm: null, e_n_mm2: null };
+}
+
+/** Vaste waarschuwingszin van de rekenkern als de trillingstoets is uitgezet. */
+export const TRILLING_UIT_ZIN =
+  "Trillingen (EC5 7.3 / NB) niet beoordeeld op verzoek van de gebruiker; laat dit beoordelen door de constructeur.";
 
 export interface Formulier {
   toepassing: Toepassing;
@@ -57,9 +80,11 @@ export interface Formulier {
   hout_breedte_mm: number | null;
   klimaatklasse: 1 | 2;
   drukrand_gesteund: boolean;
-  vloerplaat_dikte_mm: number | null;
-  vloerplaat_e_n_mm2: number | null;
+  vloerlagen: VloerlaagRij[];
   vloerbreedte_m: number | null;
+  /** EI van de dwarsverbinding in kNm2 (UI-eenheid); leeg = geen dwarsverbinding. */
+  dwars_ei_knm2: number | null;
+  trillingstoets: boolean;
 }
 
 export const STANDAARD_FORMULIER: Formulier = {
@@ -94,10 +119,21 @@ export const STANDAARD_FORMULIER: Formulier = {
   hout_breedte_mm: 71,
   klimaatklasse: 1,
   drukrand_gesteund: true,
-  vloerplaat_dikte_mm: null,
-  vloerplaat_e_n_mm2: null,
+  vloerlagen: [],
   vloerbreedte_m: null,
+  dwars_ei_knm2: null,
+  trillingstoets: true,
 };
+
+/** De schakelaar voor de trillingstoets bestaat alleen bij een houten balklaag in een vloer. */
+export function heeftTrillingSchakelaar(f: Formulier, materiaal: Materiaal): boolean {
+  return materiaal === "hout" && f.hout_element === "balklaag" && f.toepassing === "vloer";
+}
+
+/** `true` als de vaste banner "trillingstoets uit" getoond moet worden. */
+export function toonTrillingUitBanner(f: Formulier, materiaal: Materiaal): boolean {
+  return heeftTrillingSchakelaar(f, materiaal) && !f.trillingstoets;
+}
 
 /** Minimale gevolgklasse per gebouwtype (spiegelt de rekenkern; server blijft leidend). */
 export const MINIMALE_GEVOLGKLASSE: Record<Gebouwtype, Gevolgklasse> = {
@@ -157,14 +193,19 @@ function bouwHout(f: Formulier, algemeen: AlgemeneInvoer): HoutInvoer | null {
   };
   if (!f.hoogte_automatisch && f.hoogte_mm !== null) invoer.hoogte_mm = f.hoogte_mm;
   if (balklaag) {
-    // Vloerplaat: dikte en E-modulus samen, of beide leeg; een van de twee is onvolledig.
-    const heeftDikte = f.vloerplaat_dikte_mm !== null;
-    const heeftE = f.vloerplaat_e_n_mm2 !== null;
-    if (heeftDikte !== heeftE) return null;
-    if (f.vloerplaat_dikte_mm !== null && f.vloerplaat_e_n_mm2 !== null) {
-      invoer.vloerplaat = { dikte_mm: f.vloerplaat_dikte_mm, e_mean_n_mm2: f.vloerplaat_e_n_mm2 };
+    // Lagen: een leeg E-veld betekent dat de laag niet meetelt (niet sturen). Een E-waarde
+    // zonder dikte is onvolledig.
+    const lagen: Vloerlaag[] = [];
+    for (const rij of f.vloerlagen) {
+      if (rij.e_n_mm2 === null) continue;
+      if (rij.dikte_mm === null) return null;
+      lagen.push({ soort: rij.soort, dikte_mm: rij.dikte_mm, e_mean_n_mm2: rij.e_n_mm2 });
     }
+    if (lagen.length > 0) invoer.vloerlagen = lagen;
     if (f.vloerbreedte_m !== null) invoer.vloerbreedte_m = f.vloerbreedte_m;
+    // UI in kNm2, API in Nm2.
+    if (f.dwars_ei_knm2 !== null) invoer.dwarsverbinding = { ei_nm2: f.dwars_ei_knm2 * 1000 };
+    invoer.trillingstoets = f.toepassing === "vloer" ? f.trillingstoets : true;
   }
   return invoer;
 }

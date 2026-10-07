@@ -851,7 +851,8 @@
         "staal": "Staal",
         "beton": "Beton",
         "hout": "Hout",
-        "vloerplaat": "Vloerplaat (voor trillingstoets)"
+        "vloerplaat": "Vloerlagen (voor trillingstoets)",
+        "dwarsverbinding": "Dwarsverbinding midden overspanning (klossen/kruisverband)"
       },
       "toepassing": "Toepassing",
       "gebruiksfunctie": "Gebruiksfunctie",
@@ -884,9 +885,16 @@
       "houtBreedte": "Breedte",
       "klimaatklasse": "Klimaatklasse",
       "drukrandGesteund": "Drukrand doorgaand gesteund",
-      "vloerplaatDikte": "Plaatdikte",
-      "vloerplaatE": "E-modulus plaat",
-      "vloerplaatEHelp": "Vul de waarde in die de leverancier of de productnorm opgeeft; die wordt hier niet aangenomen. Dikte en E-modulus samen invullen.",
+      "dwarsEi": "EI dwarselement (heel element)",
+      "dwarsHelp": "Optioneel: doorgaand, mechanisch verbonden element in het midden van de overspanning. Vul EI in van het hele element (kNm²); vereist ook de vloerbreedte. Losse klossen of klossen op 1/3-punten vallen hier niet onder.",
+      "laagSoort": "Soort laag",
+      "laagDikte": "Dikte",
+      "laagE": "E-modulus",
+      "laagToevoegen": "Laag toevoegen",
+      "laagVerwijder": "Laag verwijderen",
+      "laagHelp": "Vul de waarde in die de leverancier of de productnorm opgeeft; die wordt hier niet aangenomen. Een laag zonder E-modulus telt niet mee. Alleen lagen van soort vloerplaat tellen mee in de puntlastreductie.",
+      "laagSoorten": {"vloerplaat": "Vloerplaat", "dekvloer": "Dekvloer", "plafond": "Plafond", "overig": "Overig"},
+      "trillingstoets": "Trillingstoets (EC5 7.3) meenemen",
       "vloerbreedte": "Vloerbreedte B (dwars op de balken)"
     },
     "opties": {

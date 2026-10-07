@@ -55,12 +55,16 @@ describe("constructieClient", () => {
     expect(bouwInvoer({ ...STANDAARD_FORMULIER, overspanning_m: null }, "staal")).toBeNull();
   });
 
-  it("bouwt hout-invoer: balklaag met getagd element en vloerplaat", () => {
+  it("bouwt hout-invoer: balklaag met getagd element en lagen; lege E telt niet mee", () => {
     const f = {
       ...STANDAARD_FORMULIER,
-      vloerplaat_dikte_mm: 22,
-      vloerplaat_e_n_mm2: 3000,
+      vloerlagen: [
+        { sleutel: "a", soort: "vloerplaat" as const, dikte_mm: 18, e_n_mm2: 4000 },
+        { sleutel: "b", soort: "plafond" as const, dikte_mm: 12.5, e_n_mm2: 2000 },
+        { sleutel: "c", soort: "dekvloer" as const, dikte_mm: 40, e_n_mm2: null },
+      ],
       vloerbreedte_m: 4,
+      dwars_ei_knm2: 1429.8,
     };
     const invoer = bouwInvoer(f, "hout")!;
     expect(invoer.element).toEqual({ type: "balklaag", hoh_mm: 400 });
@@ -68,31 +72,46 @@ describe("constructieClient", () => {
     expect(invoer.breedte_mm).toBe(71);
     expect(invoer.klimaatklasse).toBe(1);
     expect(invoer.drukrand_gesteund).toBe(true);
-    expect(invoer.vloerplaat).toEqual({ dikte_mm: 22, e_mean_n_mm2: 3000 });
+    expect(invoer.vloerlagen).toEqual([
+      { soort: "vloerplaat", dikte_mm: 18, e_mean_n_mm2: 4000 },
+      { soort: "plafond", dikte_mm: 12.5, e_mean_n_mm2: 2000 },
+    ]);
     expect(invoer.vloerbreedte_m).toBe(4);
+    expect(invoer.dwarsverbinding?.ei_nm2).toBeCloseTo(1429800, 3);
+    expect(invoer.trillingstoets).toBe(true);
     expect(invoer.hoogte_mm).toBeUndefined();
   });
 
-  it("laat vloerplaat weg bij een enkele balk en gebruikt de belastingbreedte", () => {
+  it("hout: schakelaar uit geeft trillingstoets false; zonder lagen geen vloerlagen-veld", () => {
+    const invoer = bouwInvoer({ ...STANDAARD_FORMULIER, trillingstoets: false }, "hout")!;
+    expect(invoer.trillingstoets).toBe(false);
+    expect(invoer.vloerlagen).toBeUndefined();
+    expect(invoer.dwarsverbinding).toBeUndefined();
+  });
+
+  it("laat lagen weg bij een enkele balk en gebruikt de belastingbreedte", () => {
     const f = {
       ...STANDAARD_FORMULIER,
       hout_element: "balk" as const,
       belastingbreedte_m: 2.5,
-      vloerplaat_dikte_mm: 22,
-      vloerplaat_e_n_mm2: 3000,
+      vloerlagen: [{ sleutel: "a", soort: "vloerplaat" as const, dikte_mm: 22, e_n_mm2: 3000 }],
       vloerbreedte_m: 4,
     };
     const invoer = bouwInvoer(f, "hout")!;
     expect(invoer.element).toEqual({ type: "balk", belastingbreedte_m: 2.5 });
-    expect(invoer.vloerplaat).toBeUndefined();
+    expect(invoer.vloerlagen).toBeUndefined();
     expect(invoer.vloerbreedte_m).toBeUndefined();
+    expect(invoer.trillingstoets).toBeUndefined();
   });
 
-  it("hout: vaste hoogte meegeven; halve vloerplaat of lege breedte is onvolledig", () => {
+  it("hout: vaste hoogte meegeven; E zonder dikte of lege breedte is onvolledig", () => {
     const vast = bouwInvoer({ ...STANDAARD_FORMULIER, hoogte_automatisch: false, hoogte_mm: 220 }, "hout")!;
     expect(vast.hoogte_mm).toBe(220);
     expect(bouwInvoer({ ...STANDAARD_FORMULIER, hoogte_automatisch: false, hoogte_mm: null }, "hout")).toBeNull();
-    expect(bouwInvoer({ ...STANDAARD_FORMULIER, vloerplaat_dikte_mm: 22 }, "hout")).toBeNull();
+    expect(bouwInvoer(
+        { ...STANDAARD_FORMULIER, vloerlagen: [{ sleutel: "a", soort: "vloerplaat", dikte_mm: null, e_n_mm2: 4000 }] },
+        "hout",
+      )).toBeNull();
     expect(bouwInvoer({ ...STANDAARD_FORMULIER, hout_breedte_mm: null }, "hout")).toBeNull();
     expect(bouwInvoer({ ...STANDAARD_FORMULIER, hout_element: "balk", belastingbreedte_m: null }, "hout")).toBeNull();
   });

@@ -14,8 +14,17 @@ import type {
   Staalsoort,
   Sterkteklasse,
   Toepassing,
+  VloerlaagSoort,
 } from "../../types/constructie";
-import { type Formulier, parseGetal, toegestaneGevolgklassen } from "./formulier";
+import { Button } from "../ui/Button";
+import {
+  type Formulier,
+  heeftTrillingSchakelaar,
+  nieuweLaag,
+  parseGetal,
+  toegestaneGevolgklassen,
+  type VloerlaagRij,
+} from "./formulier";
 
 const TOEPASSINGEN: Toepassing[] = ["vloer", "dak"];
 const GEBRUIKSFUNCTIES: Gebruiksfunctie[] = [
@@ -36,6 +45,7 @@ const STAALSOORTEN: Staalsoort[] = ["S235", "S275", "S355"];
 const REEKSEN: Reeks[] = ["IPE", "HEA", "HEB"];
 const STERKTEKLASSEN: Sterkteklasse[] = ["C20/25", "C25/30", "C30/37", "C35/45"];
 const HOUTKLASSEN: Houtklasse[] = ["C14", "C16", "C18", "C20", "C22", "C24", "C27", "C30"];
+const LAAGSOORTEN: VloerlaagSoort[] = ["vloerplaat", "dekvloer", "plafond", "overig"];
 const HOH_WAARDEN = [300, 400, 500, 600];
 const HOUT_BREEDTES = [46, 58, 71, 96];
 const MILIEUKLASSEN: Milieuklasse[] = ["XC1", "XC3"];
@@ -288,23 +298,63 @@ export function InvoerKolom({ materiaal, waarde: f, onChange }: Props) {
               <legend className="mb-1 font-heading text-sm font-medium text-on-surface">
                 {t("constructie.invoer.groepen.vloerplaat")}
               </legend>
-              <Input
-                id={`${idPrefix}-plaatdikte`}
-                type="number"
-                label={t("constructie.invoer.vloerplaatDikte")}
-                unit="mm"
-                value={f.vloerplaat_dikte_mm ?? ""}
-                onChange={num("vloerplaat_dikte_mm")}
-              />
-              <Input
-                id={`${idPrefix}-plaat-e`}
-                type="number"
-                label={t("constructie.invoer.vloerplaatE")}
-                unit="N/mm²"
-                value={f.vloerplaat_e_n_mm2 ?? ""}
-                onChange={num("vloerplaat_e_n_mm2")}
-              />
-              <p className="text-xs text-on-surface-secondary">{t("constructie.invoer.vloerplaatEHelp")}</p>
+              <ul className="flex flex-col gap-3" data-testid="vloerlagen-lijst">
+                {f.vloerlagen.map((rij, n) => {
+                  const wijzigRij = (patch: Partial<VloerlaagRij>) =>
+                    onChange({
+                      vloerlagen: f.vloerlagen.map((r) => (r.sleutel === rij.sleutel ? { ...r, ...patch } : r)),
+                    });
+                  return (
+                    <li key={rij.sleutel} className="flex flex-col gap-2 rounded-md border border-[var(--oaec-border-subtle)] p-2">
+                      <Select
+                        id={`${idPrefix}-laag-${n}-soort`}
+                        label={t("constructie.invoer.laagSoort")}
+                        value={rij.soort}
+                        options={LAAGSOORTEN.map((s) => ({
+                          value: s,
+                          label: t(`constructie.invoer.laagSoorten.${s}`),
+                        }))}
+                        onChange={(e) => wijzigRij({ soort: e.target.value as VloerlaagSoort })}
+                      />
+                      <Input
+                        id={`${idPrefix}-laag-${n}-dikte`}
+                        type="number"
+                        label={t("constructie.invoer.laagDikte")}
+                        unit="mm"
+                        placeholder="mm"
+                        value={rij.dikte_mm ?? ""}
+                        onChange={(e) => wijzigRij({ dikte_mm: parseGetal(e.target.value) })}
+                      />
+                      <Input
+                        id={`${idPrefix}-laag-${n}-e`}
+                        type="number"
+                        label={t("constructie.invoer.laagE")}
+                        unit="N/mm²"
+                        placeholder="N/mm²"
+                        value={rij.e_n_mm2 ?? ""}
+                        onChange={(e) => wijzigRij({ e_n_mm2: parseGetal(e.target.value) })}
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => onChange({ vloerlagen: f.vloerlagen.filter((r) => r.sleutel !== rij.sleutel) })}
+                      >
+                        {t("constructie.invoer.laagVerwijder")}
+                      </Button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => onChange({ vloerlagen: [...f.vloerlagen, nieuweLaag()] })}
+              >
+                {t("constructie.invoer.laagToevoegen")}
+              </Button>
+              <p className="text-xs text-on-surface-secondary">{t("constructie.invoer.laagHelp")}</p>
               <Input
                 id={`${idPrefix}-vloerbreedte`}
                 type="number"
@@ -313,6 +363,30 @@ export function InvoerKolom({ materiaal, waarde: f, onChange }: Props) {
                 value={f.vloerbreedte_m ?? ""}
                 onChange={num("vloerbreedte_m")}
               />
+            </fieldset>
+          )}
+          {f.hout_element === "balklaag" && (
+            <fieldset className="flex flex-col gap-3" data-testid="dwarsverbinding-blok">
+              <legend className="mb-1 font-heading text-sm font-medium text-on-surface">
+                {t("constructie.invoer.groepen.dwarsverbinding")}
+              </legend>
+              <Input
+                id={`${idPrefix}-dwars-ei`}
+                type="number"
+                label={t("constructie.invoer.dwarsEi")}
+                unit="kNm²"
+                placeholder="kNm²"
+                value={f.dwars_ei_knm2 ?? ""}
+                onChange={num("dwars_ei_knm2")}
+              />
+              <p className="text-xs text-on-surface-secondary">{t("constructie.invoer.dwarsHelp")}</p>
+              {heeftTrillingSchakelaar(f, materiaal) && (
+                <Vink
+                  label={t("constructie.invoer.trillingstoets")}
+                  checked={f.trillingstoets}
+                  onChange={(v) => onChange({ trillingstoets: v })}
+                />
+              )}
             </fieldset>
           )}
         </>
