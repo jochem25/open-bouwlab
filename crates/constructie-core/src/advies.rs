@@ -32,11 +32,16 @@ pub fn laagste_bouwhoogte(kandidaten: &[Kandidaat]) -> Option<usize> {
 
 /// Toets met de hoogste UC van een kandidaat, met een korte uitleg.
 pub fn maatgevend(k: &Kandidaat) -> Option<Maatgevend> {
-    let toets = k.toetsen.iter().filter(|t| t.uc.is_some()).max_by(|a, b| {
-        a.uc.unwrap_or(0.0)
-            .partial_cmp(&b.uc.unwrap_or(0.0))
-            .unwrap_or(std::cmp::Ordering::Equal)
-    })?;
+    // Informatieve (niet getoetste) toetsen tellen niet mee voor het maatgevende.
+    let toets = k
+        .toetsen
+        .iter()
+        .filter(|t| t.uc.is_some() && !matches!(t.status, ToetsStatus::NietGetoetst { .. }))
+        .max_by(|a, b| {
+            a.uc.unwrap_or(0.0)
+                .partial_cmp(&b.uc.unwrap_or(0.0))
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })?;
     let uc = toets.uc?;
     Some(Maatgevend {
         toets_id: toets.id.clone(),

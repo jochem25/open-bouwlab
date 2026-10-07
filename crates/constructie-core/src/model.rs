@@ -645,8 +645,10 @@ pub struct Kandidaat {
 impl Kandidaat {
     /// Hoogste UC over alle toetsen met een UC.
     pub fn max_uc(&self) -> Option<f64> {
+        // Informatieve (niet getoetste) toetsen tellen niet mee.
         self.toetsen
             .iter()
+            .filter(|t| !matches!(t.status, crate::toets::ToetsStatus::NietGetoetst { .. }))
             .filter_map(|t| t.uc)
             .fold(None, |m, u| Some(m.map_or(u, |m: f64| m.max(u))))
     }

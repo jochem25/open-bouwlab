@@ -284,12 +284,24 @@ fn bereken_intern(
         meldingen.push(bel.afschot_melding(w));
     }
 
+    // Lastspreiding is alleen actief met vloerbreedte en (vloerlagen of dwarsverbinding).
+    let spreiding_actief =
+        invoer.vloerbreedte_m.is_some() && (!lagen.is_empty() || invoer.dwarsverbinding.is_some());
+    if balklaag_vloer
+        && invoer.trillingstoets
+        && invoer.dwarsverbinding.is_some()
+        && invoer.vloerbreedte_m.is_none()
+    {
+        meldingen.push(Melding::waarschuwing(
+            "Dwarsverbinding niet meegerekend: vul de vloerbreedte in.",
+        ));
+    }
     let mut res = stel_resultaat_samen(kandidaten, bel.gevolgklasse, bel.l_m, meldingen, false);
     if zoek_alternatief
         && res.advies.is_none()
         && balklaag_vloer
         && invoer.trillingstoets
-        && (!heeft_vloerplaat || invoer.vloerbreedte_m.is_none())
+        && !spreiding_actief
         && trilling_w1kn_maatgevend(&res)
     {
         res.meldingen.push(Melding::waarschuwing(
@@ -784,6 +796,35 @@ mod tests {
               "sterkteklasse":"C24"{extra}}}"#
         ))
         .unwrap()
+    }
+
+    #[test]
+    fn dwarsverbinding_zonder_vloerbreedte_geeft_melding() {
+        let r = bereken_hout(&invoer(r#","dwarsverbinding":{"ei_nm2":1.4e6}"#, "")).unwrap();
+        assert!(r
+            .meldingen
+            .iter()
+            .any(|m| m.tekst.starts_with("Dwarsverbinding niet meegerekend")));
+    }
+
+    #[test]
+    fn geen_vloerplaat_hint_als_spreiding_al_actief_is() {
+        // l = 6 m zonder vloerplaat-laag: w_1kN beslist; met plafondlaag + vloerbreedte is
+        // lastspreiding actief, dus geen hint 'vul vloerplaat in'.
+        let zonder = bereken_hout(&invoer_l(6.0, "")).unwrap();
+        assert!(zonder
+            .meldingen
+            .iter()
+            .any(|m| m.tekst.starts_with("Vul vloerplaat")));
+        let met = bereken_hout(&invoer_l(
+            6.0,
+            r#","vloerlagen":[{"soort":"plafond","dikte_mm":12.5,"e_mean_n_mm2":2000}],"vloerbreedte_m":4.0"#,
+        ))
+        .unwrap();
+        assert!(!met
+            .meldingen
+            .iter()
+            .any(|m| m.tekst.starts_with("Vul vloerplaat")));
     }
 
     fn toets<'a>(k: &'a Kandidaat, id: &str) -> &'a Toets {
