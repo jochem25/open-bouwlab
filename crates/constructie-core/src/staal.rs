@@ -162,6 +162,8 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
     tw.insert("m_ed_gelijkmatig".into(), ugt.m_gelijkmatig);
     tw.insert("m_ed_punt".into(), ugt.m_punt);
     tw.insert("m_ed".into(), ugt.m_ed);
+    tw.insert("v_ed_gelijkmatig".into(), ugt.v_gelijkmatig);
+    tw.insert("v_ed_punt".into(), ugt.v_punt);
     tw.insert("v_ed".into(), ugt.v_ed);
 
     if p.t_f > 80.0 {

@@ -48,9 +48,9 @@ const TABEL: [Rij; 7] = [
     (
         "IPE 180", 12.92, 47.08, 39.10, 1.20, 34.9, 152.7, 0.23, 12.6, 19.1, 19.1,
     ),
-    // w_3 = 8,6 zoals genoteerd; valt buiten de tolerantie, zie s1_gemelde_afwijking_ipe200_w3.
+    // w_3 = 8,5: golden gecorrigeerd door de planner (was 8,6, afrondingsfout).
     (
-        "IPE 200", 12.96, 47.23, 51.84, 0.91, 35.0, 189.9, 0.18, 8.6, 13.1, 13.1,
+        "IPE 200", 12.96, 47.23, 51.84, 0.91, 35.0, 189.9, 0.18, 8.5, 13.1, 13.1,
     ),
     (
         "IPE 220", 13.00, 47.40, 67.07, 0.71, 35.1, 215.5, 0.16, 6.0, 9.2, 9.2,
@@ -84,9 +84,7 @@ fn s1_per_profiel() {
         golden(&format!("{naam} M_pl,Rd"), t["m_pl_rd"], mrd, 2);
         golden(&format!("{naam} V_Ed"), t["v_ed"], v, 1);
         golden(&format!("{naam} V_pl,Rd"), t["v_pl_rd"], vrd, 1);
-        if naam != GEMELDE_AFWIJKING_W3 {
-            golden(&format!("{naam} w_3"), t["w_3"], w3, 1);
-        }
+        golden(&format!("{naam} w_3"), t["w_3"], w3, 1);
         golden(&format!("{naam} w_max"), t["w_max"], wmax, 1);
         golden(&format!("{naam} w_qp"), t["w_qp"], wqp, 1);
 
@@ -102,28 +100,6 @@ fn s1_per_profiel() {
         assert!(t["v_ed"] / t["v_pl_rd"] < 0.5, "{naam}: M-V interactie");
         assert_eq!(t["klasse_lijf"], 1.0);
     }
-}
-
-/// Golden w_3 voor IPE 200 is genoteerd als 8,6 mm; de kern en het referentierekenscript
-/// geven beide 8,547 mm (UC 0,53 klopt wel). Gemeld aan de planner als vermoedelijke
-/// afrondingsfout in de golden; de golden is NIET bijgesteld. Deze test legt de berekende
-/// waarde vast tot de golden is bevestigd of gecorrigeerd.
-const GEMELDE_AFWIJKING_W3: &str = "IPE 200";
-
-#[test]
-fn s1_gemelde_afwijking_ipe200_w3() {
-    let r = bereken_staal(&invoer()).unwrap();
-    let k = r
-        .kandidaten
-        .iter()
-        .find(|k| k.naam == GEMELDE_AFWIJKING_W3)
-        .unwrap();
-    let w3 = k.tussenwaarden["w_3"];
-    assert!((w3 - 8.547).abs() < 0.005, "w_3 {w3}");
-    assert!(
-        (w3 - 8.6).abs() > 0.05,
-        "golden 8,6 klopt nu wel: afwijking opheffen"
-    );
 }
 
 #[test]

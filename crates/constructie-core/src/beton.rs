@@ -11,7 +11,7 @@ use crate::error::Result;
 use crate::model::{
     BetonInvoer, BetonKeuze, BetonResultaat, Kandidaat, Milieuklasse, Sterkteklasse, Toepassing,
 };
-use crate::toets::{Bron, Melding, Toets, UC_PLAFOND};
+use crate::toets::{Bron, Melding, Toets, ToetsStatus, UC_PLAFOND};
 
 /// Partiele factor beton (EC2 tabel 2.1N).
 const GAMMA_C: f64 = 1.5;
@@ -109,6 +109,19 @@ pub fn bereken_beton(invoer: &BetonInvoer) -> Result<BetonResultaat> {
         .collect();
 
     let mut meldingen = bel.meldingen.clone();
+    let trilling_niet_getoetst = kandidaten.iter().any(|k| {
+        k.toetsen
+            .iter()
+            .any(|t| t.id == "trilling" && matches!(t.status, ToetsStatus::NietGetoetst { .. }))
+    });
+    if trilling_niet_getoetst {
+        meldingen.push(
+            Melding::waarschuwing(
+                "Trilling niet getoetst - constructeur bij lange overspanning of lichte vloer.",
+            )
+            .met_bron(Bron::nb("EC0", "A1.4.4")),
+        );
+    }
     meldingen.push(Melding::info(&format!(
         "Dekking en nuttige hoogte met aangenomen hoofdstaafdiameter {} mm; staafkeuze hooguit deze diameter, d niet herberekend (conservatief).",
         invoer.phi_hoofd_mm
@@ -162,6 +175,8 @@ fn toets_hoogte(invoer: &BetonInvoer, bel: &Belasting, dek: &Dekking, h: f64) ->
     tw.insert("q_d_6.10b".into(), ugt.q_d_b);
     tw.insert("q_d".into(), ugt.q_d);
     tw.insert("m_ed".into(), m_ed);
+    tw.insert("v_ed_gelijkmatig".into(), ugt.v_gelijkmatig);
+    tw.insert("v_ed_punt".into(), ugt.v_punt);
     tw.insert("v_ed".into(), v_ed);
 
     let mut k = Kandidaat {
@@ -386,7 +401,7 @@ fn toets_hoogte(invoer: &BetonInvoer, bel: &Belasting, dek: &Dekking, h: f64) ->
                 t.waarden(waarde, grens, eenheid)
             }
             None => t.niet_getoetst(
-                "massacriterium niet gehaald; eigenfrequentie niet berekend in v1 - constructeur",
+                "massacriterium niet gehaald; trilling niet getoetst - constructeur bij lange overspanning of lichte vloer",
                 false,
             ),
         });
@@ -412,6 +427,32 @@ fn fmt0(x: f64) -> String {
 mod tests {
     use super::*;
     use approx::assert_relative_eq;
+
+    #[test]
+    fn lichte_vloer_geeft_waarschuwing_trilling_niet_getoetst() {
+        let invoer: BetonInvoer = serde_json::from_str(
+            r#"{"algemeen":{"overspanning_m":5,"permanent_kn_m2":0.5},
+                "belastingbreedte_m":0.5,"sterkteklasse":"C30/37","balkbreedte_mm":300}"#,
+        )
+        .unwrap();
+        let r = bereken_beton(&invoer).unwrap();
+        assert!(r
+            .meldingen
+            .iter()
+            .any(|m| m.tekst.starts_with("Trilling niet getoetst - constructeur")));
+        let a = r
+            .advies
+            .as_ref()
+            .expect("advies ondanks niet getoetste trilling");
+        let t = a.toetsen.iter().find(|t| t.id == "trilling").unwrap();
+        assert!(matches!(
+            t.status,
+            ToetsStatus::NietGetoetst {
+                blokkeert_advies: false,
+                ..
+            }
+        ));
+    }
 
     #[test]
     fn dekking_xc1_c30_is_s3() {

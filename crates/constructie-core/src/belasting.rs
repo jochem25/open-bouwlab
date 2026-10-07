@@ -180,6 +180,11 @@ pub struct Ugt {
     /// Maatgevend moment in kNm.
     pub m_ed: f64,
     /// Dwarskracht bij de oplegging uit de gelijkmatige belasting in kN.
+    pub v_gelijkmatig: f64,
+    /// Dwarskracht bij de oplegging met de puntlast Q_k op de oplegging (ongunstigste
+    /// combinatie) in kN.
+    pub v_punt: f64,
+    /// Maatgevende dwarskracht bij de oplegging in kN.
     pub v_ed: f64,
 }
 
@@ -216,6 +221,11 @@ impl Belasting {
             c.gamma_g_a * g_lijn * l * l / 8.0 + c.gamma_q * self.psi0 * self.q_punt_kn * l / 4.0;
         let m_b = c.gamma_g_b * g_lijn * l * l / 8.0 + c.gamma_q * self.q_punt_kn * l / 4.0;
         let m_punt = m_a.max(m_b);
+        let v_gelijkmatig = q_d * l / 2.0;
+        // Puntlast Q_k afzonderlijk van q_k, net als bij het moment; bij de oplegging.
+        let v_a = c.gamma_g_a * g_lijn * l / 2.0 + c.gamma_q * self.psi0 * self.q_punt_kn;
+        let v_b = c.gamma_g_b * g_lijn * l / 2.0 + c.gamma_q * self.q_punt_kn;
+        let v_punt = v_a.max(v_b);
         Ugt {
             q_d_a,
             q_d_b,
@@ -223,7 +233,9 @@ impl Belasting {
             m_gelijkmatig,
             m_punt,
             m_ed: m_gelijkmatig.max(m_punt),
-            v_ed: q_d * l / 2.0,
+            v_gelijkmatig,
+            v_punt,
+            v_ed: v_gelijkmatig.max(v_punt),
         }
     }
 
@@ -373,6 +385,21 @@ mod tests {
 
     fn alg(json: &str) -> Algemeen {
         serde_json::from_str(json).unwrap()
+    }
+
+    #[test]
+    fn dwarskracht_uit_puntlast_bij_korte_overspanning() {
+        // CC2, cat A vloer: Q_k = 3 kN, psi_0 = 0,4.
+        let mut a = alg(r#"{"overspanning_m":1,"permanent_kn_m2":1}"#);
+        a.gevolgklasse = Some(Gevolgklasse::CC2);
+        let b = bepaal_belasting(&a).unwrap();
+        let u = b.ugt(1.0, 0.5);
+        let v_a: f64 = 1.35 * 1.0 * 1.0 / 2.0 + 1.5 * 0.4 * 3.0;
+        let v_b = 1.2 * 1.0 * 1.0 / 2.0 + 1.5 * 3.0;
+        assert_relative_eq!(u.v_punt, v_a.max(v_b), epsilon = 1e-12);
+        assert_relative_eq!(u.v_gelijkmatig, u.q_d / 2.0, epsilon = 1e-12);
+        assert!(u.v_punt > u.v_gelijkmatig);
+        assert_relative_eq!(u.v_ed, u.v_punt, epsilon = 1e-12);
     }
 
     #[test]
