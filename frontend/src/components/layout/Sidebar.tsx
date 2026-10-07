@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { isTauri } from "../../lib/backend";
 import { useProjectStore } from "../../store/projectStore";
+import { useConstructieEntitlement } from "../../hooks/useConstructieEntitlement";
 
 /* ─── SVG Icon components (inline, no dependency) ─── */
 
@@ -219,6 +220,7 @@ type GroupKey =
   | "tojuli"
   | "beng"
   | "rcwaarde"
+  | "constructie"
   | "rekentools"
   | "library"
   | "help";
@@ -311,6 +313,22 @@ const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
         labelKey: "sidebar.rcCompare",
         Icon: IconLayers,
       },
+    ],
+  },
+  {
+    key: "constructie",
+    titleKey: "sidebar.groups.constructie",
+    defaultCollapsed: false,
+    items: [
+      {
+        to: "",
+        labelKey: "sidebar.constructie.hout",
+        Icon: IconLayers,
+        disabled: true,
+        disabledTitleKey: "sidebar.constructie.volgt",
+      },
+      { to: "/constructie/staal", labelKey: "sidebar.constructie.staal", Icon: IconLayers },
+      { to: "/constructie/beton", labelKey: "sidebar.constructie.beton", Icon: IconLayers },
     ],
   },
   {
@@ -512,6 +530,12 @@ function SaveStatus() {
 
 export function Sidebar() {
   const isWeb = !isTauri();
+  const constructieStatus = useConstructieEntitlement();
+  // Groep Constructie alleen met entitlement (desktop: nooit in deel 1).
+  const zichtbareGroepen = useMemo(
+    () => NAV_GROUPS.filter((g) => g.key !== "constructie" || constructieStatus === "aan"),
+    [constructieStatus],
+  );
   const [collapsed, toggle] = useGroupCollapsed();
   const location = useLocation();
 
@@ -554,14 +578,14 @@ export function Sidebar() {
             <div className="mx-3 my-2 border-t border-[var(--oaec-border-subtle)]" />
           </>
         )}
-        {NAV_GROUPS.map((group, idx) => (
+        {zichtbareGroepen.map((group, idx) => (
           <div key={group.key}>
             <NavGroup
               group={group}
               expanded={effectiveExpanded[group.key]}
               onToggle={() => toggle(group.key)}
             />
-            {idx < NAV_GROUPS.length - 1 && (
+            {idx < zichtbareGroepen.length - 1 && (
               <div className="mx-3 my-2 border-t border-[var(--oaec-border-subtle)]" />
             )}
           </div>

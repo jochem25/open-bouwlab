@@ -45,6 +45,7 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 ### Nieuw
 
 - **Constructiemodule, rekenkern (crate `constructie-core`)**: indicatieve voordimensionering van een stalen ligger (IPE/HEA, EC3) en een gewapende betonbalk (EC2), met belastingen en combinaties volgens EC0/EC1 en de Nederlandse NB's. Elke toets heeft een bronverwijzing en een status (voldoet, voldoet niet, niet getoetst met reden, aanname). Het advies is de lichtste of laagste kandidaat met alle UC <= 1,00; voor staal komt daar de laagste bouwhoogte bij. De rapport-JSON voor openaec-reports bevat altijd de vaste disclaimer. Hout volgt in deel 2. De staalprofieldata zijn voorlopig en staan in een los databestand.
+- **Constructiemodule, API en schermen**: `POST /api/v1/constructie/{staal,beton,rapport}` en `GET .../schema/{naam}`, alleen voor accounts in de Authentik-groep uit `CONSTRUCTIE_ENTITLEMENT_GROUP` (module uit met `CONSTRUCTIE_ENABLED=false`). `/api/v1/me` heeft een nieuw veld `entitlements`. In de sidebar staat een groep Constructie met de schermen Staal en Beton, en Hout als 'volgt'.
 
 ## [Unreleased] — 2026-10-05
 

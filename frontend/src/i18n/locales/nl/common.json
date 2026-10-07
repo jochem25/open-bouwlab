@@ -93,7 +93,8 @@
       "rcwaarde": "Rc-waarde",
       "rekentools": "Rekentools",
       "library": "Bibliotheek",
-      "help": "Help"
+      "help": "Help",
+      "constructie": "Constructie"
     },
     "ventilationBalance": "Ventilatiebalans",
     "doorGap": "Deurspleet-calculator",
@@ -106,7 +107,13 @@
       "quick": "Snelle check (woningen)",
       "full": "Volledig (H.10)"
     },
-    "rcCompare": "Rc-vergelijker"
+    "rcCompare": "Rc-vergelijker",
+    "constructie": {
+      "hout": "Hout (volgt)",
+      "volgt": "Volgt in een latere versie",
+      "staal": "Staal",
+      "beton": "Beton"
+    }
   },
   "beng": {
     "import": {
@@ -813,6 +820,159 @@
       "excluded": "uitgesloten (onbepaald)",
       "unmatchedRecon": "Reconstructie-ruimtes zonder match",
       "unmatchedPyrevit": "Ruimtes uit de bestaande methode zonder match"
+    }
+  },
+  "constructie": {
+    "titel": "Constructie",
+    "subtitel": "Voordimensionering",
+    "banner": {
+      "label": "Disclaimer"
+    },
+    "staal": {
+      "titel": "Staal - stalen ligger"
+    },
+    "beton": {
+      "titel": "Beton - betonbalk"
+    },
+    "toegang": {
+      "laden": "Rechten controleren...",
+      "nietGeactiveerdTitel": "Module niet geactiveerd",
+      "nietGeactiveerd": "De module Constructie is voor dit account niet geactiveerd."
+    },
+    "fout": {
+      "algemeen": "Berekening mislukt.",
+      "rapport": "Rapport genereren mislukt."
+    },
+    "invoer": {
+      "titel": "Invoer",
+      "groepen": {
+        "veld": "Veld",
+        "belasting": "Overspanning en belasting",
+        "staal": "Staal",
+        "beton": "Beton"
+      },
+      "toepassing": "Toepassing",
+      "gebruiksfunctie": "Gebruiksfunctie",
+      "gebouwtype": "Gebouwtype",
+      "gevolgklasse": "Gevolgklasse",
+      "dakBeloopbaar": "Dak is beloopbaar",
+      "dakHellingshoek": "Hellingshoek dak",
+      "dakAfschot": "Afschot dak",
+      "overspanning": "Overspanning l",
+      "belastingbreedte": "Belastingbreedte",
+      "permanent": "Permanente belasting g_k (excl. eigen gewicht)",
+      "eigenGewichtAutomatisch": "Eigen gewicht automatisch meenemen",
+      "lichteWanden": "Lichte scheidingswanden",
+      "scheurgevoeligeWanden": "Scheurgevoelige scheidingswanden",
+      "uiterlijk": "Uiterlijk van belang",
+      "staalsoort": "Staalsoort",
+      "reeksen": "Profielreeksen",
+      "reeksenLeeg": "Kies minimaal één reeks.",
+      "bovenflensGesteund": "Bovenflens zijdelings gesteund",
+      "sterkteklasse": "Sterkteklasse",
+      "balkbreedte": "Balkbreedte",
+      "hoogteAutomatisch": "Hoogte automatisch bepalen",
+      "hoogte": "Hoogte",
+      "milieuklasse": "Milieuklasse",
+      "phiHoofd": "Hoofdwapening diameter",
+      "phiBeugel": "Beugel diameter",
+      "dg": "Grootste korrel d_g"
+    },
+    "opties": {
+      "toepassing": {
+        "vloer": "Vloer",
+        "dak": "Dak"
+      },
+      "gebruiksfunctie": {
+        "woon_vloer": "Wonen - vloer",
+        "woon_trap": "Wonen - trap",
+        "woon_balkon": "Wonen - balkon",
+        "gemeenschappelijk": "Gemeenschappelijke ruimte",
+        "kantoor": "Kantoor"
+      },
+      "gebouwtype": {
+        "eengezinswoning1_tot3": "Eengezinswoning, 1 tot 3 bouwlagen",
+        "eengezinswoning4_plus": "Eengezinswoning, 4 of meer bouwlagen",
+        "woongebouw": "Woongebouw",
+        "kantoorgebouw": "Kantoorgebouw"
+      },
+      "gevolgklasse": {
+        "auto": "Volgens gebouwtype"
+      },
+      "wanden": {
+        "geen": "Geen",
+        "tot_een": "Tot 1,0 kN/m",
+        "tot_twee": "Tot 2,0 kN/m",
+        "tot_drie": "Tot 3,0 kN/m"
+      }
+    },
+    "uitkomst": {
+      "titel": "Uitkomst",
+      "rekenen": "Rekenen...",
+      "onvolledig": "Vul alle verplichte velden in om te rekenen.",
+      "leeg": "Nog geen resultaat."
+    },
+    "advies": {
+      "titel": "Advies",
+      "laagsteBouwhoogte": "Laagste bouwhoogte",
+      "wapening": "Wapening",
+      "beugels": "Beugels",
+      "voldoet": "Voldoet",
+      "ucMax": "UC max",
+      "uc": "UC",
+      "geenAdvies": "Geen advies binnen bereik - raadpleeg de constructeur."
+    },
+    "maatgevend": {
+      "titel": "Maatgevend"
+    },
+    "kengetallen": {
+      "titel": "Kengetallen",
+      "constructiehoogte": "Constructiehoogte",
+      "lh": "Verhouding l/h",
+      "eigenGewicht": "Eigen gewicht"
+    },
+    "schema": {
+      "titel": "Schema",
+      "beschrijving": "Ligger op twee steunpunten, overspanning {{l}} m, met verdeelde belasting en momentenlijn"
+    },
+    "toetsing": {
+      "titel": "Toetsing",
+      "toets": "Toets",
+      "formule": "Formule",
+      "waarde": "Waarde",
+      "grens": "Grens",
+      "uc": "UC",
+      "bron": "Bron",
+      "status": "Status",
+      "maatgevend": "maatgevend",
+      "nb": "NB",
+      "nbBadge": "NB"
+    },
+    "status": {
+      "voldoet": "Voldoet",
+      "voldoetNiet": "Voldoet niet",
+      "nietGetoetst": "Niet getoetst",
+      "blokkeertAdvies": "Blokkeert advies",
+      "aanname": "Aanname"
+    },
+    "alternatieven": {
+      "titel": "Alternatieven",
+      "naam": "Naam",
+      "hoogte": "h [mm]",
+      "gewichtUc": "Gewicht / UC max",
+      "maatgevend": "Maatgevende toets",
+      "status": "Status",
+      "uc": "UC"
+    },
+    "meldingen": {
+      "titel": "Meldingen",
+      "waarschuwing": "Waarschuwing",
+      "signalering": "Signalering",
+      "info": "Info"
+    },
+    "rapport": {
+      "knop": "Rapport (PDF)",
+      "bezig": "Rapport maken..."
     }
   }
 }

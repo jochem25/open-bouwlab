@@ -9,7 +9,8 @@ use serde_json::{json, Value};
 use crate::belasting::{bepaal_belasting, combinatie};
 use crate::beton::{dekking, materiaal};
 use crate::model::{
-    Advies, BetonInvoer, BetonResultaat, Kandidaat, Resultaat, StaalInvoer, StaalResultaat,
+    Advies, BetonInvoer, BetonResultaat, Gebouwtype, Kandidaat, Resultaat, StaalInvoer,
+    StaalResultaat,
 };
 use crate::toets::{fmt_getal, fmt_uc, Melding, MeldingSoort, Toets, ToetsStatus};
 use crate::{DISCLAIMER, KERN_VERSIE, NORMEDITIES};
@@ -58,6 +59,16 @@ fn esc(tekst: &str) -> String {
         .replace(">=", "\u{2265}")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
+}
+
+/// Leesbare tekst voor het gebouwtype.
+fn gebouwtype_tekst(g: Gebouwtype) -> &'static str {
+    match g {
+        Gebouwtype::Eengezinswoning1Tot3 => "eengezinswoning, 1 tot 3 bouwlagen",
+        Gebouwtype::Eengezinswoning4Plus => "eengezinswoning, 4 of meer bouwlagen",
+        Gebouwtype::Woongebouw => "woongebouw",
+        Gebouwtype::Kantoorgebouw => "kantoorgebouw",
+    }
 }
 
 fn label<T: Serialize>(waarde: &T) -> String {
@@ -244,7 +255,7 @@ fn algemene_invoerrijen(a: &crate::model::Algemeen) -> Vec<Vec<String>> {
             "Eigen gewicht automatisch",
             ja_nee(a.eigen_gewicht_automatisch).to_string(),
         ),
-        r("Gebouwtype", label(&a.gebouwtype)),
+        r("Gebouwtype", gebouwtype_tekst(a.gebouwtype).to_string()),
         r(
             "Gevolgklasse (invoer)",
             a.gevolgklasse

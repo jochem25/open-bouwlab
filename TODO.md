@@ -4,9 +4,12 @@
 
 - [x] **Rekenkern `crates/constructie-core`**: staal en beton, belastingen en combinaties, advieslogica, rapport-JSON; goldens S1/B1 groen
 - [ ] **Golden S1 IPE 200 w_3**: genoteerd 8,6 mm, berekend 8,547 mm (UC klopt). Gemeld aan de planner, test `s1_gemelde_afwijking_ipe200_w3`
-- [ ] **API** `/api/v1/constructie/*` achter een Authentik-entitlement (naam: besluit planner)
-- [ ] **Frontend**: sidebar Constructie (Hout/Staal/Beton) en schermen volgens de mockup, met de vaste disclaimer
-- [ ] **Rapport A4** via openaec-reports: rapport-JSON valideren tegen het schema
+- [x] **API** `/api/v1/constructie/*` achter een Authentik-entitlement (env CONSTRUCTIE_ENTITLEMENT_GROUP, default openbouwlab-constructie; naam nog te bevestigen door de planner)
+- [x] **Frontend**: sidebar Constructie (Hout/Staal/Beton) en schermen Staal/Beton, met de vaste disclaimer; end-to-end getest tegen de lokale API (met en zonder groep)
+- [x] **Rapport-JSON** valideert tegen het openaec-reports schema (test)
+- [ ] **Rapport-PDF visueel controleren** op de server (lokaal geen service-token; lokale MCP-brand faalt)
+- [ ] **Authentik**: groep aanmaken en Jochem toevoegen (infra, na akkoord)
+- [ ] **Desktop/Tauri**: module verborgen in deel 1; rekenkern via Tauri-command later
 - [x] **O2 staal** (aanvulling planner 07-10): flensklasse, lijfplooigrens 72 eps/eta en M-V-reductie (6.29/6.30) zitten in de kern
 - [ ] **Open punten uit de spec**: O4 (profielbron), O7 (mu_1)
 - [ ] **Hout** (deel 2): wacht op O1, O3, O5

@@ -16,6 +16,8 @@ export interface AuthProfile {
   preferred_username: string;
   first_seen_at: string;
   last_login_at: string;
+  /** Geactiveerde modules (bijv. "constructie"); ontbreekt bij oudere backends. */
+  entitlements?: string[];
 }
 
 /**

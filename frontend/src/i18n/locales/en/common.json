@@ -93,7 +93,8 @@
       "rcwaarde": "R-value",
       "rekentools": "Calculation tools",
       "library": "Library",
-      "help": "Help"
+      "help": "Help",
+      "constructie": "Structures"
     },
     "ventilationBalance": "Ventilation balance",
     "doorGap": "Door gap calculator",
@@ -106,7 +107,13 @@
       "quick": "Quick check (dwellings)",
       "full": "Full (H.10)"
     },
-    "rcCompare": "R-value comparator"
+    "rcCompare": "R-value comparator",
+    "constructie": {
+      "hout": "Timber (coming)",
+      "volgt": "Coming in a later version",
+      "staal": "Steel",
+      "beton": "Concrete"
+    }
   },
   "beng": {
     "import": {
@@ -813,6 +820,159 @@
       "excluded": "excluded (undetermined)",
       "unmatchedRecon": "Reconstruction rooms without a match",
       "unmatchedPyrevit": "Rooms from the existing method without a match"
+    }
+  },
+  "constructie": {
+    "titel": "Structures",
+    "subtitel": "Preliminary sizing",
+    "banner": {
+      "label": "Disclaimer"
+    },
+    "staal": {
+      "titel": "Steel - steel beam"
+    },
+    "beton": {
+      "titel": "Concrete - concrete beam"
+    },
+    "toegang": {
+      "laden": "Checking access...",
+      "nietGeactiveerdTitel": "Module not activated",
+      "nietGeactiveerd": "The Structures module is not activated for this account."
+    },
+    "fout": {
+      "algemeen": "Calculation failed.",
+      "rapport": "Report generation failed."
+    },
+    "invoer": {
+      "titel": "Input",
+      "groepen": {
+        "veld": "Floor/roof",
+        "belasting": "Span and load",
+        "staal": "Steel",
+        "beton": "Concrete"
+      },
+      "toepassing": "Application",
+      "gebruiksfunctie": "Use",
+      "gebouwtype": "Building type",
+      "gevolgklasse": "Consequence class",
+      "dakBeloopbaar": "Roof is accessible",
+      "dakHellingshoek": "Roof pitch",
+      "dakAfschot": "Roof fall",
+      "overspanning": "Span l",
+      "belastingbreedte": "Load width",
+      "permanent": "Permanent load g_k (excl. self-weight)",
+      "eigenGewichtAutomatisch": "Include self-weight automatically",
+      "lichteWanden": "Light partition walls",
+      "scheurgevoeligeWanden": "Crack-sensitive partitions",
+      "uiterlijk": "Appearance matters",
+      "staalsoort": "Steel grade",
+      "reeksen": "Profile series",
+      "reeksenLeeg": "Select at least one series.",
+      "bovenflensGesteund": "Top flange laterally supported",
+      "sterkteklasse": "Strength class",
+      "balkbreedte": "Beam width",
+      "hoogteAutomatisch": "Determine height automatically",
+      "hoogte": "Height",
+      "milieuklasse": "Exposure class",
+      "phiHoofd": "Main bar diameter",
+      "phiBeugel": "Stirrup diameter",
+      "dg": "Max aggregate size d_g"
+    },
+    "opties": {
+      "toepassing": {
+        "vloer": "Floor",
+        "dak": "Roof"
+      },
+      "gebruiksfunctie": {
+        "woon_vloer": "Residential - floor",
+        "woon_trap": "Residential - stairs",
+        "woon_balkon": "Residential - balcony",
+        "gemeenschappelijk": "Common area",
+        "kantoor": "Office"
+      },
+      "gebouwtype": {
+        "eengezinswoning1_tot3": "Single-family, 1 to 3 storeys",
+        "eengezinswoning4_plus": "Single-family, 4+ storeys",
+        "woongebouw": "Apartment building",
+        "kantoorgebouw": "Office building"
+      },
+      "gevolgklasse": {
+        "auto": "Per building type"
+      },
+      "wanden": {
+        "geen": "None",
+        "tot_een": "Up to 1.0 kN/m",
+        "tot_twee": "Up to 2.0 kN/m",
+        "tot_drie": "Up to 3.0 kN/m"
+      }
+    },
+    "uitkomst": {
+      "titel": "Result",
+      "rekenen": "Calculating...",
+      "onvolledig": "Fill in all required fields to calculate.",
+      "leeg": "No result yet."
+    },
+    "advies": {
+      "titel": "Advice",
+      "laagsteBouwhoogte": "Lowest construction depth",
+      "wapening": "Reinforcement",
+      "beugels": "Stirrups",
+      "voldoet": "Passes",
+      "ucMax": "UC max",
+      "uc": "UC",
+      "geenAdvies": "No advice within range - consult the structural engineer."
+    },
+    "maatgevend": {
+      "titel": "Governing"
+    },
+    "kengetallen": {
+      "titel": "Key figures",
+      "constructiehoogte": "Construction depth",
+      "lh": "Ratio l/h",
+      "eigenGewicht": "Self-weight"
+    },
+    "schema": {
+      "titel": "Diagram",
+      "beschrijving": "Beam on two supports, span {{l}} m, with distributed load and bending moment diagram"
+    },
+    "toetsing": {
+      "titel": "Verification",
+      "toets": "Check",
+      "formule": "Formula",
+      "waarde": "Value",
+      "grens": "Limit",
+      "uc": "UC",
+      "bron": "Source",
+      "status": "Status",
+      "maatgevend": "governing",
+      "nb": "NA",
+      "nbBadge": "NA"
+    },
+    "status": {
+      "voldoet": "Passes",
+      "voldoetNiet": "Fails",
+      "nietGetoetst": "Not verified",
+      "blokkeertAdvies": "Blocks advice",
+      "aanname": "Assumption"
+    },
+    "alternatieven": {
+      "titel": "Alternatives",
+      "naam": "Name",
+      "hoogte": "h [mm]",
+      "gewichtUc": "Weight / UC max",
+      "maatgevend": "Governing check",
+      "status": "Status",
+      "uc": "UC"
+    },
+    "meldingen": {
+      "titel": "Notices",
+      "waarschuwing": "Warning",
+      "signalering": "Flag",
+      "info": "Info"
+    },
+    "rapport": {
+      "knop": "Report (PDF)",
+      "bezig": "Creating report..."
     }
   }
 }
