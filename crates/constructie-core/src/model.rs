@@ -353,7 +353,7 @@ impl BetonInvoer {
         self.algemeen.valideer()?;
         bereik("belastingbreedte_m", self.belastingbreedte_m, 0.1, 30.0)?;
         bereik("balkbreedte_mm", self.balkbreedte_mm, 100.0, 2000.0)?;
-        bereik("phi_hoofd_mm", self.phi_hoofd_mm, 6.0, 40.0)?;
+        bereik("phi_hoofd_mm", self.phi_hoofd_mm, 12.0, 40.0)?;
         bereik("phi_beugel_mm", self.phi_beugel_mm, 6.0, 20.0)?;
         bereik("d_g_mm", self.d_g_mm, 4.0, 40.0)?;
         if self.element != Element::Balk {

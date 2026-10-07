@@ -110,7 +110,7 @@ pub fn bereken_beton(invoer: &BetonInvoer) -> Result<BetonResultaat> {
 
     let mut meldingen = bel.meldingen.clone();
     meldingen.push(Melding::info(&format!(
-        "Dekking en nuttige hoogte met aangenomen hoofdstaafdiameter {} mm; staafkeuze hooguit deze diameter, d niet herberekend (conservatief, open punt O11).",
+        "Dekking en nuttige hoogte met aangenomen hoofdstaafdiameter {} mm; staafkeuze hooguit deze diameter, d niet herberekend (conservatief).",
         invoer.phi_hoofd_mm
     )));
     meldingen.push(Melding::info(
@@ -349,7 +349,7 @@ fn toets_hoogte(invoer: &BetonInvoer, bel: &Belasting, dek: &Dekking, h: f64) ->
     } else {
         11.0 + 1.5 * f_ck.sqrt() * rho0 / rho
     };
-    if bel.l_m > 7.0 && invoer.algemeen.scheurgevoelige_scheidingswanden {
+    if bel.l_m > 7.0 && bel.scheurgevoelig {
         grens_ld *= 7.0 / bel.l_m;
     }
     let ld = l_mm / d;

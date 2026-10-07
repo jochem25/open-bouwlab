@@ -1,9 +1,9 @@
 [
-  { "naam": "IPE 180", "reeks": "IPE", "h": 180, "b": 91,  "t_w": 5.3, "t_f": 8.0, "r": 9,  "A": 2395, "I_y": 13.17e6, "W_pl_y": 166.4e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" },
-  { "naam": "IPE 200", "reeks": "IPE", "h": 200, "b": 100, "t_w": 5.6, "t_f": 8.5, "r": 12, "A": 2848, "I_y": 19.43e6, "W_pl_y": 220.6e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" },
-  { "naam": "IPE 220", "reeks": "IPE", "h": 220, "b": 110, "t_w": 5.9, "t_f": 9.2, "r": 12, "A": 3337, "I_y": 27.72e6, "W_pl_y": 285.4e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" },
-  { "naam": "IPE 240", "reeks": "IPE", "h": 240, "b": 120, "t_w": 6.2, "t_f": 9.8, "r": 15, "A": 3912, "I_y": 38.92e6, "W_pl_y": 366.6e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" },
-  { "naam": "HEA 140", "reeks": "HEA", "h": 133, "b": 140, "t_w": 5.5, "t_f": 8.5, "r": 12, "A": 3142, "I_y": 10.33e6, "W_pl_y": 173.5e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" },
-  { "naam": "HEA 160", "reeks": "HEA", "h": 152, "b": 160, "t_w": 6.0, "t_f": 9.0, "r": 15, "A": 3877, "I_y": 16.73e6, "W_pl_y": 245.1e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" },
-  { "naam": "HEA 180", "reeks": "HEA", "h": 171, "b": 180, "t_w": 6.0, "t_f": 9.5, "r": 15, "A": 4525, "I_y": 25.10e6, "W_pl_y": 324.9e3, "bron": "VOORLOPIG - nominale waarden, bron volgt (open punt O4)" }
+  { "naam": "IPE 180", "reeks": "IPE", "h": 180, "b": 91,  "t_w": 5.3, "t_f": 8.0, "r": 9,  "A": 2395, "I_y": 13.17e6, "W_pl_y": 166.4e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" },
+  { "naam": "IPE 200", "reeks": "IPE", "h": 200, "b": 100, "t_w": 5.6, "t_f": 8.5, "r": 12, "A": 2848, "I_y": 19.43e6, "W_pl_y": 220.6e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" },
+  { "naam": "IPE 220", "reeks": "IPE", "h": 220, "b": 110, "t_w": 5.9, "t_f": 9.2, "r": 12, "A": 3337, "I_y": 27.72e6, "W_pl_y": 285.4e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" },
+  { "naam": "IPE 240", "reeks": "IPE", "h": 240, "b": 120, "t_w": 6.2, "t_f": 9.8, "r": 15, "A": 3912, "I_y": 38.92e6, "W_pl_y": 366.6e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" },
+  { "naam": "HEA 140", "reeks": "HEA", "h": 133, "b": 140, "t_w": 5.5, "t_f": 8.5, "r": 12, "A": 3142, "I_y": 10.33e6, "W_pl_y": 173.5e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" },
+  { "naam": "HEA 160", "reeks": "HEA", "h": 152, "b": 160, "t_w": 6.0, "t_f": 9.0, "r": 15, "A": 3877, "I_y": 16.73e6, "W_pl_y": 245.1e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" },
+  { "naam": "HEA 180", "reeks": "HEA", "h": 171, "b": 180, "t_w": 6.0, "t_f": 9.5, "r": 15, "A": 4525, "I_y": 25.10e6, "W_pl_y": 324.9e3, "bron": "VOORLOPIG - nominale waarden, bron volgt" }
 ]

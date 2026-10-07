@@ -65,7 +65,7 @@ export function App() {
             <Route path="/tools/uitzetting" element={<UitzettingCalculator />} />
             <Route path="/constructie/staal" element={<ConstructieStaal />} />
             <Route path="/constructie/beton" element={<ConstructieBeton />} />
-            <Route path="/library"element={<Library />} />
+            <Route path="/library" element={<Library />} />
             <Route path="/materialen" element={<Library initialSection="materialen" />} />
             <Route path="/warmteverlies/instellingen" element={<WarmteverliesInstellingen />} />
             <Route path="/results" element={<Results />} />

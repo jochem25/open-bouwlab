@@ -304,7 +304,7 @@ pub fn bepaal_belasting(alg: &Algemeen) -> Result<Belasting> {
         let (q, qp, psi, label) = vloer_categorie(alg.gebruiksfunctie);
         meldingen.push(
             Melding::info(
-                "Puntlast Q_k wordt afzonderlijk van q_k getoetst (interpretatie, open punt O13).",
+                "Puntlast Q_k wordt afzonderlijk van q_k getoetst (interpretatie, ter bevestiging door de constructeur).",
             )
             .met_bron(Bron::basis("EC1-1", "6.3.1.2(3)")),
         );

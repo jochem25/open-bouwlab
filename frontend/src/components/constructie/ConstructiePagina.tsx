@@ -40,6 +40,7 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
 
   useEffect(() => {
     if (invoerSleutel === null) {
+      setResultaat(null);
       setBezig(false);
       return;
     }
@@ -56,6 +57,7 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
         })
         .catch((e: unknown) => {
           if (controller.signal.aborted) return;
+          setResultaat(null);
           setFout(foutBericht(e, t("constructie.fout.algemeen")));
           setBezig(false);
         });

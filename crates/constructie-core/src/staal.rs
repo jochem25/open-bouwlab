@@ -91,7 +91,7 @@ pub fn bereken_staal_met_profielen(
     }
     if gekozen.iter().any(|p| p.bron.contains("VOORLOPIG")) {
         meldingen.push(Melding::waarschuwing(
-            "Profieldata is VOORLOPIG (nominale waarden, bron volgt, open punt O4).",
+            "Profieldata is VOORLOPIG (nominale waarden, bron volgt).",
         ));
     }
     // Lichtste profiel eerst.
