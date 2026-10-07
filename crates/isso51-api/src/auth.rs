@@ -141,8 +141,11 @@ pub enum AuthError {
     MissingHeaders,
     /// `Authorization: Bearer ak-*` token was supplied, but Authentik
     /// rejected it (expired, revoked, unknown) or the validation call
-    /// failed (timeout, network).
+    /// failed (timeout, network). Ook: een Authorization-header in een
+    /// andere vorm dan `Bearer ak-*`.
     InvalidBearerToken,
+    /// Legacy `X-API-Key` header; niet meer ondersteund.
+    LegacyApiKey,
 }
 
 impl IntoResponse for AuthError {
@@ -155,6 +158,10 @@ impl IntoResponse for AuthError {
             AuthError::InvalidBearerToken => (
                 StatusCode::UNAUTHORIZED,
                 "Bearer-token ongeldig — controleer of het Authentik service-token actief is",
+            ),
+            AuthError::LegacyApiKey => (
+                StatusCode::UNAUTHORIZED,
+                "X-API-Key wordt niet meer ondersteund — gebruik een Authentik service-token",
             ),
         };
 
@@ -220,14 +227,28 @@ fn claims_from_headers(headers: &HeaderMap) -> Result<OidcClaims, AuthError> {
     })
 }
 
-/// Detects an Authentik service-account bearer token.
+/// Legacy API-key header (gedeprecieerd sinds 2026-04-20). Caddy slaat
+/// forward_auth over als deze header aanwezig is, dus hij wordt geweigerd.
+const HEADER_API_KEY: &str = "X-API-Key";
+
+/// Kies het authenticatiepad op basis van de aanwezige credentials.
 ///
-/// Format: `Authorization: Bearer ak-<token>` (the `ak-` prefix is the
-/// Authentik convention for application-keys).
-fn is_bearer_token(headers: &HeaderMap) -> bool {
-    extract_bearer_token(headers)
-        .map(|t| t.starts_with("ak-"))
-        .unwrap_or(false)
+/// - `Ok(Some(token))`: `Authorization: Bearer ak-<token>` -> Authentik-validatie.
+/// - `Ok(None)`: geen Authorization en geen X-API-Key -> forward_auth-headers.
+/// - `Err(..)`: elke andere Authorization-vorm of een X-API-Key. Caddy heeft
+///   voor zulke requests geen forward_auth gedaan, dus de X-Authentik-*
+///   headers zijn niet te vertrouwen; nooit terugvallen op het header-pad.
+fn kies_credential_pad(headers: &HeaderMap) -> Result<Option<&str>, AuthError> {
+    if headers.contains_key(HEADER_API_KEY) {
+        return Err(AuthError::LegacyApiKey);
+    }
+    if !headers.contains_key(axum::http::header::AUTHORIZATION) {
+        return Ok(None);
+    }
+    match extract_bearer_token(headers) {
+        Some(token) if token.starts_with("ak-") => Ok(Some(token)),
+        _ => Err(AuthError::InvalidBearerToken),
+    }
 }
 
 /// Extract the raw token value from an `Authorization: Bearer ...` header.
@@ -556,10 +577,11 @@ where
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Bearer token path — machine-client flow (PyRevit, CI, externe
         // consumers). Caddy laat deze requests bypass maken zodat de
-        // Authorization header onaangeroerd bij ons binnenkomt.
-        if is_bearer_token(&parts.headers) {
-            let token = extract_bearer_token(&parts.headers)
-                .ok_or(AuthError::InvalidBearerToken)?;
+        // Authorization header onaangeroerd bij ons binnenkomt. Juist daarom
+        // mag een request met Authorization of X-API-Key NOOIT naar het
+        // header-pad: Caddy heeft dan geen forward_auth gedaan en de
+        // X-Authentik-* headers komen van de client.
+        if let Some(token) = kies_credential_pad(&parts.headers)? {
             let mut claims = validate_authentik_token(token)
                 .await
                 .ok_or(AuthError::InvalidBearerToken)?;
@@ -662,20 +684,89 @@ mod tests {
     // --- Bearer prefix detection --------------------------------------------
 
     #[test]
-    fn detects_bearer_ak_prefix() {
+    fn kiest_credential_pad() {
+        // (d) ak-pad: token gaat naar Authentik-validatie.
         let headers = hdr(&[("authorization", "Bearer ak-test-token")]);
-        assert!(is_bearer_token(&headers));
+        assert_eq!(
+            kies_credential_pad(&headers).unwrap(),
+            Some("ak-test-token")
+        );
 
-        let headers = hdr(&[("authorization", "Bearer some-jwt")]);
-        assert!(!is_bearer_token(&headers));
+        // Andere Authorization-vormen: weigeren, nooit het header-pad.
+        for waarde in [
+            "Bearer some-jwt",
+            "Basic ak-bogus",
+            "Bearer ",
+            "ak-zonder-schema",
+        ] {
+            let headers = hdr(&[("authorization", waarde)]);
+            assert!(
+                matches!(
+                    kies_credential_pad(&headers),
+                    Err(AuthError::InvalidBearerToken)
+                ),
+                "{waarde}"
+            );
+        }
 
-        // Basic auth must not trigger the bearer path.
-        let headers = hdr(&[("authorization", "Basic ak-bogus")]);
-        assert!(!is_bearer_token(&headers));
+        // X-API-Key: weigeren, ook naast een geldig ogend ak-token.
+        let headers = hdr(&[(HEADER_API_KEY, "iets")]);
+        assert!(matches!(
+            kies_credential_pad(&headers),
+            Err(AuthError::LegacyApiKey)
+        ));
+        let headers = hdr(&[(HEADER_API_KEY, "iets"), ("authorization", "Bearer ak-x")]);
+        assert!(matches!(
+            kies_credential_pad(&headers),
+            Err(AuthError::LegacyApiKey)
+        ));
 
-        // Missing header.
-        let headers = hdr(&[]);
-        assert!(!is_bearer_token(&headers));
+        // Geen credentials: forward_auth-pad.
+        assert_eq!(kies_credential_pad(&hdr(&[])).unwrap(), None);
+    }
+
+    /// Request-delen met vervalste forward_auth-headers plus extra headers.
+    fn parts_met_vervalste_headers(extra: &[(&str, &str)]) -> Parts {
+        let mut builder = axum::http::Request::builder()
+            .uri("/api/v1/me")
+            .header(HEADER_USERNAME, "aanvaller")
+            .header(HEADER_GROUPS, "admins|openbouwlab-constructie")
+            .header(HEADER_TENANT, "andere-tenant");
+        for (k, v) in extra {
+            builder = builder.header(*k, *v);
+        }
+        builder.body(()).unwrap().into_parts().0
+    }
+
+    #[tokio::test]
+    async fn bearer_zonder_ak_met_vervalste_headers_geeft_401() {
+        // (a)
+        let mut parts = parts_met_vervalste_headers(&[("authorization", "Bearer x")]);
+        let r = AuthClaims::from_request_parts(&mut parts, &()).await;
+        assert!(matches!(r, Err(AuthError::InvalidBearerToken)));
+    }
+
+    #[tokio::test]
+    async fn api_key_met_vervalste_headers_geeft_401() {
+        // (b)
+        let mut parts = parts_met_vervalste_headers(&[(HEADER_API_KEY, "legacy")]);
+        let r = AuthClaims::from_request_parts(&mut parts, &()).await;
+        assert!(matches!(r, Err(AuthError::LegacyApiKey)));
+        assert_eq!(
+            AuthError::LegacyApiKey.into_response().status(),
+            StatusCode::UNAUTHORIZED
+        );
+    }
+
+    #[tokio::test]
+    async fn alleen_forward_auth_headers_blijft_werken() {
+        // (c)
+        let mut parts = parts_met_vervalste_headers(&[]);
+        let AuthClaims(claims) = AuthClaims::from_request_parts(&mut parts, &())
+            .await
+            .unwrap_or_else(|_| panic!("forward_auth-pad moet slagen"));
+        assert_eq!(claims.sub, "aanvaller");
+        assert!(claims.groups.iter().any(|g| g == "openbouwlab-constructie"));
     }
 
     #[test]

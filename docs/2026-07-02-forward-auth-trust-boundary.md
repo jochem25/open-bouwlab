@@ -126,3 +126,18 @@ en niet zelf-verifiërend vanuit de backend. Aanbeveling: introduceer een gedeel
 Dit maakt de trust-boundary expliciet controleerbaar in de backend-code zelf, onafhankelijk
 van Caddy-versie of netwerktopologie-aannames. Nog niet geïmplementeerd — buiten scope van
 deze verificatie-sessie.
+
+## Aanvulling 2026-10-07: bypass-paden van `@needs_auth`
+
+De matcher `@needs_auth` slaat forward_auth over bij `Authorization: Bearer*`,
+`X-API-Key *`, `/api/health` en `OPTIONS`. Voor die requests draait `copy_headers` niet,
+dus worden client-headers `X-Authentik-*` ook niet gestript. De backend accepteerde
+alleen `Bearer ak-*` als tokenpad; elke andere Authorization-waarde (bijv. `Bearer x`) en
+een `X-API-Key` vielen door naar het header-pad en vertrouwden de door de client
+meegestuurde identiteit, groepen en tenant.
+
+Fix in de backend (`auth.rs`, `kies_credential_pad`): staat er een Authorization- of
+X-API-Key-header in het request, dan is alleen `Bearer ak-*` geldig (validatie bij
+Authentik); al het andere geeft 401 en gaat nooit naar het header-pad. Unit-tests dekken
+de vier gevallen (Bearer zonder ak-, X-API-Key, alleen forward_auth-headers, ak-pad).
+De Caddy-kant (headers ook op de bypass-paden strippen) wordt apart geregeld.

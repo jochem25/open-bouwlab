@@ -42,6 +42,10 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ## [Unreleased] — 2026-10-07 (branch `feat/constructiemodule`)
 
+### Beveiliging
+
+- **Auth: geen header-pad meer bij Authorization of X-API-Key.** Een request met een Authorization-header die geen `Bearer ak-*` is, of met een `X-API-Key`, krijgt nu 401. Voorheen viel zo'n request door naar de `X-Authentik-*`-headers, en die kon de client zelf meesturen omdat Caddy forward_auth voor deze requests overslaat. Zie `docs/2026-07-02-forward-auth-trust-boundary.md`, aanvulling 2026-10-07.
+
 ### Nieuw
 
 - **Constructiemodule, rekenkern (crate `constructie-core`)**: indicatieve voordimensionering van een stalen ligger (IPE/HEA, EC3) en een gewapende betonbalk (EC2), met belastingen en combinaties volgens EC0/EC1 en de Nederlandse NB's. Elke toets heeft een bronverwijzing en een status (voldoet, voldoet niet, niet getoetst met reden, aanname). Het advies is de lichtste of laagste kandidaat met alle UC <= 1,00; voor staal komt daar de laagste bouwhoogte bij. De rapport-JSON voor openaec-reports bevat altijd de vaste disclaimer. Hout volgt in deel 2. De staalprofieldata zijn voorlopig en staan in een los databestand.
