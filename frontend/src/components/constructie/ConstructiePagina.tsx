@@ -11,7 +11,7 @@ import type { Materiaal, Resultaat } from "../../types/constructie";
 import { PageHeader } from "../layout/PageHeader";
 import { Card } from "../ui/Card";
 import { DisclaimerBanner } from "./DisclaimerBanner";
-import { bouwInvoer, type Formulier, STANDAARD_FORMULIER } from "./formulier";
+import { bouwInvoer, type Formulier, materiaalOmschrijving, STANDAARD_FORMULIER } from "./formulier";
 import { InvoerKolom } from "./InvoerKolom";
 import { Uitkomst } from "./Uitkomst";
 
@@ -23,10 +23,15 @@ function foutBericht(e: unknown, fallback: string): string {
   return fallback;
 }
 
+/** Beginwaarden per materiaal (hout: vaste hoogte in de buurt van het assortiment). */
+function beginFormulier(materiaal: Materiaal): Formulier {
+  return materiaal === "hout" ? { ...STANDAARD_FORMULIER, hoogte_mm: 195 } : STANDAARD_FORMULIER;
+}
+
 /** Gedeelde pagina voor Staal en Beton: invoerkolom links, uitkomst rechts. */
 export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
   const { t } = useTranslation();
-  const [formulier, setFormulier] = useState<Formulier>(STANDAARD_FORMULIER);
+  const [formulier, setFormulier] = useState<Formulier>(() => beginFormulier(materiaal));
   const [resultaat, setResultaat] = useState<Resultaat | null>(null);
   const [bezig, setBezig] = useState(false);
   const [fout, setFout] = useState<string | null>(null);
@@ -95,12 +100,12 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
     }
   };
 
-  const materiaalTekst = materiaal === "staal" ? formulier.staalsoort : formulier.sterkteklasse;
+  const materiaalTekst = materiaalOmschrijving(materiaal, formulier, t("constructie.invoer.hoh"));
 
   return (
     <div>
       <PageHeader
-        title={t(materiaal === "staal" ? "constructie.staal.titel" : "constructie.beton.titel")}
+        title={t(`constructie.${materiaal}.titel`)}
         subtitle={t("constructie.subtitel")}
       />
       <div className="flex flex-col gap-5 p-6">

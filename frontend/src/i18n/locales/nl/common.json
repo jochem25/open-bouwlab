@@ -109,7 +109,7 @@
     },
     "rcCompare": "Rc-vergelijker",
     "constructie": {
-      "hout": "Hout (volgt)",
+      "hout": "Hout",
       "volgt": "Volgt in een latere versie",
       "staal": "Staal",
       "beton": "Beton"
@@ -849,7 +849,9 @@
         "veld": "Veld",
         "belasting": "Overspanning en belasting",
         "staal": "Staal",
-        "beton": "Beton"
+        "beton": "Beton",
+        "hout": "Hout",
+        "vloerplaat": "Vloerplaat (voor trillingstoets)"
       },
       "toepassing": "Toepassing",
       "gebruiksfunctie": "Gebruiksfunctie",
@@ -876,7 +878,16 @@
       "milieuklasse": "Milieuklasse",
       "phiHoofd": "Hoofdwapening diameter",
       "phiBeugel": "Beugel diameter",
-      "dg": "Grootste korrel d_g"
+      "dg": "Grootste korrel d_g",
+      "houtElement": "Element",
+      "hoh": "Hart-op-hart",
+      "houtBreedte": "Breedte",
+      "klimaatklasse": "Klimaatklasse",
+      "drukrandGesteund": "Drukrand doorgaand gesteund",
+      "vloerplaatDikte": "Plaatdikte",
+      "vloerplaatE": "E-modulus plaat",
+      "vloerplaatEHelp": "Vul de waarde in die de leverancier of de productnorm opgeeft; die wordt hier niet aangenomen. Dikte en E-modulus samen invullen.",
+      "vloerbreedte": "Vloerbreedte B (dwars op de balken)"
     },
     "opties": {
       "toepassing": {
@@ -904,6 +915,10 @@
         "tot_een": "Tot 1,0 kN/m",
         "tot_twee": "Tot 2,0 kN/m",
         "tot_drie": "Tot 3,0 kN/m"
+      },
+      "houtElement": {
+        "balklaag": "Balklaag",
+        "balk": "Enkele balk"
       }
     },
     "uitkomst": {
@@ -929,7 +944,8 @@
       "titel": "Kengetallen",
       "constructiehoogte": "Constructiehoogte",
       "lh": "Verhouding l/h",
-      "eigenGewicht": "Eigen gewicht"
+      "eigenGewicht": "Eigen gewicht",
+      "eigenfrequentie": "Eigenfrequentie"
     },
     "schema": {
       "titel": "Schema",
@@ -973,6 +989,9 @@
     "rapport": {
       "knop": "Rapport (PDF)",
       "bezig": "Rapport maken..."
+    },
+    "hout": {
+      "titel": "Hout - houten balk(laag)"
     }
   }
 }

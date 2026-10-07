@@ -28,6 +28,7 @@ import { IfcReconstruction } from "./pages/IfcReconstruction";
 import { Help } from "./pages/Help";
 import { ConstructieStaal } from "./pages/ConstructieStaal";
 import { ConstructieBeton } from "./pages/ConstructieBeton";
+import { ConstructieHout } from "./pages/ConstructieHout";
 import { ThermalImportWizard } from "./components/import/ThermalImportWizard";
 
 /**
@@ -65,6 +66,7 @@ export function App() {
             <Route path="/tools/uitzetting" element={<UitzettingCalculator />} />
             <Route path="/constructie/staal" element={<ConstructieStaal />} />
             <Route path="/constructie/beton" element={<ConstructieBeton />} />
+            <Route path="/constructie/hout" element={<ConstructieHout />} />
             <Route path="/library" element={<Library />} />
             <Route path="/materialen" element={<Library initialSection="materialen" />} />
             <Route path="/warmteverlies/instellingen" element={<WarmteverliesInstellingen />} />

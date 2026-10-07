@@ -108,6 +108,16 @@ describe("DisclaimerBanner", () => {
   });
 });
 
+describe("Hout-pagina", () => {
+  it("toont de vloerplaat-velden bij balklaag (default) met helptekst", () => {
+    const html = render(<ConstructiePagina materiaal="hout" />);
+    expect(html).toContain(CONSTRUCTIE_DISCLAIMER);
+    expect(html).toContain('data-testid="vloerplaat-blok"');
+    expect(html).toContain("Vloerplaat (voor trillingstoets)");
+    expect(html).toContain("leverancier");
+  });
+});
+
 describe("Uitkomst zonder advies", () => {
   it("toont een duidelijke melding en geen advieskaart", () => {
     const resultaat: Resultaat = {
@@ -147,6 +157,7 @@ describe("Sidebar", () => {
     const met = render(<Sidebar />);
     expect(met).toContain("/constructie/staal");
     expect(met).toContain("/constructie/beton");
-    expect(met).toContain("Hout (volgt)");
+    expect(met).toContain('href="/constructie/hout"');
+    expect(met).not.toContain("Hout (volgt)");
   });
 });

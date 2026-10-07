@@ -320,15 +320,9 @@ const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
     titleKey: "sidebar.groups.constructie",
     defaultCollapsed: false,
     items: [
-      {
-        to: "",
-        labelKey: "sidebar.constructie.hout",
-        Icon: IconLayers,
-        disabled: true,
-        disabledTitleKey: "sidebar.constructie.volgt",
-      },
       { to: "/constructie/staal", labelKey: "sidebar.constructie.staal", Icon: IconLayers },
       { to: "/constructie/beton", labelKey: "sidebar.constructie.beton", Icon: IconLayers },
+      { to: "/constructie/hout", labelKey: "sidebar.constructie.hout", Icon: IconLayers },
     ],
   },
   {

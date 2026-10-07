@@ -1,14 +1,13 @@
 /**
- * API-client voor de constructiemodule (voordimensionering staal en beton).
+ * API-client voor de constructiemodule (voordimensionering staal, beton en hout).
  * Rekenkern draait server-side; fetch met credentials (Authentik-cookie).
  */
 import { API_PREFIX } from "./constants";
 import type {
-  BetonInvoer,
+  ConstructieInvoer,
   Materiaal,
   RapportProject,
   Resultaat,
-  StaalInvoer,
 } from "../types/constructie";
 
 const BASE = `${API_PREFIX}/constructie`;
@@ -46,7 +45,7 @@ function post(pad: string, body: unknown, signal?: AbortSignal): Promise<Respons
 
 export async function berekenConstructie(
   materiaal: Materiaal,
-  invoer: StaalInvoer | BetonInvoer,
+  invoer: ConstructieInvoer,
   signal?: AbortSignal,
 ): Promise<Resultaat> {
   const res = await post(materiaal, invoer, signal);
@@ -56,7 +55,7 @@ export async function berekenConstructie(
 
 export async function genereerConstructieRapport(
   materiaal: Materiaal,
-  invoer: StaalInvoer | BetonInvoer,
+  invoer: ConstructieInvoer,
   project?: RapportProject,
 ): Promise<Blob> {
   const res = await post("rapport", { materiaal, invoer, project });

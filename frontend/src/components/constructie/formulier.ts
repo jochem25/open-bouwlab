@@ -5,9 +5,12 @@
 import type {
   AlgemeneInvoer,
   BetonInvoer,
+  ConstructieInvoer,
   Gebouwtype,
   Gebruiksfunctie,
   Gevolgklasse,
+  HoutInvoer,
+  Houtklasse,
   Materiaal,
   Milieuklasse,
   Reeks,
@@ -47,6 +50,16 @@ export interface Formulier {
   phi_hoofd_mm: number | null;
   phi_beugel_mm: number | null;
   d_g_mm: number | null;
+  // hout (hoogte_automatisch/hoogte_mm worden gedeeld met beton)
+  hout_element: "balklaag" | "balk";
+  hoh_mm: number | null;
+  houtklasse: Houtklasse;
+  hout_breedte_mm: number | null;
+  klimaatklasse: 1 | 2;
+  drukrand_gesteund: boolean;
+  vloerplaat_dikte_mm: number | null;
+  vloerplaat_e_n_mm2: number | null;
+  vloerbreedte_m: number | null;
 }
 
 export const STANDAARD_FORMULIER: Formulier = {
@@ -75,6 +88,15 @@ export const STANDAARD_FORMULIER: Formulier = {
   phi_hoofd_mm: 20,
   phi_beugel_mm: 8,
   d_g_mm: 16,
+  hout_element: "balklaag",
+  hoh_mm: 400,
+  houtklasse: "C24",
+  hout_breedte_mm: 71,
+  klimaatklasse: 1,
+  drukrand_gesteund: true,
+  vloerplaat_dikte_mm: null,
+  vloerplaat_e_n_mm2: null,
+  vloerbreedte_m: null,
 };
 
 /** Minimale gevolgklasse per gebouwtype (spiegelt de rekenkern; server blijft leidend). */
@@ -118,13 +140,45 @@ function bouwAlgemeen(f: Formulier): AlgemeneInvoer | null {
   return a;
 }
 
+function bouwHout(f: Formulier, algemeen: AlgemeneInvoer): HoutInvoer | null {
+  if (f.hout_breedte_mm === null || (!f.hoogte_automatisch && f.hoogte_mm === null)) return null;
+  const balklaag = f.hout_element === "balklaag";
+  if (balklaag ? f.hoh_mm === null : f.belastingbreedte_m === null) return null;
+  const invoer: HoutInvoer = {
+    algemeen,
+    element: balklaag
+      ? { type: "balklaag", hoh_mm: f.hoh_mm ?? 0 }
+      : { type: "balk", belastingbreedte_m: f.belastingbreedte_m ?? 0 },
+    sterkteklasse: f.houtklasse,
+    breedte_mm: f.hout_breedte_mm,
+    hoogte_automatisch: f.hoogte_automatisch,
+    klimaatklasse: f.klimaatklasse,
+    drukrand_gesteund: f.drukrand_gesteund,
+  };
+  if (!f.hoogte_automatisch && f.hoogte_mm !== null) invoer.hoogte_mm = f.hoogte_mm;
+  if (balklaag) {
+    // Vloerplaat: dikte en E-modulus samen, of beide leeg; een van de twee is onvolledig.
+    const heeftDikte = f.vloerplaat_dikte_mm !== null;
+    const heeftE = f.vloerplaat_e_n_mm2 !== null;
+    if (heeftDikte !== heeftE) return null;
+    if (f.vloerplaat_dikte_mm !== null && f.vloerplaat_e_n_mm2 !== null) {
+      invoer.vloerplaat = { dikte_mm: f.vloerplaat_dikte_mm, e_mean_n_mm2: f.vloerplaat_e_n_mm2 };
+    }
+    if (f.vloerbreedte_m !== null) invoer.vloerbreedte_m = f.vloerbreedte_m;
+  }
+  return invoer;
+}
+
 /** Zet het formulier om naar API-invoer; `null` zolang het formulier onvolledig is. */
 export function bouwInvoer(f: Formulier, materiaal: "staal"): StaalInvoer | null;
 export function bouwInvoer(f: Formulier, materiaal: "beton"): BetonInvoer | null;
-export function bouwInvoer(f: Formulier, materiaal: Materiaal): StaalInvoer | BetonInvoer | null;
-export function bouwInvoer(f: Formulier, materiaal: Materiaal): StaalInvoer | BetonInvoer | null {
+export function bouwInvoer(f: Formulier, materiaal: "hout"): HoutInvoer | null;
+export function bouwInvoer(f: Formulier, materiaal: Materiaal): ConstructieInvoer | null;
+export function bouwInvoer(f: Formulier, materiaal: Materiaal): ConstructieInvoer | null {
   const algemeen = bouwAlgemeen(f);
-  if (!algemeen || f.belastingbreedte_m === null) return null;
+  if (!algemeen) return null;
+  if (materiaal === "hout") return bouwHout(f, algemeen);
+  if (f.belastingbreedte_m === null) return null;
   if (materiaal === "staal") {
     if (f.reeksen.length === 0) return null;
     return {
@@ -167,4 +221,12 @@ export function parseGetal(raw: string): number | null {
   if (s === "") return null;
   const n = Number(s);
   return Number.isFinite(n) ? n : null;
+}
+
+/** Korte omschrijving onder de advieskaart: staalsoort, sterkteklasse of houtklasse met hoh. */
+export function materiaalOmschrijving(materiaal: Materiaal, f: Formulier, hohLabel: string): string {
+  if (materiaal === "staal") return f.staalsoort;
+  if (materiaal === "beton") return f.sterkteklasse;
+  const hoh = f.hout_element === "balklaag" && f.hoh_mm !== null ? ` · ${hohLabel} ${f.hoh_mm} mm` : "";
+  return `${f.houtklasse}${hoh}`;
 }
