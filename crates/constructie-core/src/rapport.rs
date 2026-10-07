@@ -126,6 +126,10 @@ fn getal_met_eenheid(w: Option<f64>, eenheid: &str) -> String {
 
 fn status_tekst(t: &Toets) -> String {
     match &t.status {
+        // Een aanname of voldoet met UC > 1 blokkeert; toon dat ook zo.
+        ToetsStatus::Voldoet | ToetsStatus::Aanname { .. } if t.blokkeert() => {
+            "voldoet niet".to_string()
+        }
         ToetsStatus::Voldoet => "voldoet".to_string(),
         ToetsStatus::VoldoetNiet => "voldoet niet".to_string(),
         ToetsStatus::NietGetoetst { reden, .. } => format!("niet getoetst - {reden}"),
@@ -390,7 +394,11 @@ fn hout_invoerrijen(i: &HoutInvoer) -> Vec<Vec<String>> {
     rijen.push(r(
         "Hoogte",
         if i.hoogte_automatisch {
-            "automatisch (assortiment 146 - 296 mm)".to_string()
+            format!(
+                "automatisch (assortiment {} - {} mm)",
+                crate::hout::HOOGTES_MM[0],
+                crate::hout::HOOGTES_MM[crate::hout::HOOGTES_MM.len() - 1]
+            )
         } else {
             format!("{} mm", fmt_getal(i.hoogte_mm.unwrap_or(0.0), 0))
         },

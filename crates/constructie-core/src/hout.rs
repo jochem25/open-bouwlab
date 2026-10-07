@@ -188,6 +188,13 @@ pub fn bereken_hout_met_klassen(invoer: &HoutInvoer, klassen: &[Klasse]) -> Resu
     meldingen.push(Melding::info(
         "Opleggingen star aangenomen (geen elastische opleggingen).",
     ));
+    if let (HoutElement::Balklaag { hoh_mm }, Some(p)) = (&invoer.element, &invoer.vloerplaat) {
+        if k_r(hoh_mm / 1000.0, ei_plaat(p.dikte_mm, p.e_mean_n_mm2)) <= 0.0 {
+            meldingen.push(Melding::waarschuwing(
+                "k_r valt op de ondergrens: de puntlast telt niet mee in het buigend moment door de stijve vloerplaat - controle constructeur.",
+            ));
+        }
+    }
     if bel.leidend == Leidend::DakH {
         meldingen.push(
             Melding::info(
@@ -446,7 +453,16 @@ fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -
 
     // Trilling (EC5 7.3.3): alleen balklaag met vloergedrag.
     if let (true, Some(hoh_m)) = (bel.vloergedrag(), hoh_m) {
-        if invoer.algemeen.gebruiksfunctie == Gebruiksfunctie::Kantoor {
+        let niet_toetsbaar = match invoer.algemeen.gebruiksfunctie {
+            Gebruiksfunctie::WoonVloer | Gebruiksfunctie::Gemeenschappelijk => None,
+            Gebruiksfunctie::Kantoor => {
+                Some("trilling buiten woonfunctie niet getoetst - constructeur")
+            }
+            Gebruiksfunctie::WoonTrap | Gebruiksfunctie::WoonBalkon => Some(
+                "trilling van trap of balkon niet getoetst (toets geldt voor vloervelden) - constructeur",
+            ),
+        };
+        if let Some(reden) = niet_toetsbaar {
             toetsen.push(
                 Toets::nieuw(
                     "trilling",
@@ -454,10 +470,7 @@ fn toets_hoogte(invoer: &HoutInvoer, bel: &Belasting, klasse: &Klasse, h: f64) -
                     "EC5 7.3.3",
                     Bron::basis("EC5", "7.3.3"),
                 )
-                .niet_getoetst(
-                    "trilling buiten woonfunctie niet getoetst - constructeur",
-                    false,
-                ),
+                .niet_getoetst(reden, false),
             );
         } else {
             trilling(
@@ -528,13 +541,10 @@ fn trilling(
 
     // Statische puntlast: w_1kN = F l^3 / (48 (EI)_L b_ef), F = 1 kN, in mm.
     let vloerbreedte = invoer.vloerbreedte_m;
-    let b_ef = match ei_pl {
-        Some(ei_t) => {
-            let ruw = 0.95 * l * (ei_t / ei_l).powf(0.25);
-            let begrensd = vloerbreedte.map_or(ruw, |bb| ruw.min(bb));
-            begrensd.max(hoh_m)
-        }
-        None => hoh_m,
+    // Zonder vloerbreedte geen begrenzing door B mogelijk: conservatief b_ef = hoh.
+    let b_ef = match (ei_pl, vloerbreedte) {
+        (Some(ei_t), Some(bb)) => (0.95 * l * (ei_t / ei_l).powf(0.25)).min(bb).max(hoh_m),
+        _ => hoh_m,
     };
     let w1 = 1e6 * l.powi(3) / (48.0 * ei_l * b_ef);
     tw.insert("b_ef".into(), b_ef);
@@ -549,7 +559,7 @@ fn trilling(
     .uc_uit_waarden();
     if matches!(t.status, ToetsStatus::Voldoet) {
         let tekst = match ei_pl {
-            Some(_) if vloerbreedte.is_none() => "lastspreiding volgens EN 1995-1-1:2026 9.3.2.5 (2e generatie); de geldende 1e generatie geeft geen methode (zonder vloerbreedte: geen begrenzing door B)",
+            Some(_) if vloerbreedte.is_none() => "zonder vloerbreedte: lastspreiding over een balk (b_ef = hoh); vul de vloerbreedte in voor lastspreiding",
             Some(_) => "lastspreiding volgens EN 1995-1-1:2026 9.3.2.5 (2e generatie); de geldende 1e generatie geeft geen methode",
             None => "zonder vloerplaat: lastspreiding over een balk (b_ef = hoh)",
         };
@@ -581,10 +591,13 @@ fn trilling(
             tw.insert("v_grens".into(), grens);
             toetsen.push(v_toets.waarden(v, grens, "m/(N s2)").uc_uit_waarden());
         }
-        None => toetsen.push(v_toets.niet_getoetst(
-            "snelheidsrespons niet getoetst: vloerplaat en vloerbreedte invoeren",
-            false,
-        )),
+        None => {
+            let reden = match (ei_pl, vloerbreedte) {
+                (Some(_), Some(_)) => "snelheidsrespons niet getoetst: vloerplaat stijver dan de balklaag ((EI)_T >= (EI)_L) - constructeur",
+                _ => "snelheidsrespons niet getoetst: vloerplaat en vloerbreedte invoeren",
+            };
+            toetsen.push(v_toets.niet_getoetst(reden, false))
+        }
     }
 }
 
@@ -612,6 +625,61 @@ mod tests {
             .iter()
             .find(|t| t.id == id)
             .unwrap_or_else(|| panic!("toets {id} ontbreekt"))
+    }
+
+    #[test]
+    fn vloerplaat_zonder_vloerbreedte_spreidt_niet() {
+        let r = bereken_hout(&invoer(
+            r#","vloerplaat":{"dikte_mm":18,"e_mean_n_mm2":4000}"#,
+            "",
+        ))
+        .unwrap();
+        for k in &r.kandidaten {
+            assert_relative_eq!(k.tussenwaarden["b_ef"], 0.4, epsilon = 1e-12);
+            assert!(matches!(
+                toets(k, "trilling_v").status,
+                ToetsStatus::NietGetoetst {
+                    blokkeert_advies: false,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[test]
+    fn trap_en_balkon_krijgen_geen_trillingstoets() {
+        for functie in ["woon_trap", "woon_balkon"] {
+            let r =
+                bereken_hout(&invoer("", &format!(r#","gebruiksfunctie":"{functie}""#))).unwrap();
+            let k = &r.kandidaten[0];
+            assert!(k.toetsen.iter().all(|t| t.id != "trilling_f1"));
+            assert!(matches!(
+                toets(k, "trilling").status,
+                ToetsStatus::NietGetoetst {
+                    blokkeert_advies: false,
+                    ..
+                }
+            ));
+        }
+    }
+
+    #[test]
+    fn stijve_plaat_geeft_eigen_reden_en_k_r_melding() {
+        // 60 mm, E 30000: EI_T = 540 kNm2/m, groter dan EI_L van 71x146 (ca. 506) en k_r op de ondergrens.
+        let r = bereken_hout(&invoer(
+            r#","vloerplaat":{"dikte_mm":60,"e_mean_n_mm2":30000},"vloerbreedte_m":4.0"#,
+            "",
+        ))
+        .unwrap();
+        let k = r.kandidaten.iter().find(|k| k.hoogte_mm == 146.0).unwrap();
+        match &toets(k, "trilling_v").status {
+            ToetsStatus::NietGetoetst { reden, .. } => assert!(reden.contains("stijver")),
+            s => panic!("verwacht niet getoetst, kreeg {s:?}"),
+        }
+        assert!(r
+            .meldingen
+            .iter()
+            .any(|m| m.tekst.starts_with("k_r valt op de ondergrens")));
     }
 
     #[test]
