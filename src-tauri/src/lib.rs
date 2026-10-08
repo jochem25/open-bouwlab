@@ -51,7 +51,6 @@ pub fn run() {
             commands::calculate,
             commands::calculate_v2,
             commands::get_schema,
-            commands::import_ifc,
             commands::import_vabi,
             commands::simplified_cooling,
             commands::tojuli_calculate,

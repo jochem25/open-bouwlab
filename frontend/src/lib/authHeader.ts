@@ -7,8 +7,7 @@
  * headers. Browser fetches just need to include credentials so the cookie
  * travels with the request.
  *
- * This stub remains so legacy callers (e.g. `backend.ts::importIfcServer`)
- * compile; it always returns `null`.
+ * This stub remains so legacy callers compile; it always returns `null`.
  */
 export async function getBearerToken(): Promise<string | null> {
   return null;

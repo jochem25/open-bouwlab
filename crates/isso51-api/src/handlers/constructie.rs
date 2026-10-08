@@ -281,7 +281,6 @@ mod tests {
             None,
             None,
             None,
-            None,
             openaec_cloud::TenantsRegistry::default(),
             None,
         );
@@ -496,7 +495,7 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        let state = AppState::new(db, None, None, None, None, Default::default(), None);
+        let state = AppState::new(db, None, None, None, Default::default(), None);
         let maak = || {
             constructie_routes()
                 .layer(DefaultBodyLimit::max(2 * 1024 * 1024))

@@ -14,7 +14,6 @@ use axum::Json;
 use serde::Serialize;
 use serde_json::{Map, Value};
 
-use super::ifc_import::safe_upload_filename_in;
 use crate::auth::AuthClaims;
 use crate::state::AppState;
 
@@ -60,6 +59,38 @@ fn error_response(status: StatusCode, error: &str, detail: impl Into<String>) ->
         detail: detail.into(),
     };
     (status, Json(body)).into_response()
+}
+
+/// Map de (untrusted) client-bestandsnaam naar een vaste, veilige tempnaam.
+///
+/// De naamcomponent van de upload wordt volledig genegeerd; alleen de
+/// extensie telt en die moet op `allowed` staan (lowercase, zonder punt).
+/// Geen extensie (of geen bestandsnaam) -> default `upload.ifc`.
+/// Onbekende extensie -> `Err` met een client-veilige melding (geen interne
+/// paden).
+fn safe_upload_filename_in(
+    client_filename: &str,
+    allowed: &[&str],
+) -> Result<String, String> {
+    let extension = std::path::Path::new(client_filename)
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.to_ascii_lowercase());
+
+    match extension {
+        None => Ok("upload.ifc".to_string()),
+        Some(ext) if allowed.contains(&ext.as_str()) => Ok(format!("upload.{ext}")),
+        Some(ext) => {
+            let toegestaan = allowed
+                .iter()
+                .map(|e| format!(".{e}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "Bestandstype '.{ext}' niet ondersteund — toegestaan: {toegestaan}"
+            ))
+        }
+    }
 }
 
 fn unavailable() -> Response {
@@ -669,5 +700,57 @@ mod tests {
             sanitize_source_filename(&lang).chars().count(),
             MAX_SOURCE_FILENAME_CHARS
         );
+    }
+
+    fn safe_upload_filename(name: &str) -> Result<String, String> {
+        safe_upload_filename_in(name, ALLOWED_ANALYSE_EXTENSIONS)
+    }
+
+    #[test]
+    fn normal_ifc_filename_maps_to_fixed_temp_name() {
+        assert_eq!(safe_upload_filename("model.ifc").unwrap(), "upload.ifc");
+        assert_eq!(safe_upload_filename("Model V2.IFC").unwrap(), "upload.ifc");
+        assert_eq!(safe_upload_filename("a.ifczip").unwrap(), "upload.ifczip");
+    }
+
+    #[test]
+    fn traversal_filenames_never_escape_the_temp_name() {
+        // Relatieve traversal — naamcomponent wordt genegeerd.
+        assert_eq!(
+            safe_upload_filename("../../../etc/evil.ifc").unwrap(),
+            "upload.ifc"
+        );
+        // Absolute paden (POSIX en Windows).
+        assert_eq!(safe_upload_filename("/etc/passwd.ifc").unwrap(), "upload.ifc");
+        assert_eq!(
+            safe_upload_filename("C:\\Windows\\evil.ifc").unwrap(),
+            "upload.ifc"
+        );
+        // Backslash-traversal.
+        assert_eq!(
+            safe_upload_filename("..\\..\\evil.ifc").unwrap(),
+            "upload.ifc"
+        );
+    }
+
+    #[test]
+    fn non_whitelisted_extensions_are_rejected() {
+        assert!(safe_upload_filename("script.sh").is_err());
+        assert!(safe_upload_filename("../../cron.d/job.txt").is_err());
+        assert!(safe_upload_filename("authorized_keys.pub").is_err());
+        // ifcxml hoort niet bij de analyse-whitelist.
+        assert!(safe_upload_filename("a.ifcxml").is_err());
+        // Foutmelding lekt geen interne paden.
+        let err = safe_upload_filename("evil.exe").unwrap_err();
+        assert!(err.contains(".exe"));
+        assert!(!err.contains('/') && !err.contains('\\'));
+    }
+
+    #[test]
+    fn missing_extension_defaults_to_upload_ifc() {
+        assert_eq!(safe_upload_filename("upload").unwrap(), "upload.ifc");
+        assert_eq!(safe_upload_filename("").unwrap(), "upload.ifc");
+        // Traversal zonder extensie valt ook terug op de vaste naam.
+        assert_eq!(safe_upload_filename("../../evil").unwrap(), "upload.ifc");
     }
 }

@@ -17,6 +17,10 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard
 - **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (2786-proef: 45,0 → 24,3 kW na matcher-fix)
 
+### 🗑️ Verwijderd
+
+- **Oude IFC-importpaden** — het tabblad IFC-import is de enige ingang. Weg: `POST /api/v1/ifc/import` en de Python `ifc-tool` (incl. Docker-installatie, `IFC_TOOL_PATH`), de Tauri-commando `import_ifc` met sidecar, de client-side web-ifc-import in de Modeller (wandtype-review inbegrepen) en de IFC-reconstructie (bèta). De ribbon-knop "IFC importeren" in de Modeller opent het tabblad IFC-import; `/ifc-reconstructie` stuurt door
+
 ### 🧹 Refactor
 
 - Overname-logica van de thermal-import-wizard gedeeld in `lib/applyThermalImport.ts` (wizard-gedrag ongewijzigd, met test)

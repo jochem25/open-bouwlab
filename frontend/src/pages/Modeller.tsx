@@ -9,10 +9,6 @@ import {
 import { useModellerStore } from "../components/modeller/modellerStore";
 import type { ModellerTool, ModelRoom, ModelWindow, Point2D, Selection } from "../components/modeller";
 import { splitPolygon } from "../components/modeller";
-import { importIfcFile } from "../components/modeller/ifc-import";
-import { extractWallTypesFromFile, type IfcWallTypeInfo } from "../components/modeller/ifc-wall-types";
-import { isTauri, createBackend, importIfcServer, type IfcSidecarResult } from "../lib/backend";
-import { IfcWallTypeReview } from "../components/modeller/IfcWallTypeReview";
 import {
   deriveModelDoors,
   deriveModelRooms,
@@ -50,7 +46,6 @@ export function Modeller() {
   const snap = useModellerToolStore((s) => s.snap);
 
   const [selection, setSelection] = useState<Selection>(null);
-  const [isImporting, setIsImporting] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
   const navigate = useNavigate();
 
@@ -103,9 +98,6 @@ export function Modeller() {
   const assignWallBoundaryType = useModellerStore((s) => s.assignWallBoundaryType);
 
   const importModel = useModellerStore((s) => s.importModel);
-  const importProjectConstructions = useModellerStore(
-    (s) => s.importProjectConstructions,
-  );
   const undo = useModellerStore((s) => s.undo);
   const redo = useModellerStore((s) => s.redo);
 
@@ -189,11 +181,6 @@ export function Modeller() {
       );
     },
     [ventilationRooms, addVentilationTerminal, updateVentilationRoom, project.rooms, ventilation.rooms, addToast],
-  );
-
-  // IFC wall type review dialog state
-  const [ifcWallTypes, setIfcWallTypes] = useState<IfcWallTypeInfo[] | null>(
-    null,
   );
 
   // All constructions (catalogue + project), used for U-value lookup and copy-on-assign
@@ -480,16 +467,6 @@ export function Modeller() {
     addToast("DWG import wordt binnenkort beschikbaar. Gebruik een afbeelding (PNG/JPG) als onderlegger.", "info");
   }, [addToast]);
 
-  const handleImportIfc = useCallback(() => {
-    if (isTauri()) {
-      // Native mode: use file dialog + sidecar
-      _handleImportIfcNative(addToast, importModel, importProjectConstructions, setIfcWallTypes, assignWallBoundaryType, setIsImporting);
-    } else {
-      // Web mode: server-side Python pipeline with web-ifc fallback
-      _handleImportIfcWeb(addToast, importModel, setIfcWallTypes, assignWallBoundaryType, setIsImporting);
-    }
-  }, [addToast, importModel, importProjectConstructions, assignWallBoundaryType]);
-
   const handleExportIfc = useCallback(() => {
     const state = useModellerStore.getState();
     if (state.rooms.length === 0) {
@@ -611,29 +588,11 @@ export function Modeller() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [undo, redo, selection, handleRemoveRoom, handleRemoveWindow]);
 
-  // IFC wall type review handlers
-  const handleImportWallTypes = useCallback(
-    (constructions: Omit<import("../components/modeller/types").ProjectConstruction, "id">[]) => {
-      importProjectConstructions(constructions);
-      setIfcWallTypes(null);
-      addToast(
-        `${constructions.length} constructie(s) geimporteerd als projectconstructie`,
-        "success",
-      );
-    },
-    [importProjectConstructions, addToast],
-  );
-
-  const handleCancelWallTypes = useCallback(() => {
-    setIfcWallTypes(null);
-  }, []);
-
   // Listen for custom events dispatched by the main Ribbon's ModellerTab
   useEffect(() => {
     const handlers: Record<string, () => void> = {
       "modeller:import-dwg": handleImportDwg,
       "modeller:import-pdf": handleImportPdf,
-      "modeller:import-ifc": handleImportIfc,
       "modeller:export-ifc": handleExportIfc,
       "modeller:import-json": handleImportJson,
       "modeller:export-json": handleExportJson,
@@ -649,7 +608,7 @@ export function Modeller() {
         window.removeEventListener(event, handler);
       }
     };
-  }, [handleImportDwg, handleImportPdf, handleImportIfc, handleExportIfc, handleImportJson, handleExportJson, handleClearView, handleFitView]);
+  }, [handleImportDwg, handleImportPdf, handleExportIfc, handleImportJson, handleExportJson, handleClearView, handleFitView]);
 
   return (
     <div className="flex h-full flex-col">
@@ -726,17 +685,6 @@ export function Modeller() {
               roofConstructions={roofConstructions}
               catalogueUValues={catalogueUValues}
             />
-          )}
-
-          {/* IFC import loading overlay */}
-          {isImporting && (
-            <div className="absolute inset-0 z-30 flex items-center justify-center bg-surface/80 backdrop-blur-sm">
-              <div className="flex flex-col items-center gap-3">
-                <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary/30 border-t-primary" />
-                <p className="text-sm font-medium text-deep-forge">IFC wordt verwerkt...</p>
-                <p className="text-xs text-scaffold-gray">Ruimten, ramen en deuren worden geextraheerd</p>
-              </div>
-            </div>
           )}
 
           {/* View- + oriëntatie-toggles — top left overlay, naast elkaar met gap */}
@@ -829,15 +777,6 @@ export function Modeller() {
           />
         )}
       </div>
-
-      {/* IFC Wall Type Review Dialog */}
-      {ifcWallTypes && ifcWallTypes.length > 0 && (
-        <IfcWallTypeReview
-          wallTypes={ifcWallTypes}
-          onImport={handleImportWallTypes}
-          onCancel={handleCancelWallTypes}
-        />
-      )}
     </div>
   );
 }
@@ -1058,264 +997,6 @@ function ProjectBrowser({
       </>)}
     </div>
   );
-}
-
-// ---------------------------------------------------------------------------
-// IFC import helpers — dual-mode (native sidecar vs web-ifc)
-// ---------------------------------------------------------------------------
-
-/** Assign unique IDs to imported rooms (shared by both modes). */
-function _assignRoomIds(rooms: Omit<ModelRoom, "id">[]): ModelRoom[] {
-  const existingRooms = useModellerStore.getState().rooms;
-  const usedIds = new Set(existingRooms.map((r) => r.id));
-  const result: ModelRoom[] = [];
-
-  for (const room of rooms) {
-    let id: string;
-    let num = 1;
-    do {
-      id = `${room.floor}.${String(num).padStart(2, "0")}`;
-      num++;
-    } while (usedIds.has(id));
-    usedIds.add(id);
-    result.push({ ...room, id });
-  }
-  return result;
-}
-
-/**
- * Shared post-processing for IFC sidecar results (used by both native and web/server modes).
- * Assigns room IDs, remaps windows/doors, imports into model, and handles wall types.
- */
-async function _processIfcResult(
-  result: IfcSidecarResult,
-  addToast: (msg: string, type: "success" | "info" | "error") => void,
-  importModel: (rooms: ModelRoom[], windows?: ModelWindow[], doors?: import("../components/modeller/types").ModelDoor[]) => void,
-  setIfcWallTypes: (types: IfcWallTypeInfo[] | null) => void,
-  assignBoundaryType?: (roomId: string, wallIndex: number, type: import("../components/modeller/types").WallBoundaryType) => void,
-) {
-  if (result.rooms.length === 0) {
-    addToast(
-      `Geen ruimten gevonden. ${result.stats.spacesFound} IfcSpace entiteiten, ${result.stats.spacesSkipped} overgeslagen.`,
-      "info",
-    );
-    return;
-  }
-
-  // Convert sidecar rooms (elevation/temperature can be null) → ModelRoom
-  const cleanRooms = result.rooms.map((r) => ({
-    ...r,
-    elevation: r.elevation ?? undefined,
-    temperature: r.temperature ?? undefined,
-  }));
-
-  const roomsWithIds = _assignRoomIds(cleanRooms);
-
-  // Build name→id mapping so we can remap window/door roomIds
-  const nameToId = new Map<string, string>();
-  for (let i = 0; i < cleanRooms.length; i++) {
-    nameToId.set(cleanRooms[i]!.name, roomsWithIds[i]!.id);
-  }
-
-  // Remap windows: replace room name with assigned room ID, convert null→undefined
-  const mappedWindows = result.windows
-    .filter((w) => w.wallIndex >= 0 && nameToId.has(w.roomId))
-    .map((w) => ({
-      roomId: nameToId.get(w.roomId)!,
-      wallIndex: w.wallIndex,
-      offset: w.offset,
-      width: w.width,
-      height: w.height ?? undefined,
-      sillHeight: w.sillHeight ?? undefined,
-    }));
-
-  // Remap doors: replace room name with assigned room ID, convert null→undefined
-  const mappedDoors = result.doors
-    .filter((d) => d.wallIndex >= 0 && nameToId.has(d.roomId))
-    .map((d) => ({
-      roomId: nameToId.get(d.roomId)!,
-      wallIndex: d.wallIndex,
-      offset: d.offset,
-      width: d.width,
-      height: d.height ?? undefined,
-      swing: d.swing,
-    }));
-
-  importModel(roomsWithIds, mappedWindows, mappedDoors);
-
-  // Apply shared edges as interior boundary types (replaces gap closing).
-  // The server detects shared edges between adjacent rooms separated by
-  // wall thickness — we mark both sides as "interior" so the thermal
-  // calculation uses the correct boundary condition.
-  const assignedInterior = new Set<string>();
-  if (assignBoundaryType && result.sharedEdges?.length > 0) {
-    for (const edge of result.sharedEdges) {
-      const roomA = roomsWithIds[edge.roomAIndex];
-      const roomB = roomsWithIds[edge.roomBIndex];
-      if (roomA && roomB) {
-        assignBoundaryType(roomA.id, edge.wallAIndex, "interior");
-        assignBoundaryType(roomB.id, edge.wallBIndex, "interior");
-        assignedInterior.add(`${roomA.id}:${edge.wallAIndex}`);
-        assignedInterior.add(`${roomB.id}:${edge.wallBIndex}`);
-      }
-    }
-    addToast(`${result.sharedEdges.length} gedeelde wanden gedetecteerd`, "info");
-  }
-
-  // Default all non-interior edges to "exterior" so users don't have to
-  // manually assign every wall after IFC import.
-  if (assignBoundaryType) {
-    for (const room of roomsWithIds) {
-      for (let wi = 0; wi < room.polygon.length; wi++) {
-        const key = `${room.id}:${wi}`;
-        if (!assignedInterior.has(key)) {
-          assignBoundaryType(room.id, wi, "exterior");
-        }
-      }
-    }
-  }
-
-  const parts = [`${result.stats.spacesImported} ruimten`];
-  if (mappedWindows.length > 0) parts.push(`${mappedWindows.length} ramen`);
-  if (mappedDoors.length > 0) parts.push(`${mappedDoors.length} deuren`);
-  addToast(`${parts.join(", ")} geimporteerd`, "success");
-
-  if (result.warnings.length > 0) {
-    const warnMsg = result.warnings
-      .map((w) => `${w.spaceName}: ${w.message}`)
-      .join(", ");
-    addToast(`Waarschuwingen: ${warnMsg}`, "info");
-  }
-
-  // Wall types — convert to IfcWallTypeInfo format
-  if (result.wallTypes.length > 0) {
-    const { matchIfcMaterials } = await import("../lib/ifcMaterialMatcher");
-    const converted: IfcWallTypeInfo[] = result.wallTypes.map((wt) => {
-      const matches = matchIfcMaterials(wt.originalMaterialNames);
-      return {
-        name: wt.name,
-        globalId: wt.globalId,
-        layers: wt.layers.map((layer, idx) => ({
-          ifcMaterialName: layer.materialName,
-          thickness: layer.thicknessMm,
-          match: matches[idx]!,
-        })),
-        originalMaterialNames: wt.originalMaterialNames,
-      };
-    });
-    setIfcWallTypes(converted);
-    addToast(
-      `${converted.length} wandtype(n) gevonden — controleer de matching`,
-      "info",
-    );
-  }
-}
-
-/** Native (Tauri) IFC import via Python sidecar. */
-async function _handleImportIfcNative(
-  addToast: (msg: string, type: "success" | "info" | "error") => void,
-  importModel: (rooms: ModelRoom[], windows?: ModelWindow[], doors?: import("../components/modeller/types").ModelDoor[]) => void,
-  _importProjectConstructions: (constructions: Omit<import("../components/modeller/types").ProjectConstruction, "id">[]) => void,
-  setIfcWallTypes: (types: IfcWallTypeInfo[] | null) => void,
-  assignBoundaryType: (roomId: string, wallIndex: number, type: import("../components/modeller/types").WallBoundaryType) => void,
-  setIsImporting: (v: boolean) => void,
-) {
-  try {
-    addToast("IFC bestand selecteren...", "info");
-
-    const backend = createBackend();
-    if (!backend.importIfc) {
-      addToast("IFC import niet beschikbaar in deze modus", "error");
-      return;
-    }
-
-    setIsImporting(true);
-    // Pass empty string — Rust command opens native file dialog
-    const result: IfcSidecarResult = await backend.importIfc("");
-    await _processIfcResult(result, addToast, importModel, setIfcWallTypes, assignBoundaryType);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (message.includes("Geen bestand geselecteerd")) return;
-    addToast(`IFC import mislukt: ${message}`, "error");
-  } finally {
-    setIsImporting(false);
-  }
-}
-
-/** Web IFC import — tries server-side Python pipeline first, falls back to web-ifc. */
-function _handleImportIfcWeb(
-  addToast: (msg: string, type: "success" | "info" | "error") => void,
-  importModel: (rooms: ModelRoom[], windows?: ModelWindow[], doors?: import("../components/modeller/types").ModelDoor[]) => void,
-  setIfcWallTypes: (types: IfcWallTypeInfo[] | null) => void,
-  assignBoundaryType: (roomId: string, wallIndex: number, type: import("../components/modeller/types").WallBoundaryType) => void,
-  setIsImporting: (v: boolean) => void,
-) {
-  const input = document.createElement("input");
-  input.type = "file";
-  input.accept = ".ifc";
-  input.onchange = async () => {
-    const file = input.files?.[0];
-    if (!file) return;
-
-    setIsImporting(true);
-    addToast(`IFC bestand "${file.name}" wordt verwerkt op de server...`, "info");
-
-    // Try server-side import first (same Python pipeline as Tauri sidecar).
-    try {
-      const result = await importIfcServer(file);
-      await _processIfcResult(result, addToast, importModel, setIfcWallTypes, assignBoundaryType);
-      return;
-    } catch (serverErr) {
-      const msg = serverErr instanceof Error ? serverErr.message : String(serverErr);
-      console.warn("Server IFC import mislukt, fallback naar web-ifc:", msg);
-      addToast("Server import niet beschikbaar, fallback naar lokale import...", "info");
-    } finally {
-      setIsImporting(false);
-    }
-
-    // Fallback: client-side web-ifc (no simplification, no shared edge detection).
-    try {
-      const result = await importIfcFile(file);
-
-      if (result.rooms.length === 0) {
-        addToast(
-          `Geen ruimten gevonden in "${file.name}". ${result.stats.spacesFound} IfcSpace entiteiten gevonden, ${result.stats.spacesSkipped} overgeslagen.`,
-          "info",
-        );
-        return;
-      }
-
-      const roomsWithIds = _assignRoomIds(result.rooms);
-      importModel(roomsWithIds);
-
-      addToast(`${result.stats.spacesImported} ruimten geimporteerd uit "${file.name}"`, "success");
-
-      if (result.warnings.length > 0) {
-        const warnMsg = result.warnings
-          .map((w) => `${w.spaceName}: ${w.message}`)
-          .join(", ");
-        addToast(`Waarschuwingen: ${warnMsg}`, "info");
-      }
-
-      // Extract wall types (optional)
-      try {
-        const wallTypes = await extractWallTypesFromFile(file);
-        if (wallTypes.length > 0) {
-          setIfcWallTypes(wallTypes);
-          addToast(
-            `${wallTypes.length} wandtype(n) gevonden — controleer de matching`,
-            "info",
-          );
-        }
-      } catch {
-        // Wall type extraction is optional — don't fail the import
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      addToast(`IFC import mislukt: ${message}`, "error");
-    }
-  };
-  input.click();
 }
 
 // ---------------------------------------------------------------------------

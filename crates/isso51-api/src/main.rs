@@ -120,7 +120,6 @@ async fn main() {
         config.reports_api_url.clone(),
         config.reports_api_key.clone(),
         config.reports_api_service_token.clone(),
-        config.ifc_tool_path.clone(),
         tenants,
         config.default_tenant.clone(),
     );
@@ -230,9 +229,8 @@ async fn main() {
             post(handlers::cloud_save_calculation),
         );
 
-    // IFC import with 100 MB body limit (default is 2 MB).
+    // IFC analyse with 100 MB body limit (default is 2 MB).
     let ifc_routes = Router::new()
-        .route("/import", post(handlers::import_ifc))
         // TODO: hier komt later de module-gating (entitlement-middleware via
         // `from_fn_with_state`, zoals bij de constructiemodule). Nu alleen auth.
         .route("/analyse", post(handlers::analyse_ifc))

@@ -6,7 +6,6 @@ mod cloud;
 mod constructie;
 mod cooling;
 mod ifc_analyse;
-mod ifc_import;
 mod ifcx;
 mod projects;
 pub(super) mod report;
@@ -24,7 +23,6 @@ pub use cloud::{
     cloud_status,
 };
 pub use ifc_analyse::analyse_ifc;
-pub use ifc_import::import_ifc;
 pub use ifcx::calculate_ifcx_handler;
 pub use projects::{
     calculate_and_save, create_project, delete_project, get_project, list_projects,

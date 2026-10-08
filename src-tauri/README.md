@@ -49,5 +49,4 @@ Het file-association argv-pad wordt vóór het allowlisten gevalideerd in
 
 Alleen `shell:allow-open` (FeedbackDialog opent URLs in de default browser).
 `shell:allow-execute` is verwijderd: de webview voert nergens processen uit —
-de `ifc-tool` sidecar draait Rust-side via `ShellExt` in `commands.rs` en
-heeft daar geen webview-permission voor nodig.
+er is geen sidecar meer (de oude `ifc-tool` is per 08-10-2026 verwijderd).

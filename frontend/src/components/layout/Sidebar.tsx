@@ -99,7 +99,7 @@ function IconIfc({ className }: { className?: string }) {
   );
 }
 
-function IconIfcReconstruction({ className }: { className?: string }) {
+function IconIfcImport({ className }: { className?: string }) {
   return (
     <svg className={className} width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 3h18v18H3z" />
@@ -262,7 +262,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
     items: [
       { to: "/rooms", labelKey: "sidebar.rooms", Icon: IconGrid },
       { to: "/ifc", labelKey: "sidebar.ifc", Icon: IconIfc },
-      { to: "/ifc-import", labelKey: "sidebar.ifcImport", Icon: IconIfcReconstruction },
+      { to: "/ifc-import", labelKey: "sidebar.ifcImport", Icon: IconIfcImport },
       { to: "/warmteverlies/instellingen", labelKey: "sidebar.warmteverliesInstellingen", Icon: IconLayers },
       { to: "/results", labelKey: "sidebar.results", Icon: IconBarChart },
     ],

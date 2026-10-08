@@ -62,5 +62,4 @@ Een lokaal build-script (`tools/build-installer.ps1`) komt in PR 2, voor wie reg
 | Workflow faalt op "Setup Rust" | Tijdelijke registry-issue, herhaal de run |
 | Workflow faalt op `tauri build` | Check de log; meestal Rust-compile error door verouderde dependency |
 | Artifact niet te downloaden | Run moet **succesvol** zijn afgerond (groene vink); failed runs hebben geen artifact |
-| Sidecar `ifc-tool` ontbreekt na install | Build-bestand `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` is gecommit; check dat deze in de repo staat |
 | SmartScreen blokkeert installer | Niet-gesigneerde installer; klik "Meer info" → "Toch uitvoeren". Code-signing komt zodra cert beschikbaar is |

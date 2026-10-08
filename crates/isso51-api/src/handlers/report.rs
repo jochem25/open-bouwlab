@@ -380,7 +380,6 @@ mod tests {
             Some(url),
             None,
             Some("ak-test".to_string()),
-            None,
             openaec_cloud::TenantsRegistry::default(),
             None,
         );

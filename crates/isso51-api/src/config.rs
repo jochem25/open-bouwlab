@@ -34,8 +34,6 @@ pub struct Config {
     /// vult de rapport-proxy die aan uit dit bestand. Staat bewust buiten de
     /// (publieke) repo; zie `crate::handlers::report`.
     pub report_default_cover_dir: Option<String>,
-    /// Path to the `ifc-tool` executable for server-side IFC import.
-    pub ifc_tool_path: Option<String>,
     /// Basis-URL van de private IFC-analyse-sidecar (env `IFC_ANALYSE_URL`,
     /// leeg = niet beschikbaar).
     pub ifc_analyse_url: Option<String>,
@@ -85,9 +83,6 @@ impl Config {
                 .ok()
                 .filter(|s| !s.is_empty()),
             report_default_cover_dir: env::var("REPORT_DEFAULT_COVER_DIR")
-                .ok()
-                .filter(|s| !s.is_empty()),
-            ifc_tool_path: env::var("IFC_TOOL_PATH")
                 .ok()
                 .filter(|s| !s.is_empty()),
             ifc_analyse_url: env::var("IFC_ANALYSE_URL")

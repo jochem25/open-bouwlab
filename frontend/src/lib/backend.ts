@@ -21,66 +21,6 @@ import { API_PREFIX } from "./constants";
  */
 export type ServerProjectData = Project | ProjectEnvelope;
 
-/** IFC import result from the Python sidecar. */
-export interface IfcSidecarResult {
-  rooms: Array<{
-    name: string;
-    function: string;
-    polygon: Array<{ x: number; y: number }>;
-    floor: number;
-    height: number;
-    elevation?: number | null;
-    temperature?: number | null;
-  }>;
-  windows: Array<{
-    roomId: string;
-    wallIndex: number;
-    offset: number;
-    width: number;
-    height?: number;
-    sillHeight?: number;
-  }>;
-  doors: Array<{
-    roomId: string;
-    wallIndex: number;
-    offset: number;
-    width: number;
-    height?: number;
-    swing: "left" | "right";
-  }>;
-  wallTypes: Array<{
-    name: string;
-    globalId: string;
-    layers: Array<{
-      materialName: string;
-      thicknessMm: number;
-      match: string | null;
-    }>;
-    originalMaterialNames: string[];
-  }>;
-  sharedEdges: Array<{
-    roomAIndex: number;
-    wallAIndex: number;
-    roomBIndex: number;
-    wallBIndex: number;
-    distanceMm: number;
-    overlapMm: number;
-  }>;
-  warnings: Array<{ spaceName: string; message: string }>;
-  diagnostics: Array<{
-    spaceId: number;
-    spaceName: string;
-    strategy: string;
-    polygonPoints: number;
-    areaMm2: number;
-  }>;
-  stats: {
-    spacesFound: number;
-    spacesImported: number;
-    spacesSkipped: number;
-  };
-}
-
 /** Backend interface — same API for web (fetch) and Tauri (invoke). */
 export interface Backend {
   calculate(project: Project): Promise<ProjectResult>;
@@ -91,8 +31,6 @@ export interface Backend {
    */
   calculateV2(project: ProjectV2): Promise<Isso53ProjectResult>;
   getSchema(name: "project" | "result"): Promise<unknown>;
-  /** Import IFC via native sidecar (Tauri only). Returns null in web mode. */
-  importIfc?(filePath: string): Promise<IfcSidecarResult>;
 }
 
 /**
@@ -137,13 +75,6 @@ export function createBackend(): Backend {
       return isTauri()
         ? createTauriBackend().getSchema(name)
         : createWebBackend().getSchema(name);
-    },
-    async importIfc(filePath) {
-      if (!isTauri()) {
-        throw new Error("IFC import via sidecar vereist desktop-app");
-      }
-      // createTauriBackend().importIfc is always defined (zie createTauriBackend).
-      return createTauriBackend().importIfc!(filePath);
     },
   };
 }
@@ -206,43 +137,7 @@ function createTauriBackend(): Backend {
       const json = await invokeAsync<string>("get_schema", { which: name });
       return JSON.parse(json);
     },
-
-    async importIfc(filePath: string) {
-      return invokeAsync<IfcSidecarResult>("import_ifc", {
-        filePath,
-      });
-    },
   };
-}
-
-// ---------------------------------------------------------------------------
-// Server-side IFC import (web mode — same pipeline as Tauri sidecar)
-// ---------------------------------------------------------------------------
-
-/**
- * Upload an IFC file to the server for import via the Python sidecar.
- *
- * Authentik forward_auth (cookie-based) is added by the browser via
- * `credentials: "include"` — no Bearer token needed.
- */
-export async function importIfcServer(file: File): Promise<IfcSidecarResult> {
-  const formData = new FormData();
-  formData.append("file", file);
-
-  const res = await fetch(`${API_PREFIX}/ifc/import`, {
-    method: "POST",
-    credentials: "include",
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: res.statusText }));
-    throw new Error(
-      (err as { detail?: string }).detail ?? `IFC import mislukt (HTTP ${res.status})`,
-    );
-  }
-
-  return res.json() as Promise<IfcSidecarResult>;
 }
 
 // ---------------------------------------------------------------------------

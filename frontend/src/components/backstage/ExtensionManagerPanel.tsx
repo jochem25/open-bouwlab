@@ -53,7 +53,7 @@ const SAMPLE_INSTALLED: InstalledExtension[] = [
     name: "IFC Importer",
     version: "0.1.0",
     description:
-      "Importeer IFC4/IFC4X3 STEP bestanden naar constructie-elementen en ruimtes (via Python sidecar).",
+      "Analyseer IFC-modellen via de externe analyse-engine en neem ruimtes en constructies over (tabblad IFC-import).",
     author: "OpenAEC Foundation",
     category: "Import/Export",
     enabled: true,
