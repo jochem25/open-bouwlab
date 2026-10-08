@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import { ifcAnalyseMock, MOCK_ROOM_HOOG, MOCK_ROOM_LAAG } from "./__fixtures__/ifcAnalyseMock";
 import { makeImportResult } from "./__fixtures__/ifcImportTestData";
+import { ifcAnalyseBlocking } from "./__fixtures__/ifcAnalyseVariants";
+import { stripAnalyse } from "./ifcAnalyse";
 import { buildIfcImportChecklist } from "./ifcImportChecklist";
 import type { ProjectConstruction } from "../components/modeller/types";
 import type { Project } from "../types";
@@ -48,6 +50,18 @@ describe("buildIfcImportChecklist", () => {
     expect(u.aantal).toBe(total);
     expect(u.tekst).toContain("tellen nu als 0 W/K");
     expect(u.tekst).toMatch(/waarvan \d+ aan buiten\/grond\/water/);
+  });
+
+  it("noemt het aantal L-GEEN-OPBOUW-bevindingen bij het U-ontbreekt-item", () => {
+    const { project, origin } = setup();
+    const withFinding = {
+      ...origin,
+      analyse: stripAnalyse(ifcAnalyseBlocking),
+    };
+    const u = buildIfcImportChecklist(project, withFinding).find((i) => i.id === "u-constructies")!;
+    expect(u.tekst).toContain("3× bouwdeel zonder laagopbouw (L-GEEN-OPBOUW)");
+    const zonder = buildIfcImportChecklist(project, origin).find((i) => i.id === "u-constructies")!;
+    expect(zonder.tekst).not.toContain("L-GEEN-OPBOUW");
   });
 
   it("oplossen laat het item verdwijnen", () => {

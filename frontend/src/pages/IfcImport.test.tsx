@@ -12,15 +12,17 @@ import { ConfirmModal } from "../components/ifcImport/ConfirmModal";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
 import { progressLabel, validateIfcFile } from "../components/ifcImport/UploadPanel";
 import { ifcAnalyseMock } from "../lib/__fixtures__/ifcAnalyseMock";
+import { ifcAnalyseBlocking, finding, withFindings } from "../lib/__fixtures__/ifcAnalyseVariants";
 import { makeImportResult } from "../lib/__fixtures__/ifcImportTestData";
+import { groupFindings } from "../components/ifcImport/ImportResultView";
 
 /** SSR voegt `<!-- -->` tussen tekstdelen in; haal die weg voor tekstvergelijking. */
 const renderToString = (el: Parameters<typeof ssr>[0]) => ssr(el).replace(/<!-- -->/g, "");
 
-function render(existing = 0) {
+function render(existing = 0, response = ifcAnalyseBlocking) {
   return renderToString(
     <ImportResultView
-      response={ifcAnalyseMock}
+      response={response}
       importResult={makeImportResult(ifcAnalyseMock.thermal)}
       existingRoomCount={existing}
       onImport={() => {}}
@@ -32,11 +34,47 @@ describe("ImportResultView", () => {
   it("toont samenvatting met aantal echte ruimten, engine en oordeel", () => {
     const html = render();
     expect(html).toContain("voorbeeld.ifc");
-    expect(html).toContain("ifc-ruimtebalans 0.0.0-mock");
+    expect(html).toContain("ifc-ruimtebalans 0.1.0");
     expect(html).toMatch(/data-testid="stat-rooms"[^>]*>2</);
-    expect(html).toContain("Modelcheck: blokkerend");
+    expect(html).toContain("Bevindingen: blokkerend");
+    expect(html).toContain("Modelcheck: geschikt met meldingen (niet gehaald: M-05, M-07, M-09)");
+    expect(html).toContain("Blokkerend 1 · Waarschuwingen 2 · Info 17");
     expect(html).toContain("Blokkerend (1)");
     expect(html).toContain("Waarschuwingen (2)");
+  });
+
+  it("groepeert per code met aantal, modelleur-badge en gewone taal; info staat dicht", () => {
+    const html = render();
+    expect(html).toContain("L-GEEN-OPBOUW");
+    expect(html).toContain("×3");
+    expect(html).toContain("modelleur");
+    expect(html).toContain("Bouwdeel zonder laagopbouw in het model; U-waarde ontbreekt");
+    // onbekende code -> technische message
+    expect(html).toContain("Onbekende melding.");
+    // ruimtekoppeling via room_id
+    expect(html).toContain(">laag</button>");
+    // info: alleen kop + "Toon alle", geen rijen
+    expect(html).toContain("Info (17)");
+    expect(html).toContain("Toon alle 17");
+    expect(html).not.toContain("C-VIA-OPENING");
+  });
+
+  it("Nr-kolom uit rooms_extra[].number, anders '-'", () => {
+    const withNumber = {
+      ...ifcAnalyseBlocking,
+      rooms_extra: ifcAnalyseBlocking.rooms_extra.map((r, i) =>
+        i === 0 ? { ...r, number: "1.07" } : r,
+      ),
+    };
+    const html = render(0, withNumber);
+    expect(html).toContain('<td class="pr-3 text-on-surface-muted">1.07</td>');
+    expect(html).toContain('<td class="pr-3 text-on-surface-muted">-</td>');
+  });
+
+  it("zonder blokkerende bevindingen (contract-fixture) staan beide ruimten aan", () => {
+    const html = render(0, ifcAnalyseMock);
+    expect(html).toContain("2 van 2 ruimten goedgekeurd");
+    expect(html).toContain("Bevindingen: in orde");
   });
 
   it("vinkt standaard alles aan behalve de ruimte met blokkerende bevinding", () => {
@@ -101,41 +139,39 @@ describe("upload-validatie", () => {
   });
   it("voortgangslabels", () => {
     expect(progressLabel({ phase: "upload", fraction: 0.42 })).toBe("Uploaden… 42%");
-    expect(progressLabel({ phase: "analyse" })).toBe("Analyseren…");
+    expect(progressLabel({ phase: "analyse" })).toBe("Analyseren… een groot model kan ongeveer een minuut duren.");
   });
 });
 
 describe("QC-waarschuwingen inklapbaar", () => {
-  it("standaard dicht: aantal + eerste 3 + 'Toon alle N'; blokkerend blijft open", () => {
-    const many = {
-      ...ifcAnalyseMock,
-      qc: {
-        verdict: "waarschuwing" as const,
-        findings: Array.from({ length: 159 }, (_, i) => ({
-          severity: "warning" as const,
-          code: i % 2 ? "code_a" : "code_b",
-          message: `Melding nummer ${i}`,
-        })).concat([
-          { severity: "blocking" as never, code: "x", message: "Blokkade 1" },
-          { severity: "blocking" as never, code: "x", message: "Blokkade 2" },
-          { severity: "blocking" as never, code: "x", message: "Blokkade 3" },
-          { severity: "blocking" as never, code: "x", message: "Blokkade 4" },
-        ]),
-      },
-    };
-    const html = renderToString(
-      <ImportResultView
-        response={many}
-        importResult={makeImportResult(many.thermal)}
-        existingRoomCount={0}
-        onImport={() => {}}
-      />,
-    );
-    expect(html).toContain("Waarschuwingen (159)");
-    expect(html).toContain("Toon alle 159");
-    expect(html).toContain("Melding nummer 2");
-    expect(html).not.toContain("Melding nummer 3<");
+  it("standaard dicht: aantal + eerste 3 groepen + 'Toon alle N'; blokkerend blijft open", () => {
+    const many = withFindings(ifcAnalyseMock, [
+      ...Array.from({ length: 10 }, (_, i) =>
+        finding({ severity: "warning", code: `W-${i}`, message: `Melding ${i}`, count: 5 }),
+      ),
+      finding({ severity: "blocking", code: "B-1", message: "Blokkade 1" }),
+      finding({ severity: "blocking", code: "B-2", message: "Blokkade 2" }),
+      finding({ severity: "blocking", code: "B-3", message: "Blokkade 3" }),
+      finding({ severity: "blocking", code: "B-4", message: "Blokkade 4" }),
+    ]);
+    const html = render(0, many);
+    expect(html).toContain("Waarschuwingen (10)");
+    expect(html).toContain("Toon alle 10");
+    expect(html).toContain("Melding 2");
+    expect(html).not.toContain("Melding 3<");
     expect(html).toContain("Blokkade 4");
+  });
+
+  it("groupFindings telt per code op (count of 1) en onthoudt modelleur-actie en ruimten", () => {
+    const groups = groupFindings([
+      finding({ severity: "warning", code: "A", message: "m", count: 3, room_id: "r1" }),
+      finding({ severity: "warning", code: "A", message: "m", modeller_action: true, room_id: "r2" }),
+      finding({ severity: "warning", code: "B", message: "n" }),
+    ]);
+    expect(groups).toEqual([
+      { code: "A", count: 4, modellerAction: true, message: "m", roomIds: ["r1", "r2"] },
+      { code: "B", count: 1, modellerAction: false, message: "n", roomIds: [] },
+    ]);
   });
 });
 

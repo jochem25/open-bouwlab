@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { applyThermalImport } from "../lib/applyThermalImport";
 import {
   analyseIfc,
+  stripAnalyse,
   type AnalyseProgress,
   type IfcAnalyseResponse,
 } from "../lib/ifcAnalyse";
@@ -97,7 +98,7 @@ export function IfcImport() {
           qv10: project.building.qv10,
           building_type: project.building.building_type,
         },
-        analyse: loaded.response,
+        analyse: stripAnalyse(loaded.response),
       });
       try {
         sessionStorage.removeItem(DISMISS_KEY);

@@ -1,4 +1,4 @@
-import type { IfcAnalyseResponse } from "../lib/ifcAnalyse";
+import type { IfcAnalyseStored } from "../lib/ifcAnalyse";
 
 export interface IfcImportDefaults {
   heating_system: string;
@@ -35,6 +35,9 @@ export interface IfcImportOrigin {
    * ongewijzigd zijn.
    */
   defaults?: IfcImportDefaults;
-  /** De ongewijzigde 200-response van `/ifc/analyse` (alle ruimten, ook niet-goedgekeurde). */
-  analyse?: IfcAnalyseResponse;
+  /**
+   * De 200-response van `/ifc/analyse` (alle ruimten, ook niet-goedgekeurde), zonder
+   * `report` en `surfaces_ifc` (grootte; zie {@link IfcAnalyseStored}).
+   */
+  analyse?: IfcAnalyseStored;
 }

@@ -19,18 +19,103 @@ export type QcVerdict = "ok" | "waarschuwing" | "blokkerend";
 
 export interface QcFinding {
   severity: QcSeverity;
+  /** Stabiele code (bv. `L-GEEN-OPBOUW`); zie `lib/qcCodeTexts.ts` voor gewone taal. */
   code: string;
+  /** Rapporttekst (NL, technisch). */
   message: string;
+  /** Aantal gevallen; `null` als niet van toepassing. */
+  count: number | null;
+  /** De modelleur kan dit in het IFC oplossen. */
+  modeller_action: boolean;
+  /** thermal `rooms[].id`. */
   room_id?: string;
   construction_id?: string;
+  subject?: string;
 }
 
+export interface QcCounts {
+  blocking: number;
+  warning: number;
+  info: number;
+}
+
+export interface QcResult {
+  verdict: QcVerdict;
+  counts: QcCounts;
+  modelcheck: { verdict: string; failed_rules: string[] };
+  findings: QcFinding[];
+}
+
+export interface RoomExtraOpening {
+  id: string;
+  type: string;
+  area_m2: number;
+  width_mm: number;
+  height_mm: number;
+  sill_height_mm: number | null;
+  construction_id: string;
+  compass?: string | null;
+  /** 0 = plat, 90 = verticaal. */
+  tilt_deg: number | null;
+  /** room_b. */
+  adjacent: string;
+}
+
+/** Per ruimte extra gegevens voor ventilatie/BENG (afgeleid uit thermal). */
+export interface RoomExtra {
+  room_id: string;
+  /** IfcSpace.Name bij een afwijkende LongName (bij Revit het ruimtenummer). */
+  number: string | null;
+  name: string;
+  ifc_name: string | null;
+  ifc_long_name: string | null;
+  function: string | null;
+  function_source: string | null;
+  level: string | null;
+  heated: boolean;
+  floor_area_m2: number | null;
+  height_m: number | null;
+  volume_m3: number | null;
+  openings: RoomExtraOpening[];
+}
+
+export interface IfcAnalyseStats {
+  duration_s: number;
+  exit_code: number;
+  filename: string;
+  bytes: number;
+  sha256: string;
+  profile: string;
+}
+
+/** Contract: `%KBA_SHARED%/uitvoer/ifc-ruimtebalans/2026-10-08-service-mock/endpoint-contract.md`. */
 export interface IfcAnalyseResponse {
-  engine: { name: string; version: string };
+  engine: { name: string; version: string; commit: string; contract: string };
+  /** Gezet door onze API. */
   source_filename: string;
   thermal: ThermalImportFile;
-  qc: { verdict: QcVerdict; findings: QcFinding[] };
-  stats?: { duration_s?: number };
+  thermal_sha256: string;
+  qc: QcResult;
+  rooms_extra: RoomExtra[];
+  stats: IfcAnalyseStats;
+  /** Volledig QC-rapport (~0,9 MB bij een groot model). */
+  report?: unknown;
+  /** Losse vlakken-IFC voor de viewer (tot ~3 MB), of null. */
+  surfaces_ifc?: { filename: string; bytes: number; base64: string } | null;
+}
+
+/**
+ * De analyse zoals die in het project wordt bewaard (envelope + sessie):
+ * ZONDER `report` en `surfaces_ifc`. Die zijn groot (report ~0,9 MB, vlakken tot
+ * ~3 MB bij een groot model), staan niet in de ventilatie/BENG-bron en worden
+ * bij elke opslag naar server en bestand meegeschreven. `thermal`, `qc`,
+ * `rooms_extra`, engine, `thermal_sha256` en stats blijven.
+ */
+export type IfcAnalyseStored = Omit<IfcAnalyseResponse, "report" | "surfaces_ifc">;
+
+export function stripAnalyse(response: IfcAnalyseResponse): IfcAnalyseStored {
+  const { report: _report, surfaces_ifc: _surfaces, ...stored } = response;
+  return stored;
 }
 
 export type AnalyseProgress =
@@ -48,41 +133,44 @@ export class IfcAnalyseError extends Error {
   }
 }
 
-/** Vertaal een foutresponse (`{error, detail}`) naar een nette NL-melding. */
+/**
+ * Vertaal een foutresponse (`{error, detail}`) naar een nette NL-melding.
+ * Herkent zowel de codes van de engine-service (`BEZET`, `TE_GROOT`, ...) als
+ * die van onze API (`analyse_unavailable`, `file_too_large`, ...).
+ */
 export function mapIfcAnalyseError(
   status: number,
   body: { error?: string; detail?: string } | null,
 ): IfcAnalyseError {
   const code = body?.error;
+  const key = code?.toLowerCase();
   const detail = body?.detail ? ` (${body.detail})` : "";
-  if (status === 503 || code === "analyse_unavailable") {
-    return new IfcAnalyseError(`IFC-analyse niet beschikbaar${detail}`, status, code);
+  const make = (msg: string) => new IfcAnalyseError(msg, status, code);
+  if (key === "bezet" || key === "analyse_busy") {
+    return make("Er loopt al een IFC-analyse. Probeer het over een halve minuut opnieuw.");
   }
-  if (status === 413 || code === "file_too_large") {
-    return new IfcAnalyseError(
-      `Het bestand is te groot (maximaal ${IFC_MAX_MB_LABEL}).`,
-      status,
-      code,
-    );
+  if (status === 503 || key === "analyse_unavailable") {
+    return make(`IFC-analyse niet beschikbaar${detail}`);
   }
-  if (status === 422 || code === "analyse_failed") {
-    return new IfcAnalyseError(`De IFC kon niet worden geanalyseerd${detail}`, status, code);
+  if (status === 413 || key === "file_too_large" || key === "te_groot") {
+    return make(`Het bestand is te groot (maximaal ${IFC_MAX_MB_LABEL})${detail}.`);
   }
-  if (status === 504 || code === "analyse_timeout") {
-    return new IfcAnalyseError(
-      "De analyse duurde te lang en is afgebroken. Probeer een kleiner model.",
-      status,
-      code,
-    );
+  if (status === 422 || key === "analyse_failed" || key === "ifc_onleesbaar") {
+    return make(`Dit IFC kan niet worden gelezen of geanalyseerd${detail}`);
+  }
+  if (status === 504 || key === "analyse_timeout" || key === "time_out") {
+    return make("De analyse duurde te lang en is afgebroken. Probeer een kleiner model.");
+  }
+  if (key === "engine_fout") {
+    return make(`De analyse-engine is onverwacht gestopt${detail}`);
+  }
+  if (status === 400) {
+    return make(`Het bestand is niet geaccepteerd${detail}`);
   }
   if (status === 502) {
-    return new IfcAnalyseError(
-      `De analyse-service gaf een ongeldig antwoord${detail}`,
-      status,
-      code,
-    );
+    return make(`De analyse-service gaf een ongeldig antwoord${detail}`);
   }
-  return new IfcAnalyseError(`IFC-analyse mislukt (HTTP ${status})${detail}`, status, code);
+  return make(`IFC-analyse mislukt (HTTP ${status})${detail}`);
 }
 
 const MOCK_DELAY_MS = 300;

@@ -19,7 +19,7 @@ export function validateIfcFile(file: { name: string; size: number }): string | 
 
 export function progressLabel(p: AnalyseProgress | null): string {
   if (!p) return "";
-  if (p.phase === "analyse") return "Analyseren…";
+  if (p.phase === "analyse") return "Analyseren… een groot model kan ongeveer een minuut duren.";
   return `Uploaden… ${Math.round(p.fraction * 100)}%`;
 }
 

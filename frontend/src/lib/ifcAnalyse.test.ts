@@ -1,9 +1,46 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { analyseIfc, mapIfcAnalyseError, type AnalyseProgress } from "./ifcAnalyse";
+import { analyseIfc, mapIfcAnalyseError, stripAnalyse, type AnalyseProgress } from "./ifcAnalyse";
 import { SessionExpiredError } from "./backend";
+import { ifcAnalyseMock } from "./__fixtures__/ifcAnalyseMock";
+
+describe("stripAnalyse", () => {
+  it("laat report en surfaces_ifc weg, houdt de rest", () => {
+    const full = {
+      ...ifcAnalyseMock,
+      report: { groot: true },
+      surfaces_ifc: { filename: "v.ifc", bytes: 1, base64: "AAAA" },
+    };
+    const stored = stripAnalyse(full);
+    expect(stored).not.toHaveProperty("report");
+    expect(stored).not.toHaveProperty("surfaces_ifc");
+    expect(stored.thermal).toBe(full.thermal);
+    expect(stored.qc).toBe(full.qc);
+    expect(stored.rooms_extra).toBe(full.rooms_extra);
+    expect(stored.thermal_sha256).toBe(full.thermal_sha256);
+    expect(stored.engine.commit).toBe(full.engine.commit);
+  });
+});
 
 describe("mapIfcAnalyseError", () => {
+  it("503 BEZET / analyse_busy: wacht een halve minuut", () => {
+    for (const error of ["BEZET", "analyse_busy"]) {
+      expect(mapIfcAnalyseError(503, { error }).message).toBe(
+        "Er loopt al een IFC-analyse. Probeer het over een halve minuut opnieuw.",
+      );
+    }
+  });
+  it("413 toont de detail; 422 IFC_ONLEESBAAR en 500 ENGINE_FOUT", () => {
+    const e = mapIfcAnalyseError(413, { error: "TE_GROOT", detail: "250 MB > 200 MB" });
+    expect(e.message).toContain("100 MB");
+    expect(e.message).toContain("250 MB > 200 MB");
+    expect(mapIfcAnalyseError(422, { error: "IFC_ONLEESBAAR", detail: "SPF header" }).message).toContain(
+      "SPF header",
+    );
+    expect(mapIfcAnalyseError(500, { error: "ENGINE_FOUT", detail: "exit 2" }).message).toContain(
+      "exit 2",
+    );
+  });
   it("503 analyse_unavailable", () => {
     const e = mapIfcAnalyseError(503, { error: "analyse_unavailable", detail: "engine ontbreekt" });
     expect(e.message).toContain("IFC-analyse niet beschikbaar");
@@ -60,9 +97,12 @@ describe("analyseIfc", () => {
     vi.stubEnv("VITE_IFC_ANALYSE_MOCK", "1");
     const phases: string[] = [];
     const r = await analyseIfc(file, (p) => phases.push(p.phase));
-    expect(r.engine.version).toBe("0.0.0-mock");
-    expect(r.qc.findings.filter((f) => f.severity === "blocking")).toHaveLength(1);
-    expect(r.qc.findings.filter((f) => f.severity === "warning")).toHaveLength(2);
+    // Byte-kopie van analyse_200_v12_fixture.json (+ source_filename).
+    expect(r.engine).toMatchObject({ name: "ifc-ruimtebalans", version: "0.1.0", contract: "1.2" });
+    expect(r.source_filename).toBe("voorbeeld.ifc");
+    expect(r.qc.counts).toEqual({ blocking: 0, warning: 0, info: 17 });
+    expect(r.qc.modelcheck.failed_rules).toEqual(["M-05", "M-07", "M-09"]);
+    expect(r.rooms_extra).toHaveLength(3);
     expect(phases).toEqual(["upload", "analyse"]);
   });
 

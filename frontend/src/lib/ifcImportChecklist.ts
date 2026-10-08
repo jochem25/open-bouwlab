@@ -134,6 +134,9 @@ export function buildIfcImportChecklist(
     }
   }
   if (surfaces > 0) {
+    const geenOpbouw = (origin.analyse?.qc.findings ?? [])
+      .filter((f) => f.code === "L-GEEN-OPBOUW")
+      .reduce((n, f) => n + (f.count ?? 1), 0);
     const top = [...byDescription.entries()]
       .sort((a, b) => b[1] - a[1])
       .slice(0, MAX_DESCRIPTIONS)
@@ -146,7 +149,10 @@ export function buildIfcImportChecklist(
       link: "/constructies",
       tekst:
         `${surfaces} vlakken (${fmt1(area)} m², waarvan ${outsideSurfaces} aan buiten/grond/water) ` +
-        `hebben geen U-waarde en tellen nu als 0 W/K: ${top}.`,
+        `hebben geen U-waarde en tellen nu als 0 W/K: ${top}.` +
+        (geenOpbouw > 0
+          ? ` De IFC-analyse meldt ${geenOpbouw}× bouwdeel zonder laagopbouw (L-GEEN-OPBOUW): vul de lagen in het model aan.`
+          : ""),
     });
   }
   if (openings > 0) {

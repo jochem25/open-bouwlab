@@ -15,6 +15,7 @@ import {
   totalFloorArea,
 } from "../../lib/ifcImportView";
 import type { ThermalImportResult, ThermalRoom } from "../../lib/thermalImport";
+import { qcCodeText } from "../../lib/qcCodeTexts";
 import { openingTypeLabel } from "../../lib/thermalImport";
 import { Card } from "../ui/Card";
 import { ConfirmModal } from "./ConfirmModal";
@@ -28,9 +29,9 @@ const VERDICT_STYLE: Record<string, string> = {
   blokkerend: "border-red-400 text-red-400",
 };
 const VERDICT_LABEL: Record<string, string> = {
-  ok: "Modelcheck: in orde",
-  waarschuwing: "Modelcheck: waarschuwingen",
-  blokkerend: "Modelcheck: blokkerend",
+  ok: "Bevindingen: in orde",
+  waarschuwing: "Bevindingen: waarschuwingen",
+  blokkerend: "Bevindingen: blokkerend",
 };
 
 const ENVELOPE_HINT =
@@ -56,6 +57,11 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
 
   const blockingFindings = qc.findings.filter((f) => f.severity === "blocking");
   const warningFindings = qc.findings.filter((f) => f.severity === "warning");
+  const infoFindings = qc.findings.filter((f) => f.severity === "info");
+  const numberById = useMemo(
+    () => new Map((response.rooms_extra ?? []).map((r) => [r.room_id, r.number])),
+    [response.rooms_extra],
+  );
 
   const toggleApproved = (id: string) =>
     setApproved((prev) => {
@@ -116,18 +122,37 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
         >
           {VERDICT_LABEL[qc.verdict] ?? qc.verdict}
         </p>
-        <FindingsList
+        <p className="mt-2 text-sm text-on-surface-secondary" data-testid="modelcheck">
+          Modelcheck: {qc.modelcheck?.verdict ?? "-"}
+          {(qc.modelcheck?.failed_rules.length ?? 0) > 0 &&
+            ` (niet gehaald: ${qc.modelcheck?.failed_rules.join(", ")})`}
+        </p>
+        <p className="mt-1 text-sm text-on-surface-secondary" data-testid="qc-counts">
+          Blokkerend {qc.counts?.blocking ?? blockingFindings.length} · Waarschuwingen{" "}
+          {qc.counts?.warning ?? warningFindings.length} · Info{" "}
+          {qc.counts?.info ?? infoFindings.length}
+        </p>
+        <FindingGroups
           title="Blokkerend"
           tone="text-red-400"
           findings={blockingFindings}
           rooms={thermal.rooms}
           onJump={jumpToRoom}
         />
-        <FindingsList
+        <FindingGroups
           title="Waarschuwingen"
           tone="text-amber-500"
           collapsible
           findings={warningFindings}
+          rooms={thermal.rooms}
+          onJump={jumpToRoom}
+        />
+        <FindingGroups
+          title="Info"
+          tone="text-on-surface-secondary"
+          collapsible
+          previewGroups={0}
+          findings={infoFindings}
           rooms={thermal.rooms}
           onJump={jumpToRoom}
         />
@@ -166,6 +191,7 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
                   open={expanded.has(room.id)}
                   onCheck={() => toggleApproved(room.id)}
                   onToggle={() => toggleExpanded(room.id)}
+                  number={numberById.get(room.id) ?? null}
                   register={(el) => {
                     if (el) rowRefs.current.set(room.id, el);
                   }}
@@ -257,76 +283,100 @@ function Stat({
   );
 }
 
-const COLLAPSED_PREVIEW = 3;
+const COLLAPSED_PREVIEW_GROUPS = 3;
 
-function FindingsList({
+export interface FindingGroup {
+  code: string;
+  /** Som van `count` (een bevinding zonder count telt als 1). */
+  count: number;
+  modellerAction: boolean;
+  message: string;
+  roomIds: string[];
+}
+
+/** Groepeer bevindingen per code, in volgorde van eerste voorkomen. */
+export function groupFindings(findings: QcFinding[]): FindingGroup[] {
+  const groups = new Map<string, FindingGroup>();
+  for (const f of findings) {
+    const g = groups.get(f.code) ?? {
+      code: f.code,
+      count: 0,
+      modellerAction: false,
+      message: f.message,
+      roomIds: [],
+    };
+    g.count += f.count ?? 1;
+    g.modellerAction = g.modellerAction || f.modeller_action;
+    if (f.room_id && !g.roomIds.includes(f.room_id)) g.roomIds.push(f.room_id);
+    groups.set(f.code, g);
+  }
+  return [...groups.values()];
+}
+
+function FindingGroups({
   title,
   tone,
   findings,
   rooms,
   onJump,
   collapsible = false,
+  previewGroups = COLLAPSED_PREVIEW_GROUPS,
 }: {
   title: string;
   tone: string;
   collapsible?: boolean;
+  /** Aantal groepen dat zichtbaar is zolang de lijst dicht staat. */
+  previewGroups?: number;
   findings: QcFinding[];
   rooms: ThermalRoom[];
   onJump: (roomId: string) => void;
 }) {
-  // Standaard dicht: aantal + eerste 3. Open: gegroepeerd per code.
   const [showAll, setShowAll] = useState(!collapsible);
   if (findings.length === 0) return null;
-  const shown = showAll ? findings : findings.slice(0, COLLAPSED_PREVIEW);
-  const groups = showAll && collapsible ? groupByCode(findings) : null;
+  const groups = groupFindings(findings);
+  const shown = showAll ? groups : groups.slice(0, previewGroups);
+  const roomName = (id: string) => rooms.find((r) => r.id === id)?.name;
   return (
-    <div className="mt-4">
+    <div className="mt-4" data-testid={`findings-${title.toLowerCase()}`}>
       <h4 className={`text-sm font-medium ${tone}`}>
         {title} ({findings.length})
       </h4>
-      {groups && (
-        <p className="mt-1 text-xs text-on-surface-muted">
-          {groups.map(([code, n]) => `${code} (${n})`).join(", ")}
-        </p>
-      )}
       <ul className="mt-1 flex flex-col gap-1 text-sm text-on-surface-secondary">
-        {shown.map((f, i) => {
-          const room = f.room_id ? rooms.find((r) => r.id === f.room_id) : undefined;
-          return (
-            <li key={`${f.code}-${i}`}>
-              {room && f.room_id ? (
-                <button
-                  type="button"
-                  className="mr-1 underline"
-                  onClick={() => onJump(f.room_id as string)}
-                >
-                  {room.name}
-                </button>
-              ) : null}
-              {f.message}
-            </li>
-          );
-        })}
+        {shown.map((g) => (
+          <li key={g.code}>
+            <span className="mr-1 font-mono text-xs text-on-surface-muted">{g.code}</span>
+            {g.count > 1 && <span className="mr-1">×{g.count}</span>}
+            {g.modellerAction && (
+              <span className="mr-1 rounded-full border border-[var(--oaec-border-subtle)] px-2 text-xs">
+                modelleur
+              </span>
+            )}
+            {qcCodeText(g.code, g.message)}
+            {g.roomIds.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="ml-2 underline"
+                onClick={() => onJump(id)}
+              >
+                {roomName(id) ?? id}
+              </button>
+            ))}
+          </li>
+        ))}
       </ul>
-      {collapsible && findings.length > COLLAPSED_PREVIEW && (
+      {collapsible && groups.length > previewGroups && (
         <button
           type="button"
           className="mt-1 text-xs underline"
           aria-expanded={showAll}
           onClick={() => setShowAll((v) => !v)}
         >
-          {showAll ? "Toon minder" : `Toon alle ${findings.length}`}
+          {showAll ? "Toon minder" : `Toon alle ${groups.length}`}
         </button>
       )}
     </div>
   );
-}
-
-/** Aantal bevindingen per code, grootste groep eerst. */
-export function groupByCode(findings: QcFinding[]): [string, number][] {
-  const counts = new Map<string, number>();
-  for (const f of findings) counts.set(f.code, (counts.get(f.code) ?? 0) + 1);
-  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
 
 function RoomRows({
@@ -337,7 +387,9 @@ function RoomRows({
   onCheck,
   onToggle,
   register,
+  number,
 }: {
+  number: string | null;
   room: ThermalRoom;
   response: IfcAnalyseResponse;
   checked: boolean;
@@ -363,7 +415,7 @@ function RoomRows({
             onChange={onCheck}
           />
         </td>
-        <td className="pr-3 text-on-surface-muted">-</td>
+        <td className="pr-3 text-on-surface-muted">{number ?? "-"}</td>
         <td className="pr-3">
           <button type="button" className="text-left text-on-surface underline-offset-2 hover:underline" onClick={onToggle} aria-expanded={open}>
             {open ? "▾" : "▸"} {room.name}

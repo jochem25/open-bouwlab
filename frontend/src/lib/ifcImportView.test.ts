@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ifcAnalyseMock, MOCK_ROOM_HOOG, MOCK_ROOM_LAAG } from "./__fixtures__/ifcAnalyseMock";
+import { ifcAnalyseBlocking } from "./__fixtures__/ifcAnalyseVariants";
 import {
   defaultApproved,
   envelopeArea,
@@ -51,7 +52,7 @@ describe("ifcImportView", () => {
     expect(s[0]!.otherRoomId).toBe(MOCK_ROOM_HOOG);
   });
   it("standaard goedgekeurd: alles behalve ruimten met blokkerende bevinding", () => {
-    const set = defaultApproved(file, ifcAnalyseMock.qc.findings);
+    const set = defaultApproved(file, ifcAnalyseBlocking.qc.findings);
     expect([...set]).toEqual([MOCK_ROOM_HOOG]);
   });
 });
