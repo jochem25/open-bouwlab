@@ -10,6 +10,8 @@ import { CONSTRUCTIE_DISCLAIMER } from "../../lib/constructieFormat";
 import type { Resultaat, Toets } from "../../types/constructie";
 import { Sidebar } from "../layout/Sidebar";
 import { ConstructiePagina } from "./ConstructiePagina";
+import { STANDAARD_FORMULIER, TRILLING_UIT_ZIN, toonTrillingUitBanner } from "./formulier";
+import { TrillingUitBanner } from "./TrillingUitBanner";
 import { ToetsingTabel } from "./ToetsingTabel";
 import { Uitkomst } from "./Uitkomst";
 
@@ -113,8 +115,22 @@ describe("Hout-pagina", () => {
     const html = render(<ConstructiePagina materiaal="hout" />);
     expect(html).toContain(CONSTRUCTIE_DISCLAIMER);
     expect(html).toContain('data-testid="vloerplaat-blok"');
-    expect(html).toContain("Vloerplaat (voor trillingstoets)");
+    expect(html).toContain("Vloerlagen (voor trillingstoets)");
     expect(html).toContain("leverancier");
+    expect(html).toContain('data-testid="dwarsverbinding-blok"');
+    expect(html).toContain("Trillingstoets (EC5 7.3) meenemen");
+    expect(html).not.toContain('data-testid="trilling-uit-banner"');
+  });
+
+  it("toont de banner alleen als de trillingstoets uit staat (balklaag + vloer)", () => {
+    const uit = { ...STANDAARD_FORMULIER, trillingstoets: false };
+    expect(toonTrillingUitBanner(uit, "hout")).toBe(true);
+    expect(toonTrillingUitBanner(STANDAARD_FORMULIER, "hout")).toBe(false);
+    expect(toonTrillingUitBanner(uit, "staal")).toBe(false);
+    expect(toonTrillingUitBanner({ ...uit, toepassing: "dak" }, "hout")).toBe(false);
+    const html = render(<TrillingUitBanner />);
+    expect(html).toContain('data-testid="trilling-uit-banner"');
+    expect(html).toContain(TRILLING_UIT_ZIN);
   });
 });
 

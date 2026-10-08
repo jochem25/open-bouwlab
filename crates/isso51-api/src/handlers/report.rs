@@ -67,6 +67,11 @@ pub(crate) async fn proxy_report(
         );
         if let Some(tenant) = claims.tenant.as_deref() {
             req = req.header("X-Original-Tenant", tenant);
+        } else {
+            tracing::warn!(
+                user = %claims.sub,
+                "geen tenant-claim: rapport gebruikt de tenant van het service-account"
+            );
         }
     } else if let Some(api_key) = state.reports_api_key.as_deref() {
         // Legacy fallback: X-API-Key (Caddy bypass) — wordt verwijderd

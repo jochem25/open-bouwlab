@@ -28,6 +28,17 @@
       "default": true,
       "type": "boolean"
     },
+    "dwarsverbinding": {
+      "description": "Dwarsverbinding midden overspanning (alleen balklaag); vergroot b_ef voor w_1kN.",
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Dwarsverbinding"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "element": {
       "description": "Type element en belastingstrook.",
       "allOf": [
@@ -66,6 +77,11 @@
         }
       ]
     },
+    "trillingstoets": {
+      "description": "Trillingstoets (EC5 7.3) meenemen; bij onwaar wordt trilling niet beoordeeld.",
+      "default": true,
+      "type": "boolean"
+    },
     "vloerbreedte_m": {
       "description": "Vloerbreedte B in m (dwars op de balken; alleen balklaag).",
       "default": null,
@@ -75,9 +91,16 @@
       ],
       "format": "double"
     },
+    "vloerlagen": {
+      "description": "Lagen op de balklaag voor (EI)_T (alleen balklaag). Alleen lagen van soort vloerplaat tellen mee in k_r; de lagen tellen niet mee in (EI)_L.",
+      "default": [],
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Vloerlaag"
+      }
+    },
     "vloerplaat": {
-      "description": "Vloerplaat op de balklaag (alleen balklaag).",
-      "default": null,
+      "description": "Verouderd: vloerplaat op de balklaag. Wordt intern een laag van soort vloerplaat; niet combineerbaar met `vloerlagen`.",
       "anyOf": [
         {
           "$ref": "#/definitions/Vloerplaat"
@@ -187,6 +210,21 @@
           "description": "Uiterlijk van belang (toets op w_max).",
           "default": true,
           "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Dwarsverbinding": {
+      "description": "Doorgaand dwarselement (klossen, kruisverband) in het midden van de overspanning.",
+      "type": "object",
+      "required": [
+        "ei_nm2"
+      ],
+      "properties": {
+        "ei_nm2": {
+          "description": "Buigstijfheid EI van het doorgaande dwarselement in Nm2 (heel element; 1e3 - 1e8).",
+          "type": "number",
+          "format": "double"
         }
       },
       "additionalProperties": false
@@ -448,6 +486,69 @@
           "type": "string",
           "enum": [
             "dak"
+          ]
+        }
+      ]
+    },
+    "Vloerlaag": {
+      "description": "Laag op de balklaag die bijdraagt aan (EI)_T; de stijfheid is invoer van de gebruiker.",
+      "type": "object",
+      "required": [
+        "dikte_mm",
+        "e_mean_n_mm2",
+        "soort"
+      ],
+      "properties": {
+        "dikte_mm": {
+          "description": "Laagdikte in mm.",
+          "type": "number",
+          "format": "double"
+        },
+        "e_mean_n_mm2": {
+          "description": "Gemiddelde elasticiteitsmodulus in N/mm2 (bron: invoer gebruiker, per product).",
+          "type": "number",
+          "format": "double"
+        },
+        "soort": {
+          "description": "Soort laag.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/VloerlaagSoort"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "VloerlaagSoort": {
+      "description": "Soort laag op de balklaag voor de stijfheid (EI)_T.",
+      "oneOf": [
+        {
+          "description": "Vloerplaat (beplanking); alleen dit soort telt mee in k_r.",
+          "type": "string",
+          "enum": [
+            "vloerplaat"
+          ]
+        },
+        {
+          "description": "Dekvloer.",
+          "type": "string",
+          "enum": [
+            "dekvloer"
+          ]
+        },
+        {
+          "description": "Plafond (onderzijde).",
+          "type": "string",
+          "enum": [
+            "plafond"
+          ]
+        },
+        {
+          "description": "Overige laag.",
+          "type": "string",
+          "enum": [
+            "overig"
           ]
         }
       ]

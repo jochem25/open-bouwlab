@@ -75,7 +75,11 @@ export type HoutElement =
   | { type: "balklaag"; hoh_mm: number }
   | { type: "balk"; belastingbreedte_m: number };
 
-export interface Vloerplaat {
+export type VloerlaagSoort = "vloerplaat" | "dekvloer" | "plafond" | "overig";
+
+/** Laag op de balklaag voor (EI)_T; alleen een laag van soort vloerplaat telt mee in k_r. */
+export interface Vloerlaag {
+  soort: VloerlaagSoort;
   dikte_mm: number;
   e_mean_n_mm2: number;
 }
@@ -89,10 +93,14 @@ export interface HoutInvoer {
   hoogte_mm?: number;
   klimaatklasse: 1 | 2;
   drukrand_gesteund: boolean;
-  /** Alleen bij balklaag. */
-  vloerplaat?: Vloerplaat;
+  /** Alleen bij balklaag; weggelaten zonder lagen. */
+  vloerlagen?: Vloerlaag[];
   /** Alleen bij balklaag. */
   vloerbreedte_m?: number;
+  /** Doorgaand dwarselement midden overspanning; EI in Nm2. Alleen bij balklaag. */
+  dwarsverbinding?: { ei_nm2: number };
+  /** Trillingstoets (EC5 7.3) meenemen; alleen bij balklaag. Standaard waar. */
+  trillingstoets?: boolean;
 }
 
 export type ConstructieInvoer = StaalInvoer | BetonInvoer | HoutInvoer;

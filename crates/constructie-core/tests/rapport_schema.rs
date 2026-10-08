@@ -80,3 +80,30 @@ fn h1_rapport_valideert() {
         resultaat: &r,
     })));
 }
+
+#[test]
+fn h1_rapport_met_trilling_uit_bevat_de_zin_en_valideert() {
+    let i: HoutInvoer = serde_json::from_str(
+        r#"{"algemeen":{"overspanning_m":4.2,"permanent_kn_m2":0.75,"eigen_gewicht_automatisch":false,"gevolgklasse":"CC2"},
+        "element":{"type":"balklaag","hoh_mm":400},"sterkteklasse":"C24","trillingstoets":false,
+        "vloerlagen":[{"soort":"vloerplaat","dikte_mm":18,"e_mean_n_mm2":4000},
+                      {"soort":"plafond","dikte_mm":12.5,"e_mean_n_mm2":2000}]}"#,
+    )
+    .unwrap();
+    let r = bereken_hout(&i).unwrap();
+    let rapport = rapport_json(&invoer(RapportBerekening::Hout {
+        invoer: &i,
+        resultaat: &r,
+    }));
+    valideer(&rapport);
+    let tekst = rapport.to_string();
+    assert!(tekst.contains(constructie_core::hout::TRILLING_UIT_ZIN));
+    assert!(tekst.contains("Trillingstoets (EC5 7.3) meenemen"));
+    // Direct na de disclaimer, als aparte vette alinea.
+    let inhoud = &rapport["sections"][0]["content"];
+    assert_eq!(inhoud.as_array().unwrap().len(), 2);
+    assert!(inhoud[1]["text"]
+        .as_str()
+        .unwrap()
+        .starts_with("<b>Trillingen"));
+}

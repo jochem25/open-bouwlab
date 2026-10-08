@@ -11,7 +11,14 @@ import type { Materiaal, Resultaat } from "../../types/constructie";
 import { PageHeader } from "../layout/PageHeader";
 import { Card } from "../ui/Card";
 import { DisclaimerBanner } from "./DisclaimerBanner";
-import { bouwInvoer, type Formulier, materiaalOmschrijving, STANDAARD_FORMULIER } from "./formulier";
+import { TrillingUitBanner } from "./TrillingUitBanner";
+import {
+  bouwInvoer,
+  type Formulier,
+  materiaalOmschrijving,
+  STANDAARD_FORMULIER,
+  toonTrillingUitBanner,
+} from "./formulier";
 import { InvoerKolom } from "./InvoerKolom";
 import { Uitkomst } from "./Uitkomst";
 
@@ -110,6 +117,7 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
       />
       <div className="flex flex-col gap-5 p-6">
         <DisclaimerBanner tekst={resultaat?.disclaimer} />
+        {toonTrillingUitBanner(formulier, materiaal) && <TrillingUitBanner />}
         <div className="grid gap-6 lg:grid-cols-[minmax(280px,360px)_1fr]">
           <Card title={t("constructie.invoer.titel")} className="h-fit">
             <InvoerKolom materiaal={materiaal} waarde={formulier} onChange={wijzig} />

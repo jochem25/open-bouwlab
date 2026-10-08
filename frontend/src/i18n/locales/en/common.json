@@ -851,7 +851,8 @@
         "staal": "Steel",
         "beton": "Concrete",
         "hout": "Timber",
-        "vloerplaat": "Floor deck (for vibration check)"
+        "vloerplaat": "Floor layers (for vibration check)",
+        "dwarsverbinding": "Transverse connection at midspan (blocking/bridging)"
       },
       "toepassing": "Application",
       "gebruiksfunctie": "Use",
@@ -884,9 +885,16 @@
       "houtBreedte": "Width",
       "klimaatklasse": "Service class",
       "drukrandGesteund": "Compression edge continuously restrained",
-      "vloerplaatDikte": "Deck thickness",
-      "vloerplaatE": "Deck elastic modulus",
-      "vloerplaatEHelp": "Enter the value given by the supplier or product standard; it is not assumed here. Fill in thickness and modulus together.",
+      "dwarsEi": "EI of transverse element (whole element)",
+      "dwarsHelp": "Optional: continuous, mechanically connected element at midspan. Enter EI of the whole element (kNm²); the floor width is also required. Loose blocking or blocking at third points is not covered.",
+      "laagSoort": "Layer type",
+      "laagDikte": "Thickness",
+      "laagE": "Elastic modulus",
+      "laagToevoegen": "Add layer",
+      "laagVerwijder": "Remove layer",
+      "laagHelp": "Enter the value given by the supplier or product standard; it is not assumed here. A layer without modulus is ignored. Only layers of type deck count in the point-load reduction.",
+      "laagSoorten": {"vloerplaat": "Deck", "dekvloer": "Screed", "plafond": "Ceiling", "overig": "Other"},
+      "trillingstoets": "Include vibration check (EC5 7.3)",
       "vloerbreedte": "Floor width B (perpendicular to joists)"
     },
     "opties": {

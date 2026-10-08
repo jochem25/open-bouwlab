@@ -200,11 +200,23 @@ pub fn rapport_json(invoer: &RapportInvoer<'_>) -> Value {
         ),
     };
 
+    let mut disclaimer_inhoud =
+        vec![json!({ "type": "paragraph", "text": format!("<b>{}</b>", esc(DISCLAIMER)) })];
+    if let RapportBerekening::Hout { invoer: i, .. } = invoer.berekening {
+        if !i.trillingstoets
+            && resultaat
+                .meldingen
+                .iter()
+                .any(|m| m.tekst == crate::hout::TRILLING_UIT_ZIN)
+        {
+            disclaimer_inhoud.push(json!({
+                "type": "paragraph",
+                "text": format!("<b>{}</b>", esc(crate::hout::TRILLING_UIT_ZIN)),
+            }));
+        }
+    }
     let mut secties = vec![
-        sectie(
-            "Disclaimer",
-            vec![json!({ "type": "paragraph", "text": format!("<b>{}</b>", esc(DISCLAIMER)) })],
-        ),
+        sectie("Disclaimer", disclaimer_inhoud),
         sectie(
             "Invoer",
             vec![tabel("Invoer", &["Parameter", "Waarde"], invoerrijen)],
@@ -408,13 +420,28 @@ fn hout_invoerrijen(i: &HoutInvoer) -> Vec<Vec<String>> {
         "Drukrand doorgaand gesteund",
         ja_nee(i.drukrand_gesteund).to_string(),
     ));
-    if let Some(p) = &i.vloerplaat {
+    for (n, l) in i.lagen().iter().enumerate() {
         rijen.push(r(
-            "Vloerplaat",
+            &format!("Vloerlaag {} ({})", n + 1, label(&l.soort)),
             format!(
                 "dikte {} mm; E = {} N/mm2 (invoer gebruiker)",
-                fmt_getal(p.dikte_mm, 0),
-                fmt_getal(p.e_mean_n_mm2, 0)
+                fmt_getal(l.dikte_mm, 1),
+                fmt_getal(l.e_mean_n_mm2, 0)
+            ),
+        ));
+    }
+    if matches!(i.element, HoutElement::Balklaag { .. }) {
+        rijen.push(r(
+            "Trillingstoets (EC5 7.3) meenemen",
+            ja_nee(i.trillingstoets).to_string(),
+        ));
+    }
+    if let Some(d) = &i.dwarsverbinding {
+        rijen.push(r(
+            "Dwarsverbinding midden overspanning",
+            format!(
+                "EI = {} kNm2 (invoer gebruiker)",
+                fmt_getal(d.ei_nm2 / 1000.0, 0)
             ),
         ));
     }
