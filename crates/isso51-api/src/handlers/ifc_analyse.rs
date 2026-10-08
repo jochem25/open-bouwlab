@@ -126,12 +126,19 @@ pub async fn analyse_ifc(
         Err(detail) => return error_response(StatusCode::BAD_REQUEST, "invalid_extension", detail),
     };
 
+    // Richting sidecar gaat de opgeschoonde basename (geen pad, geen
+    // stuurtekens; extensie hierboven gecontroleerd): de engine leidt er
+    // `thermal.project_name` van af. Wij schrijven niets naar schijf, dus
+    // het path-traversal-argument van `/ifc/import` speelt hier niet.
+    let source_name = sanitize_source_filename(&filename);
+    let upload_name = if source_name.is_empty() { safe_name } else { source_name.clone() };
+
     forward_to_sidecar(
         &state.http_client,
         base_url,
         state.ifc_analyse_timeout,
-        &sanitize_source_filename(&filename),
-        &safe_name,
+        &source_name,
+        &upload_name,
         data,
         state.ifc_analyse_token.as_deref(),
     )
