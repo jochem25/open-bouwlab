@@ -40,18 +40,18 @@ describe("uitlijning en camera", () => {
     const a = alignmentFromResponse(fixture as unknown as IfcAnalyseResponse);
     expect(a?.kind).toBe("exact");
   });
-  it("thermal -> wereld -> scene: model en vlakken vallen samen", () => {
-    // IFC-wereld = thermal + [483686, 116610, 0]; model geladen met coordinatiematrix
-    // die [483000, 116000, -1] van lokaal naar wereld verschuift.
+  it("thermal -> wereld -> scene met de gemeten R-1-coordinatiematrix", () => {
+    // Gemeten 08-10 in de browser (R-1): @thatopen-coordinatiematrix is Y-up en
+    // IFC-wereld -> lokaal, translatie (-483688.2254, 0.23, 116610.06323).
     const a = alignmentFromResponse({ geometry_origin: origin })!;
-    const coord = new Matrix4().makeTranslation(483000, 116000, -1);
+    const coord = new Matrix4().makeTranslation(-483688.2254, 0.23, 116610.06323);
     const gm = sceneGroupMatrix(a.matrixWorldFromThermal, coord);
-    // Thermal (1, 2, 3) -> wereld (483687, 116612, 3) -> lokaal (687, 612, 4) -> scene (x, z, -y)
-    const p = toWorld([1, 2, 3]); // geometrie is al met toWorld omgezet
-    const out = new Vector3(...p).applyMatrix4(gm);
-    expect(out.x).toBeCloseTo(687);
-    expect(out.y).toBeCloseTo(4);
-    expect(out.z).toBeCloseTo(-612);
+    // Thermal (1, 2, 3) -> wereld (483687, 116612, 3) -> Y-up (483687, 3, -116612)
+    // -> lokaal (-1.2254, 3.23, -1.93677).
+    const out = new Vector3(...toWorld([1, 2, 3])).applyMatrix4(gm);
+    expect(out.x).toBeCloseTo(-1.2254, 4);
+    expect(out.y).toBeCloseTo(3.23, 4);
+    expect(out.z).toBeCloseTo(-1.93677, 4);
   });
   it("zonder coordinatiematrix: alleen M, daarna scene", () => {
     const a = alignmentFromResponse({ geometry_origin: origin })!;

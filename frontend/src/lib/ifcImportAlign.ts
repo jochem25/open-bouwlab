@@ -48,18 +48,20 @@ const SCENE_FROM_ZUP = new Matrix4().set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0,
  * Matrix voor de groep met vlakken. De vlakken zijn al per punt omgezet met
  * toWorld (thermal -> scene zonder verschuiving); deze matrix zet ze daarna naar
  * waar het model staat:
- *   scene = W . C^-1 . M . W^-1 (toWorld(p))
- * met M = matrix_world_from_thermal, C = coordinatiematrix van het geladen
- * model (lokaal IFC -> IFC-wereld, Z-up; null = identiteit) en W = Z-up -> Y-up.
+ *   scene = C . W . M . W^-1 (toWorld(p))
+ * met M = matrix_world_from_thermal (Z-up), W = Z-up -> Y-up en C = de
+ * coordinatiematrix van het geladen model (null = identiteit). Gemeten 08-10
+ * op R-1: @thatopen levert C al in het Y-up sceneframe en als IFC-wereld ->
+ * lokaal (translatie -483688,2 / 0,23 / +116610,1), dus C zelf, niet C^-1.
  */
 export function sceneGroupMatrix(
   matrixWorldFromThermal: number[][],
   coordination: Matrix4 | null,
 ): Matrix4 {
   const m = new Matrix4().set(...(matrixWorldFromThermal.flat() as Tuple16));
-  const cInv = coordination ? coordination.clone().invert() : new Matrix4();
+  const c = coordination ? coordination.clone() : new Matrix4();
   const wInv = SCENE_FROM_ZUP.clone().invert();
-  return SCENE_FROM_ZUP.clone().multiply(cInv).multiply(m).multiply(wInv);
+  return c.multiply(SCENE_FROM_ZUP).multiply(m).multiply(wInv);
 }
 
 /** Three.js-wereldbox (Y-up: x, z, -y) terug naar projectcoordinaten (Z-up). */
