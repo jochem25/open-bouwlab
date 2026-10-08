@@ -58,7 +58,7 @@ Thumbs.db
 # Frontend
 node_modules
 # web-ifc.wasm, gekopieerd door frontend postinstall
-frontend/public/wasm//
+frontend/public/wasm/
 frontend/dist/
 frontend/tsconfig.tsbuildinfo
 
