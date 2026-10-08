@@ -26,6 +26,9 @@ const GEEN_TOEGANG: &str = "module constructie niet geactiveerd voor dit account
 /// aan de voorbladafbeelding van de warmteverliesrapportage.
 const MAX_COVERFOTO_BYTES: usize = 2 * 1024 * 1024;
 
+/// Maximale lengte van de meegestuurde bestandsnaam van de coverfoto.
+const MAX_BESTANDSNAAM_TEKENS: usize = 255;
+
 /// Body-limiet van `/constructie/rapport`: coverfoto (base64) plus invoer.
 /// Ruimer dan de reken-routes; de route-laag overschrijft de module-laag.
 const RAPPORT_BODY_LIMIT: usize = 4 * 1024 * 1024;
@@ -69,12 +72,22 @@ impl Coverfoto {
         if bytes.len() > MAX_COVERFOTO_BYTES {
             return Err(ApiError::BadRequest("coverfoto is groter dan 2 MB".to_string()));
         }
+        // Inhoud moet bij het opgegeven type passen (bestandssignatuur).
+        let signatuur_klopt = match self.media_type.as_str() {
+            "image/png" => bytes.starts_with(b"\x89PNG\r\n\x1a\n"),
+            _ => bytes.starts_with(&[0xFF, 0xD8, 0xFF]),
+        };
+        if !signatuur_klopt {
+            return Err(ApiError::BadRequest(
+                "coverfoto is geen geldige PNG- of JPEG-afbeelding".to_string(),
+            ));
+        }
         let mut image = serde_json::json!({
             "data": self.data,
             "media_type": self.media_type,
         });
         if let Some(naam) = self.filename.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
-            image["filename"] = Value::String(naam.to_string());
+            image["filename"] = Value::String(naam.chars().take(MAX_BESTANDSNAAM_TEKENS).collect());
         }
         Ok(image)
     }
@@ -437,7 +450,12 @@ mod tests {
     fn rapport_neemt_geuploade_coverfoto_over_en_controleert_hem() {
         use base64::Engine;
         let claims = OidcClaims::default();
-        let b64 = |n: usize| base64::engine::general_purpose::STANDARD.encode(vec![0u8; n]);
+        // JPEG-signatuur gevolgd door opvulling tot `n` bytes.
+        let b64 = |n: usize| {
+            let mut bytes = vec![0xFF, 0xD8, 0xFF];
+            bytes.resize(n.max(3), 0);
+            base64::engine::general_purpose::STANDARD.encode(bytes)
+        };
         let aanvraag = |foto: String| {
             format!(r#"{{"materiaal":"staal","invoer":{S1},"project":{{"coverfoto":{foto}}}}}"#)
         };
@@ -459,12 +477,52 @@ mod tests {
         let gif = aanvraag(format!(r#"{{"data":"{}","media_type":"image/gif"}}"#, b64(10)));
         assert!(matches!(bouw_rapport(&gif, &claims), Err(ApiError::BadRequest(_))));
         let groot = aanvraag(format!(
-            r#"{{"data":"{}","media_type":"image/png"}}"#,
+            r#"{{"data":"{}","media_type":"image/jpeg"}}"#,
             b64(MAX_COVERFOTO_BYTES + 1)
         ));
+        // JPEG-inhoud met PNG-type: signatuur klopt niet.
+        let verkeerd = aanvraag(format!(r#"{{"data":"{}","media_type":"image/png"}}"#, b64(10)));
+        assert!(matches!(bouw_rapport(&verkeerd, &claims), Err(ApiError::BadRequest(_))));
         assert!(matches!(bouw_rapport(&groot, &claims), Err(ApiError::BadRequest(_))));
         let kapot = aanvraag(r#"{"data":"!!","media_type":"image/png"}"#.to_string());
         assert!(matches!(bouw_rapport(&kapot, &claims), Err(ApiError::BadRequest(_))));
+    }
+
+    #[tokio::test]
+    async fn rapportroute_accepteert_body_tot_4_mb() {
+        // Zelfde laagopbouw als main.rs: module-laag 2 MB, route-laag 4 MB.
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory sqlite");
+        let state = AppState::new(db, None, None, None, None, Default::default(), None);
+        let maak = || {
+            constructie_routes()
+                .layer(DefaultBodyLimit::max(2 * 1024 * 1024))
+                .with_state(state.clone())
+        };
+        let body = |bytes: usize| format!(r#"{{"x":"{}"}}"#, "a".repeat(bytes));
+        // 3 MB komt door de limiet heen (en struikelt daarna over de onbekende sleutel).
+        let (status, _) = antwoord(
+            maak(),
+            verzoek("POST", "/constructie/rapport", Some(DEFAULT_CONSTRUCTIE_GROUP), &body(3 << 20)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        let (status, _) = antwoord(
+            maak(),
+            verzoek("POST", "/constructie/rapport", Some(DEFAULT_CONSTRUCTIE_GROUP), &body(5 << 20)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        // Een reken-route houdt de 2 MB van de module.
+        let (status, _) = antwoord(
+            maak(),
+            verzoek("POST", "/constructie/staal", Some(DEFAULT_CONSTRUCTIE_GROUP), &body(3 << 20)),
+        )
+        .await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
     }
 
     #[test]

@@ -90,11 +90,13 @@ pub(crate) async fn proxy_report(
         req = req.header("X-API-Key", api_key);
     }
 
-    let body = vul_standaard_cover(
-        body,
-        claims.tenant.as_deref(),
-        state.report_default_cover_dir.as_deref(),
-    );
+    let tenant = claims.tenant.clone();
+    let dir = state.report_default_cover_dir.clone();
+    let body = tokio::task::spawn_blocking(move || {
+        vul_standaard_cover(body, tenant.as_deref(), dir.as_deref())
+    })
+    .await
+    .map_err(|e| ApiError::Internal(format!("standaard-coverfoto: {e}")))?;
 
     let upstream = req.body(body).send().await.map_err(|e| {
         tracing::error!("Reports API request failed: {e}");
@@ -105,7 +107,7 @@ pub(crate) async fn proxy_report(
         let status = upstream.status();
         let detail = upstream.text().await.unwrap_or_default();
         tracing::error!("Reports API returned {status}: {detail}");
-        if status.is_client_error() {
+        if is_inhoudelijke_afkeuring(status) {
             return Err(ApiError::ReportRejected {
                 status,
                 detail: format!(
@@ -173,11 +175,12 @@ pub(crate) fn vul_standaard_cover(body: String, tenant: Option<&str>, dir: Optio
     let cover = root
         .entry("cover")
         .or_insert_with(|| Value::Object(Default::default()));
-    match cover.as_object_mut() {
-        Some(c) => {
-            c.insert("image".to_string(), afbeelding);
-        }
-        None => return body,
+    if !cover.is_object() {
+        // `cover: null` of een andere vorm: vervangen, anders zou de foto stil wegvallen.
+        *cover = Value::Object(Default::default());
+    }
+    if let Some(c) = cover.as_object_mut() {
+        c.insert("image".to_string(), afbeelding);
     }
     json.to_string()
 }
@@ -223,33 +226,45 @@ fn is_veilige_slug(s: &str) -> bool {
 /// FastAPI geeft `{"detail": "..."}` of, bij schemafouten, `{"detail": [{"msg": ...}]}`.
 /// Anders de ruwe tekst, ingekort.
 pub(crate) fn upstream_detail(body: &str) -> String {
-    const MAX: usize = 500;
-    if let Ok(json) = serde_json::from_str::<Value>(body) {
-        match json.get("detail") {
-            Some(Value::String(s)) => return s.clone(),
-            Some(Value::Array(items)) => {
-                let delen: Vec<String> = items
-                    .iter()
-                    .map(|i| match i.get("msg").and_then(Value::as_str) {
-                        Some(m) => m.to_string(),
-                        None => i.to_string(),
-                    })
-                    .collect();
-                if !delen.is_empty() {
-                    return delen.join("; ");
-                }
-            }
-            _ => {}
-        }
-    }
-    let tekst = body.trim();
+    const GEEN_TOELICHTING: &str = "geen toelichting ontvangen";
+    let Ok(json) = serde_json::from_str::<Value>(body) else {
+        // Geen JSON (bijv. een HTML-foutpagina van een proxy): niet tonen.
+        return GEEN_TOELICHTING.to_string();
+    };
+    let tekst = match json.get("detail") {
+        Some(Value::String(s)) => s.clone(),
+        // Alleen `msg`: een schemafout bevat ook `input`, mogelijk de hele afbeelding.
+        Some(Value::Array(items)) => items
+            .iter()
+            .filter_map(|i| i.get("msg").and_then(Value::as_str))
+            .collect::<Vec<_>>()
+            .join("; "),
+        _ => String::new(),
+    };
+    let tekst = tekst.trim();
     if tekst.is_empty() {
-        return "geen toelichting ontvangen".to_string();
+        return GEEN_TOELICHTING.to_string();
     }
-    match tekst.char_indices().nth(MAX) {
+    kap_af(tekst, MAX_DETAIL_TEKENS)
+}
+
+/// Maximale lengte van een doorgegeven fouttekst (tekens).
+const MAX_DETAIL_TEKENS: usize = 500;
+
+/// Kap `tekst` af op `max` tekens (op een tekengrens).
+fn kap_af(tekst: &str, max: usize) -> String {
+    match tekst.char_indices().nth(max) {
         Some((i, _)) => format!("{}...", &tekst[..i]),
         None => tekst.to_string(),
     }
+}
+
+/// 400, 413 en 422 zeggen iets over het rapport zelf en gaan door naar de
+/// gebruiker. Andere 4xx (401/403 service-token, 404 verkeerde URL, 429) zijn
+/// configuratie- of serverfouten: die blijven 502, anders leest de frontend
+/// een 401/403 als een verlopen sessie van de gebruiker.
+fn is_inhoudelijke_afkeuring(status: reqwest::StatusCode) -> bool {
+    matches!(status.as_u16(), 400 | 413 | 422)
 }
 
 #[cfg(test)]
@@ -282,9 +297,15 @@ mod tests {
         assert_eq!(image["data"], base64::engine::general_purpose::STANDARD.encode(b"jpeg-bytes"));
         assert_eq!(serde_json::from_str::<Value>(&uit).expect("json")["cover"]["subtitle"], "x");
 
-        // Ook zonder cover-object.
-        let uit = vul_standaard_cover(r#"{"template":"t"}"#.to_string(), Some("kba"), Some(&dir));
-        assert_eq!(cover_image(&uit)["media_type"], "image/jpeg");
+        // Ook zonder cover-object, met `cover: null` en met `image: null`.
+        for body in [
+            r#"{"template":"t"}"#,
+            r#"{"template":"t","cover":null}"#,
+            r#"{"template":"t","cover":{"image":null}}"#,
+        ] {
+            let uit = vul_standaard_cover(body.to_string(), Some("kba"), Some(&dir));
+            assert_eq!(cover_image(&uit)["media_type"], "image/jpeg", "{body}");
+        }
     }
 
     #[test]
@@ -314,9 +335,16 @@ mod tests {
             upstream_detail(r#"{"detail":[{"msg":"a"},{"msg":"b"}]}"#),
             "a; b"
         );
-        assert_eq!(upstream_detail("platte tekst"), "platte tekst");
+        // Zonder `msg` geen ruwe items (die kunnen de afbeelding als `input` bevatten).
+        assert_eq!(
+            upstream_detail(r#"{"detail":[{"msg":"a","input":"QUJD"},{"loc":["x"]}]}"#),
+            "a"
+        );
+        // Geen JSON (HTML-foutpagina van een proxy): generieke tekst, niets doorlekken.
+        assert_eq!(upstream_detail("<html>intern</html>"), "geen toelichting ontvangen");
         assert_eq!(upstream_detail(""), "geen toelichting ontvangen");
-        assert!(upstream_detail(&"x".repeat(2000)).ends_with("..."));
+        let lang = upstream_detail(&format!(r#"{{"detail":"{}"}}"#, "x".repeat(2000)));
+        assert!(lang.ends_with("...") && lang.chars().count() == MAX_DETAIL_TEKENS + 3);
     }
 
     /// Nep-Reports API: bewaart de ontvangen body en antwoordt met `status` + `antwoord`.
@@ -387,6 +415,18 @@ mod tests {
             json["detail"],
             "Rapport afgekeurd door de rapportengine: static_elements: verplichte afbeelding ontbreekt"
         );
+    }
+
+    #[tokio::test]
+    async fn auth_fout_van_reports_api_blijft_serverfout() {
+        // Een verlopen service-token mag bij de gebruiker geen 401 worden.
+        for status in [StatusCode::UNAUTHORIZED, StatusCode::FORBIDDEN, StatusCode::NOT_FOUND] {
+            let (url, _) = nep_reports_api(status, r#"{"detail":"x"}"#).await;
+            let fout = proxy_report(&state(url, None).await, &kba(), "{}".to_string())
+                .await
+                .expect_err("fout");
+            assert_eq!(fout.into_response().status(), StatusCode::BAD_GATEWAY, "{status}");
+        }
     }
 
     #[tokio::test]
