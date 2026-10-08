@@ -1,5 +1,11 @@
 # TODO
 
+## Constructiemodule UNP (2026-10-08, branch `feat/constructie-unp`)
+
+- [x] Reeks UNP 80-400 met bron per record, controlescript (A/I_y/W nagerekend) en golden S2
+- [ ] Planner: besluit elastisch (W_el,y) i.p.v. W_pl,y voor enkel UNP bevestigen
+- [ ] Voorstel 2x UNP rug aan rug (docs/2026-10-08-constructie-unp.md) - niet gebouwd
+
 ## Constructiemodule deel 1 (2026-10-07, branch `feat/constructiemodule`, worktree)
 
 - [x] **Rekenkern `crates/constructie-core`**: staal en beton, belastingen en combinaties, advieslogica, rapport-JSON; goldens S1/B1 groen

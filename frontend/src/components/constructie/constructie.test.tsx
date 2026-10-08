@@ -110,6 +110,14 @@ describe("DisclaimerBanner", () => {
   });
 });
 
+describe("Profielreeksen staal", () => {
+  it("biedt UNP aan, standaard niet aangevinkt", () => {
+    const html = render(<ConstructiePagina materiaal="staal" />);
+    expect(html).toContain(">UNP<");
+    expect(STANDAARD_FORMULIER.reeksen).not.toContain("UNP");
+  });
+});
+
 describe("Hout-pagina", () => {
   it("toont de vloerplaat-velden bij balklaag (default) met helptekst", () => {
     const html = render(<ConstructiePagina materiaal="hout" />);

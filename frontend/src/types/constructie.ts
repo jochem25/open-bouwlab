@@ -24,7 +24,7 @@ export type Gevolgklasse = "CC1" | "CC2" | "CC3";
 
 export type Scheidingswanden = "geen" | "tot_een" | "tot_twee" | "tot_drie";
 
-export type Reeks = "IPE" | "HEA" | "HEB";
+export type Reeks = "IPE" | "HEA" | "HEB" | "UNP";
 export type Staalsoort = "S235" | "S275" | "S355";
 export type Sterkteklasse = "C20/25" | "C25/30" | "C30/37" | "C35/45";
 export type Milieuklasse = "XC1" | "XC3";

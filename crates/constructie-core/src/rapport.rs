@@ -571,11 +571,21 @@ fn staal_uitgangspunten(i: &StaalInvoer, res: &Resultaat) -> Vec<Vec<String>> {
         "78,5 kN/m3".to_string(),
         "EC1-1 tabel A.4".to_string(),
     ]);
-    rijen.push(vec![
-        "Profieldata".to_string(),
-        "voorlopig: nominale waarden, bron volgt".to_string(),
-        "-".to_string(),
-    ]);
+    // Herkomst per reeks: I/H-profielen nog voorlopig, UNP uit de fabrikantentabel.
+    if i.reeksen.iter().any(|r| *r != crate::model::Reeks::Unp) {
+        rijen.push(vec![
+            "Profieldata IPE/HEA/HEB".to_string(),
+            "voorlopig: nominale waarden, bron volgt".to_string(),
+            "-".to_string(),
+        ]);
+    }
+    if i.reeksen.contains(&crate::model::Reeks::Unp) {
+        rijen.push(vec![
+            "Profieldata UNP".to_string(),
+            "UNP 80 - 400, buigweerstand elastisch (W_el,y)".to_string(),
+            "ArcelorMittal verkoopprogramma (2018-05), DIN 1026-1".to_string(),
+        ]);
+    }
     rijen
 }
 

@@ -40,6 +40,12 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - Norm-conformiteit regressie-tests WTW + infiltratie SystemD (659b658)
 - NTA8800-cooling Vabi-cross-validatie scaffold (51dc6ae)
 
+## [Unreleased] — 2026-10-08 (branch `feat/constructie-unp`)
+
+### ✨ Nieuw
+
+- **Staal: reeks UNP** (UNP 80 - 400, data ArcelorMittal-verkoopprogramma 2018-05, kruisgecontroleerd met een tweede bron en nagerekend uit de afmetingen). U-specifieke toetsing: flens-c/t vanaf het lijf, afschuifoppervlak voor U-profielen, elastische buigweerstand (W_el,y), conservatieve M-V-reductie. Vaste waarschuwing dat wringing en kip niet zijn getoetst. Golden S2. Zie `docs/2026-10-08-constructie-unp.md`. UNP staat standaard uit in het scherm.
+
 ## [Unreleased] — 2026-10-07 (branch `feat/constructie-hout-trilling`)
 
 ### Nieuw
