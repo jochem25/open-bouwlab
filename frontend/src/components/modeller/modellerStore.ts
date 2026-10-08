@@ -8,7 +8,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { ModelRoom, ModelWindow, ModelDoor, WallBoundaryType, ProjectConstruction, ImportedBoundary, ImportGeometry } from "./types";
-import { buildLayerName, type CatalogueEntry } from "../../lib/constructionCatalogue";
+import { buildLayerName, type CatalogueEntry, type CatalogueLayer } from "../../lib/constructionCatalogue";
 import { normalizeProjectConstructionUValue } from "./projectConstructionUtils";
 import { EXAMPLE_ROOMS, EXAMPLE_WINDOWS } from "./exampleData";
 
@@ -224,6 +224,11 @@ interface ModellerStore {
   // Utility
   nextRoomId: (floor: number) => string;
   resetToExample: () => void;
+}
+
+/** Laagopbouw gelijk (materiaal, dikte, lambda-override, stijl) — volgorde telt. */
+export function sameLayers(a: CatalogueLayer[], b: CatalogueLayer[]): boolean {
+  return a.length === b.length && a.every((l, i) => JSON.stringify(l) === JSON.stringify(b[i]));
 }
 
 /** Generate next room ID like "0.07" for the given floor. */
@@ -489,7 +494,11 @@ export const useModellerStore = create<ModellerStore>()(
               (c) =>
                 c.name === data.name &&
                 c.category === data.category &&
-                c.materialType === data.materialType,
+                c.materialType === data.materialType &&
+                // Zonder deze check hergebruikte een herhaalde import (bijv.
+                // een herziene IFC, of na een matcher-fix) de oude constructie
+                // met verouderde lagen, op naam alleen.
+                sameLayers(c.layers, data.layers),
             );
         if (existing) return existing.id;
 
