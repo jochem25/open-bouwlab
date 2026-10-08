@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { ifcAnalyseMock, MOCK_ROOM_HOOG, MOCK_ROOM_LAAG } from "./__fixtures__/ifcAnalyseMock";
 import { makeImportResult } from "./__fixtures__/ifcImportTestData";
 import { buildIfcImportChecklist } from "./ifcImportChecklist";
+import type { ProjectConstruction } from "../components/modeller/types";
 import type { Project } from "../types";
 import type { IfcImportOrigin } from "../types/ifcImport";
 
@@ -104,5 +105,70 @@ describe("buildIfcImportChecklist", () => {
       approved_room_ids: [MOCK_ROOM_HOOG],
     }).find((i) => i.id === "u-constructies")!;
     expect(half.aantal).toBeLessThan(full.aantal);
+  });
+
+  it("lagen met onbekend materiaal en zonder lambda: ontbreekt, per materiaal met m2 en aantal", () => {
+    const { project, origin } = setup();
+    for (const c of project.rooms[0]!.constructions) c.project_construction_id = "pc1";
+    const area = project.rooms[0]!.constructions.reduce((s, c) => s + c.area, 0);
+    const pcs = [
+      {
+        id: "pc1",
+        layers: [
+          { materialId: "holz", thickness: 100 },
+          { materialId: "hout-naaldhout", thickness: 50 },
+          { materialId: "onbekend-met-lambda", thickness: 20, lambdaOverride: 0.2 },
+        ],
+      },
+    ] as unknown as ProjectConstruction[];
+    const item = buildIfcImportChecklist(project, origin, pcs).find(
+      (i) => i.id === "materiaal-onbekend",
+    )!;
+    expect(item.severity).toBe("ontbreekt");
+    expect(item.link).toBe("/constructies");
+    expect(item.aantal).toBe(1);
+    expect(item.tekst).toContain("holz");
+    expect(item.tekst).toContain("1 constructies");
+    expect(item.tekst).toContain("R = 0");
+    expect(item.tekst).not.toContain("hout-naaldhout");
+    expect(item.tekst).not.toContain("onbekend-met-lambda");
+    expect(area).toBeGreaterThan(0);
+
+    // oplossen: lambda invullen laat het item verdwijnen
+    pcs[0]!.layers[0]!.lambdaOverride = 0.13;
+    expect(ids(buildIfcImportChecklist(project, origin, pcs))).not.toContain("materiaal-onbekend");
+  });
+
+  it("op naam gekoppelde materialen: inklapbare lijst; zonder analyse weggelaten", () => {
+    const { project, origin } = setup();
+    const withAnalyse = { ...origin, analyse: ifcAnalyseMock };
+    const item = buildIfcImportChecklist(project, withAnalyse).find(
+      (i) => i.id === "materiaal-gekoppeld",
+    )!;
+    expect(item.severity).toBe("default");
+    expect(item.details?.some((d) => d.startsWith("n7_isolatie_PIR -> PIR (λ 0,023)"))).toBe(true);
+    expect(ids(buildIfcImportChecklist(project, origin))).not.toContain("materiaal-gekoppeld");
+  });
+
+  it("toont NL-labels i.p.v. enumwaarden en legt qv10 = 0 uit", () => {
+    const { project, origin } = setup();
+    origin.defaults = {
+      ...origin.defaults!,
+      heating_system: "radiator_lt",
+      ventilation_system: "system_c",
+      building_type: "detached",
+      qv10: 0,
+      theta_e: project.climate.theta_e ?? 0,
+    };
+    project.ventilation.system_type = "system_c";
+    project.building.building_type = "detached";
+    project.building.qv10 = 0;
+    const items = buildIfcImportChecklist(project, origin);
+    const text = items.map((i) => i.tekst).join(" | ");
+    expect(text).toContain("Radiator LT");
+    expect(text).toContain("Systeem C");
+    expect(text).toContain("Vrijstaand");
+    expect(text).toContain("gunstigste luchtdichtheidsklasse");
+    expect(text).not.toMatch(/radiator_lt|system_c|detached/);
   });
 });

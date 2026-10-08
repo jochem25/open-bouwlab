@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import { buildIfcImportChecklist, type ChecklistItem } from "../../lib/ifcImportChecklist";
 import { useProjectStore } from "../../store/projectStore";
+import { useModellerStore } from "../modeller/modellerStore";
 
 export const DISMISS_KEY = "ifcImport.checklistDismissed";
 
@@ -78,6 +79,16 @@ export function ChecklistView({
               <span>
                 <strong className="mr-2">{SEVERITY_LABEL[item.severity]}</strong>
                 <span className="text-on-surface">{item.tekst}</span>
+                {item.details && item.details.length > 0 && (
+                  <details className="mt-1 text-xs text-on-surface-secondary">
+                    <summary className="cursor-pointer">Toon {item.details.length} koppelingen</summary>
+                    <ul className="mt-1 list-disc pl-5">
+                      {item.details.map((d) => (
+                        <li key={d}>{d}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </span>
               <Link to={item.link} className="shrink-0 underline">
                 {LINK_LABEL[item.link] ?? item.link}
@@ -94,8 +105,10 @@ export function ChecklistView({
 export function IfcImportChecklistPanel() {
   const project = useProjectStore((s) => s.project);
   const origin = useProjectStore((s) => s.ifcImport);
+  const projectConstructions = useModellerStore((s) => s.projectConstructions);
   const [dismissed, setDismissed] = useState(readDismissed);
-  const items = useMemo(() => buildIfcImportChecklist(project, origin), [project, origin]);
+  const items = useMemo(() => buildIfcImportChecklist(project, origin, projectConstructions),
+    [project, origin, projectConstructions],);
 
   if (dismissed || !origin) return null;
   return (

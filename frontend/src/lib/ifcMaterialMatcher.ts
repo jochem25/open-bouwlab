@@ -61,6 +61,27 @@ const CATEGORY_PATTERNS: [RegExp, string[]][] = [
 ];
 
 // ---------------------------------------------------------------------------
+// Token aliases (vreemde/afgekorte namen -> database-trefwoorden)
+// ---------------------------------------------------------------------------
+
+/**
+ * Een IFC-token dat in de database niet voorkomt, wordt vervangen door
+ * database-trefwoorden. Bewust hier en niet in `materialsDatabase.ts`: die is
+ * de bron voor de pyrevit-JSON-generator.
+ *  - "holz" (Duits) -> generiek (naald)hout.
+ *  - "cempanel" (cement panel) -> cementgebonden plaat: "cement" + "plaat"
+ *    scoort samen hoger dan elke mortel/dekvloer met alleen "cement".
+ */
+const TOKEN_ALIASES: Record<string, string[]> = {
+  holz: ["naaldhout"],
+  cempanel: ["cement", "plaat"],
+};
+
+/** Cellulair glas (Foamglas) is isolatie; "glas" alleen betekent beglazing. */
+const CELLULAR_GLASS_ID = "plaatmateriaal-cellulair-glas-foamglas";
+const MENTIONS_CELLULAR_GLASS = /foam|cellulair|cellular/;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -89,7 +110,8 @@ function tokenize(s: string): string[] {
  */
 export function matchIfcMaterial(ifcName: string): MaterialMatch {
   const normalizedName = normalize(ifcName);
-  const tokens = tokenize(ifcName);
+  const tokens = tokenize(ifcName).flatMap((t) => TOKEN_ALIASES[t] ?? [t]);
+  const mentionsCellularGlass = MENTIONS_CELLULAR_GLASS.test(normalizedName);
 
   // Strategy 1: Exact match on id or name
   for (const m of MATERIALS_DATABASE) {
@@ -110,6 +132,8 @@ export function matchIfcMaterial(ifcName: string): MaterialMatch {
   let bestScore = 0;
 
   for (const m of MATERIALS_DATABASE) {
+    // "glas"/"glas_helder" is beglazing, geen Foamglas-isolatie.
+    if (m.id === CELLULAR_GLASS_ID && !mentionsCellularGlass) continue;
     const haystack = [normalize(m.name), ...m.keywords.map(normalize)];
     // name + each keyword split into individual words for exact token comparison.
     const haystackTokens = new Set(
