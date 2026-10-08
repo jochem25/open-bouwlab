@@ -127,6 +127,12 @@ async fn main() {
 
     let mut app_state = app_state;
     app_state.entitlements = config.entitlements.clone();
+    app_state.report_default_cover_dir =
+        config.report_default_cover_dir.as_ref().map(std::path::PathBuf::from);
+    match &app_state.report_default_cover_dir {
+        Some(dir) => tracing::info!(dir = %dir.display(), "Standaard-coverfoto's per tenant actief"),
+        None => tracing::info!("Geen REPORT_DEFAULT_COVER_DIR — rapporten zonder coverfoto gaan ongewijzigd door"),
+    }
 
     // --- Routes ---
     // Publieke reken-routes: geen auth (bewust — publieke reken-API), maar

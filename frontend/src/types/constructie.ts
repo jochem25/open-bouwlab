@@ -5,6 +5,8 @@
  * in `crates/constructie-core/src/{model,toets}.rs`.
  */
 
+import type { CoverImage } from "./project";
+
 export type Toepassing = "vloer" | "dak";
 
 export type Gebruiksfunctie =
@@ -209,4 +211,6 @@ export interface Resultaat {
 export interface RapportProject {
   naam?: string;
   opsteller?: string;
+  /** Optionele coverfoto; zonder foto vult de backend de standaardfoto aan. */
+  coverfoto?: CoverImage;
 }

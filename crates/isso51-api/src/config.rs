@@ -24,6 +24,12 @@ pub struct Config {
     /// calls naar de Reports API. Wordt als `Authorization: Bearer <token>`
     /// gestuurd. Vervangt de legacy shared-secret X-API-Key bypass.
     pub reports_api_service_token: Option<String>,
+    /// Map met standaard-coverfoto's per tenant (`<tenant>.jpg` of `<tenant>.png`).
+    ///
+    /// Env `REPORT_DEFAULT_COVER_DIR`. Bevat een rapport geen `cover.image`, dan
+    /// vult de rapport-proxy die aan uit dit bestand. Staat bewust buiten de
+    /// (publieke) repo; zie `crate::handlers::report`.
+    pub report_default_cover_dir: Option<String>,
     /// Path to the `ifc-tool` executable for server-side IFC import.
     pub ifc_tool_path: Option<String>,
     /// Path to tenants.json for multi-tenant cloud storage.
@@ -64,6 +70,9 @@ impl Config {
                 .ok()
                 .filter(|s| !s.is_empty()),
             reports_api_service_token: env::var("REPORTS_API_SERVICE_TOKEN")
+                .ok()
+                .filter(|s| !s.is_empty()),
+            report_default_cover_dir: env::var("REPORT_DEFAULT_COVER_DIR")
                 .ok()
                 .filter(|s| !s.is_empty()),
             ifc_tool_path: env::var("IFC_TOOL_PATH")

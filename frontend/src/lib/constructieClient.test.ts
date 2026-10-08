@@ -40,6 +40,39 @@ describe("constructieClient", () => {
     await expect(genereerConstructieRapport("beton", invoer)).rejects.toBeInstanceOf(ConstructieFout);
   });
 
+  it("toont bij een afgekeurd rapport de detail-tekst, niet de foutcode", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            error: "report_rejected",
+            detail: "Rapport afgekeurd door de rapportengine: verplichte afbeelding ontbreekt",
+          }),
+          { status: 422 },
+        ),
+      ),
+    );
+    const invoer = bouwInvoer(STANDAARD_FORMULIER, "staal")!;
+    await expect(genereerConstructieRapport("staal", invoer)).rejects.toMatchObject({
+      message: "Rapport afgekeurd door de rapportengine: verplichte afbeelding ontbreekt",
+      status: 422,
+    });
+  });
+
+  it("stuurt een gekozen coverfoto mee en laat hem anders weg", async () => {
+    const fetchMock = vi.fn().mockImplementation(() => Promise.resolve(new Response("%PDF", { status: 200 })));
+    vi.stubGlobal("fetch", fetchMock);
+    const invoer = bouwInvoer(STANDAARD_FORMULIER, "staal")!;
+    const coverfoto = { data: "QUJD", media_type: "image/png" as const, filename: "foto.png" };
+    await genereerConstructieRapport("staal", invoer, { coverfoto });
+    const met = JSON.parse((fetchMock.mock.calls[0] as [string, RequestInit])[1].body as string);
+    expect(met.project.coverfoto).toEqual(coverfoto);
+    await genereerConstructieRapport("staal", invoer);
+    const zonder = JSON.parse((fetchMock.mock.calls[1] as [string, RequestInit])[1].body as string);
+    expect(zonder.project).toBeUndefined();
+  });
+
   it("maakt een veilige rapportbestandsnaam", () => {
     expect(rapportBestandsnaam("staal", "IPE 200")).toBe("constructie-staal-ipe-200.pdf");
     expect(rapportBestandsnaam("beton", "300 x 450")).toBe("constructie-beton-300-x-450.pdf");

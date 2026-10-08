@@ -1,5 +1,12 @@
 # TODO
 
+## Rapport-coverfoto (2026-10-08, branch `feat/rapport-coverfoto`)
+
+- [x] Backend vult `cover.image` aan uit `REPORT_DEFAULT_COVER_DIR/<tenant>.{jpg,png}`; 4xx van de Reports API met detail-tekst door
+- [x] Constructiemodule: optionele coverfoto-upload; foutweergave toont `detail`
+- [ ] Afbeelding laten keuren (proef-PDF in shared/uitvoer/constructiemodule); daarna op de server: bestand, read-only mount en env (planner)
+- [ ] Ook isso53-, Rc-, Uw- en ventilatierapport nemen de geuploade voorbladafbeelding nog niet mee (alleen ISSO 51); de standaardfoto werkt daar wel
+
 ## Constructiemodule deel 1 (2026-10-07, branch `feat/constructiemodule`, worktree)
 
 - [x] **Rekenkern `crates/constructie-core`**: staal en beton, belastingen en combinaties, advieslogica, rapport-JSON; goldens S1/B1 groen

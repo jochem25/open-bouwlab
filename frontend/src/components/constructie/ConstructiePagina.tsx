@@ -8,6 +8,7 @@ import {
   rapportBestandsnaam,
 } from "../../lib/constructieClient";
 import type { Materiaal, Resultaat } from "../../types/constructie";
+import type { CoverImage } from "../../types/project";
 import { PageHeader } from "../layout/PageHeader";
 import { Card } from "../ui/Card";
 import { DisclaimerBanner } from "./DisclaimerBanner";
@@ -44,6 +45,7 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
   const [fout, setFout] = useState<string | null>(null);
   const [rapportBezig, setRapportBezig] = useState(false);
   const [rapportFout, setRapportFout] = useState<string | null>(null);
+  const [coverfoto, setCoverfoto] = useState<CoverImage | null>(null);
 
   const invoer = useMemo(() => bouwInvoer(formulier, materiaal), [formulier, materiaal]);
   const invoerSleutel = invoer ? JSON.stringify(invoer) : null;
@@ -91,7 +93,11 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
     setRapportBezig(true);
     setRapportFout(null);
     try {
-      const blob = await genereerConstructieRapport(materiaal, invoer);
+      const blob = await genereerConstructieRapport(
+        materiaal,
+        invoer,
+        coverfoto ? { coverfoto } : undefined,
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -145,6 +151,8 @@ export function ConstructiePagina({ materiaal }: { materiaal: Materiaal }) {
                 rapportBezig={rapportBezig}
                 rapportFout={rapportFout}
                 onRapport={downloadRapport}
+                coverfoto={coverfoto}
+                onCoverfoto={setCoverfoto}
               />
             ) : (
               !bezig &&

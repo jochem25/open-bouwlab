@@ -25,8 +25,11 @@ export class ConstructieFout extends Error {
 async function leesFout(res: Response): Promise<ConstructieFout> {
   let bericht = res.statusText || `HTTP ${res.status}`;
   try {
-    const json = (await res.json()) as { error?: string };
-    if (json.error) bericht = json.error;
+    // `detail` is de leesbare tekst (o.a. afkeuring door de rapportengine);
+    // `error` is een foutcode, behalve bij de 403 van de module-gating.
+    const json = (await res.json()) as { error?: string; detail?: string };
+    if (json.detail) bericht = json.detail;
+    else if (json.error) bericht = json.error;
   } catch {
     // geen JSON-body
   }
