@@ -12,9 +12,12 @@
  * - Kleuren: bestaande tokens `--domain-boundary-*` (themes.css), water via de
  *   bestaande 3D-kleur uit FloorCanvas3D (geen token), rood via `--theme-danger-color`.
  * - Origineel model: OBC.IfcLoader (fragments), lazy bij het aanzetten van de laag.
- *   COORDINATE_TO_ORIGIN uit en `coordinate=false`, zodat het model op zijn
- *   projectcoordinaten blijft staan en met de vlakken samenvalt. Na het laden
- *   vergelijken we het middelpunt met dat van de vlakken en melden een afwijking.
+ *   De IFC staat in RD-coordinaten (>100 km): Fragments slaat die over, dus laden
+ *   we MET coordinate-to-origin en lijnen het model daarna uit (zie
+ *   lib/ifcImportAlign): expliciet uit de response (hook, nu leeg) of anders
+ *   automatisch op de bbox-minimumhoek van de vlakken, zonder rotatie. De
+ *   statusregel meldt de gebruikte methode en het restverschil.
+ * - Camera: isometrisch overzicht vanuit (1,1,1) met 15 % marge; knop "Overzicht".
  * - Het File-object leeft alleen in paginastate (prop), nooit in een store.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -33,11 +36,21 @@ import {
   type ViewModel,
   type ViewSurface,
 } from "../../lib/ifcImportGeometry";
+import {
+  FIT_MARGIN,
+  alignByBboxMin,
+  alignmentFromResponse,
+  isoCameraFit,
+  residualAfterAlignment,
+  worldBoxToProject,
+} from "../../lib/ifcImportAlign";
 
 interface Props {
   model: ViewModel;
   /** Het originele IFC-bestand van deze sessie; null na herladen. */
   file: File | null;
+  /** Engine-response; bron voor een eventuele expliciete uitlijning. */
+  response: unknown;
   selectedRoomId: string | null;
   selectedSurfaceId: string | null;
   onSelectSurface: (surface: ViewSurface | null) => void;
@@ -50,7 +63,6 @@ const DIMMED_OPACITY = 0.18;
 const MODEL_OPACITY = 0.15;
 const OPENING_OPACITY = 0.65;
 const RED_MIX = 0.45;
-const ALIGN_TOLERANCE_M = 2;
 const CLICK_MOVE_PX = 4;
 const WATER_COLOR = "#1a6b8a"; // = BOUNDARY_CONDITION_COLORS.water in FloorCanvas3D
 
@@ -112,12 +124,13 @@ function buildGeometry(vertices: [number, number, number][]): THREE.BufferGeomet
 type ModelState =
   | { phase: "idle" }
   | { phase: "loading" }
-  | { phase: "ready"; ms: number; note: string | null; offset: THREE.Vector3 | null }
+  | { phase: "ready"; ms: number; note: string | null }
   | { phase: "error"; message: string };
 
 export function IfcImportViewer3D({
   model,
   file,
+  response,
   selectedRoomId,
   selectedSurfaceId,
   onSelectSurface,
@@ -135,6 +148,7 @@ export function IfcImportViewer3D({
 
   const [showModel, setShowModel] = useState(false);
   const [showSurfaces, setShowSurfaces] = useState(true);
+  const [legendOpen, setLegendOpen] = useState(true);
   const [showOpenings, setShowOpenings] = useState(true);
   const [buildMs, setBuildMs] = useState<number | null>(null);
   const [modelState, setModelState] = useState<ModelState>({ phase: "idle" });
@@ -207,14 +221,13 @@ export function IfcImportViewer3D({
   );
 
   const fitBox = useCallback(
-    (box: THREE.Box3 | null) => {
+    (box: THREE.Box3 | null, animate = true) => {
       if (!box || box.isEmpty()) return;
-      void camera()?.controls.fitToBox(box, true, {
-        paddingTop: 0.5,
-        paddingBottom: 0.5,
-        paddingLeft: 0.5,
-        paddingRight: 0.5,
-      });
+      const cam = camera();
+      if (!cam) return;
+      const fov = (cam.three as THREE.PerspectiveCamera).fov;
+      const f = isoCameraFit(box.min.toArray(), box.max.toArray(), fov, FIT_MARGIN);
+      void cam.controls.setLookAt(...f.position, ...f.target, animate);
     },
     [camera],
   );
@@ -285,7 +298,7 @@ export function IfcImportViewer3D({
     );
     const bb = modelBbox(model);
     surfacesBox.current = bb ? worldBox(bb) : null;
-    fitBox(surfacesBox.current);
+    fitBox(surfacesBox.current, false);
   }, [model, fitBox]);
 
   // --- Laag-zichtbaarheid ---------------------------------------------------
@@ -344,11 +357,12 @@ export function IfcImportViewer3D({
         await loader.setup({
           autoSetWasm: false,
           wasm: { path: WASM_PATH, absolute: true },
-          // Niet naar de oorsprong verschuiven: de vlakken staan in projectcoordinaten.
-          webIfc: { COORDINATE_TO_ORIGIN: false },
+          // RD-coordinaten (>100 km) worden door Fragments overgeslagen: laad MET
+          // coordinate-to-origin (default) en lijn daarna uit op de vlakken.
+          webIfc: { COORDINATE_TO_ORIGIN: true },
         });
         const bytes = new Uint8Array(await file.arrayBuffer());
-        const frag = await loader.load(bytes, false, "origineel");
+        const frag = await loader.load(bytes, true, "origineel");
         const cam = world.camera as OBC.SimpleCamera;
         frag.useCamera(cam.three);
         world.scene.three.add(frag.object);
@@ -358,29 +372,34 @@ export function IfcImportViewer3D({
         await frag.setOpacity(undefined, MODEL_OPACITY);
         ifcModelRef.current = frag;
 
-        // Uitlijningscontrole: middelpunt model t.o.v. middelpunt vlakken.
+        // Uitlijning: (a) expliciet uit de response, (b) anders op de omhullende.
         let note: string | null = null;
-        let offset: THREE.Vector3 | null = null;
         try {
           const boxes = await frag.getBoxes();
           const mb = new THREE.Box3();
-          boxes.forEach((b) => mb.union(b));
+          boxes.forEach((bx) => mb.union(bx));
           mb.applyMatrix4(frag.object.matrixWorld);
-          const sb = surfacesBox.current;
-          if (!mb.isEmpty() && sb && !sb.isEmpty()) {
-            offset = sb.getCenter(new THREE.Vector3()).sub(mb.getCenter(new THREE.Vector3()));
-            if (offset.length() > ALIGN_TOLERANCE_M) {
-              note = `Het model wijkt ${offset.length().toFixed(1)} m af van de berekende vlakken (middelpunten). Uitlijning niet betrouwbaar.`;
-            }
-          } else {
-            note = "Uitlijning niet gecontroleerd (geen afmetingen beschikbaar).";
+          const sw = surfacesBox.current;
+          if (mb.isEmpty()) {
+            note = "Uitlijning niet gecontroleerd (model heeft geen afmetingen).";
+          } else if (sw && !sw.isEmpty()) {
+            const modelBox = worldBoxToProject(mb.min.toArray(), mb.max.toArray());
+            const surf = worldBoxToProject(sw.min.toArray(), sw.max.toArray());
+            const explicit = alignmentFromResponse(response);
+            const al = explicit ?? alignByBboxMin(modelBox, surf);
+            const d = toWorld(al.offset);
+            frag.object.position.add(new THREE.Vector3(d[0], d[1], d[2]));
+            frag.object.updateMatrixWorld(true);
+            await fragments.core.update(true);
+            const rest = residualAfterAlignment(modelBox, surf, al.offset);
+            note = `Uitlijning: ${al.kind === "exact" ? "exact" : "automatisch op omhullende"}, restverschil ${rest.toFixed(1)} m (bbox-centrum).`;
           }
         } catch {
           note = "Uitlijning niet gecontroleerd.";
         }
         const ms = performance.now() - t0;
         console.info(`[IfcImportViewer3D] origineel model geladen in ${ms.toFixed(0)} ms`);
-        setModelState({ phase: "ready", ms, note, offset });
+        setModelState({ phase: "ready", ms, note });
       } catch (err) {
         modelRequested.current = false;
         setModelState({
@@ -390,13 +409,7 @@ export function IfcImportViewer3D({
         setShowModel(false);
       }
     })();
-  }, [showModel, file]);
-
-  const applyOffset = () => {
-    if (modelState.phase !== "ready" || !modelState.offset || !ifcModelRef.current) return;
-    ifcModelRef.current.object.position.add(modelState.offset);
-    setModelState({ ...modelState, note: "Model handmatig verschoven naar het middelpunt van de vlakken.", offset: null });
-  };
+  }, [showModel, file, response]);
 
   // --- Picking --------------------------------------------------------------
   const pick = (clientX: number, clientY: number): ViewSurface | null => {
@@ -455,12 +468,7 @@ export function IfcImportViewer3D({
       </div>
       {modelState.phase === "ready" && modelState.note && (
         <p role="status" className="text-xs text-amber-500">
-          {modelState.note}{" "}
-          {modelState.offset && (
-            <button type="button" className="underline" onClick={applyOffset}>
-              Verschuif model naar vlakken
-            </button>
-          )}
+          {modelState.note}
         </p>
       )}
       <div
@@ -478,11 +486,20 @@ export function IfcImportViewer3D({
           onSelectSurface(pick(e.clientX, e.clientY));
         }}
       >
-        <div className="pointer-events-none absolute right-2 top-2 z-10 rounded bg-surface-alt/95 p-2 text-[10px] shadow">
-          <div className="mb-1 font-semibold">Grenst aan</div>
+        <div className="absolute right-2 top-2 z-10 rounded bg-surface-alt/95 p-1.5 text-[10px] leading-tight shadow">
+          <button
+            type="button"
+            onPointerDown={(e) => e.stopPropagation()}
+            className="font-semibold underline-offset-2 hover:underline"
+            aria-expanded={legendOpen}
+            onClick={() => setLegendOpen((v) => !v)}
+          >
+            {legendOpen ? "Legenda ▾" : "Legenda ▸"}
+          </button>
+          {legendOpen && (<div className="pointer-events-none mt-1 flex flex-col gap-0.5">
           {(Object.keys(CATEGORY_LABEL) as SurfaceCategory[]).map((k) => (
             <div key={k} className="flex items-center gap-1.5">
-              <span className="h-2.5 w-4 rounded-sm" style={{ backgroundColor: legend[k] }} />
+              <span className="h-2 w-3 rounded-sm" style={{ backgroundColor: legend[k] }} />
               {CATEGORY_LABEL[k]}
             </div>
           ))}
@@ -500,7 +517,16 @@ export function IfcImportViewer3D({
             />
             Rood: QC-bevinding of geen U ({redCount})
           </div>
+          </div>)}
         </div>
+        <button
+          type="button"
+          onPointerDown={(e) => e.stopPropagation()}
+          className="absolute left-2 top-2 z-10 rounded bg-surface-alt/95 px-2 py-0.5 text-[11px] shadow hover:underline"
+          onClick={() => fitBox(surfacesBox.current)}
+        >
+          Overzicht
+        </button>
         <div className="pointer-events-none absolute bottom-1 left-2 z-10 text-[10px] text-on-surface-muted">
           {buildMs != null && `Vlakken opgebouwd in ${buildMs.toFixed(0)} ms`}
           {modelState.phase === "ready" && ` · origineel model ${(modelState.ms / 1000).toFixed(1)} s`}

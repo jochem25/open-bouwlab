@@ -265,6 +265,7 @@ export function ImportResultView({
               <IfcImportViewer3D
                 model={viewModel}
                 file={ifcFile}
+                response={response}
                 selectedRoomId={selectedRoomId}
                 selectedSurfaceId={selectedSurface?.id ?? null}
                 onSelectSurface={selectSurfaceFrom3d}
