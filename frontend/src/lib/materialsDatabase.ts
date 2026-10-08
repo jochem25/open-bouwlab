@@ -240,6 +240,9 @@ const RAW_MATERIALS: RawMaterial[] = [
   { id: "plaatmateriaal-cementgebonden-plaat", categorie: "Plaatmateriaal", naam: "Cementgebonden plaat", lambda: 0.35, mu: 50, rho: 1200, rd_vast: null, alpha: 12, keywords: ["cement", "plaat", "eternit"] },
   { id: "plaatmateriaal-vezelcementplaat", categorie: "Plaatmateriaal", naam: "Vezelcementplaat", lambda: 0.35, mu: 30, rho: 1200, rd_vast: null, alpha: 12, keywords: ["vezelcement", "eternit"] },
   { id: "plaatmateriaal-magnesiumoxideplaat", categorie: "Plaatmateriaal", naam: "Magnesiumoxideplaat", lambda: 0.21, mu: 15, rho: 1100, rd_vast: null, alpha: 12, keywords: ["mgo", "magnesium"] },
+  // Bron HPL: Trespa Meteon Material Properties (UK), versie 3.2, 01-10-2012, EN 12524: 0,3 W/mK;
+  // bevestigd in Trespa Meteon fiche technique 04-2022. mu/rho: indicatief (niet uit die bron).
+  { id: "plaatmateriaal-hpl-trespa", categorie: "Plaatmateriaal", naam: "HPL-plaat (Trespa Meteon)", lambda: 0.3, mu: 10000, rho: 1400, rd_vast: null, alpha: null, keywords: ["trespa", "hpl", "meteon", "volkern"] },
 
   // Hout
   { id: "hout-naaldhout", categorie: "Hout", naam: "Naaldhout", lambda: 0.17, lambda_nat: 0.23, mu: 40, rho: 550, rd_vast: null, alpha: 8, keywords: ["naaldhout", "vuren", "grenen", "den", "spar"], hatch_pattern: "hatch-wood-softwood" },

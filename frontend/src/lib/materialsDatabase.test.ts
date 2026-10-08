@@ -38,7 +38,7 @@ describe("MATERIALS_DATABASE — id-contract", () => {
     }
   });
 
-  it("aantal materialen in de database blijft 157 (wijzig bewust, niet per ongeluk)", () => {
-    expect(MATERIALS_DATABASE.length).toBe(157);
+  it("aantal materialen in de database blijft 158 (wijzig bewust, niet per ongeluk)", () => {
+    expect(MATERIALS_DATABASE.length).toBe(158);
   });
 });

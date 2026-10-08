@@ -40,7 +40,7 @@ const ADDITIVE_FIELDS = ["lambda_nat", "sd_vast", "alpha", "merk", "hatch_patter
  * Parseert de RAW_MATERIALS-array uit de TS-broncode van materialsDatabase.ts.
  * Elk materiaal moet als één regel `{ id: ..., ... },` genoteerd staan — dat
  * is de bestaande conventie in het bronbestand (geverifieerd: elke regel die
- * met `{ id:` begint is precies één materiaal, 157 stuks).
+ * met `{ id:` begint is precies één materiaal, 158 stuks).
  *
  * @param {string} tsSource
  * @returns {Record<string, unknown>[]}

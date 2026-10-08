@@ -9,6 +9,21 @@ export interface IfcMaterialMatch {
   confidence: "keyword" | "heuristic";
 }
 
+/**
+ * Engine-voorstel voor een materiaalnaam uit `report.materialen[]` van /ifc/analyse.
+ * Klein bewaard bij overname (het volledige `report` wordt niet bewaard).
+ */
+export interface IfcMaterialSuggestion {
+  /** Materiaalnaam zoals in het model (report: `naam`). */
+  name: string;
+  /** Database-id dat de engine verwacht (report: `verwacht_materiaal_id`). */
+  expected_material_id?: string;
+  /** Voorstel in de materiaalnamen van de engine (report: `voorstel_v2_5`). */
+  proposal?: string;
+  /** De modelleur zou de naam in het model moeten aanpassen (report: `modelleur_moet_hernoemen`). */
+  rename_advised: boolean;
+}
+
 export interface IfcImportDefaults {
   heating_system: string;
   ventilation_system: string;
@@ -47,6 +62,8 @@ export interface IfcImportOrigin {
   room_function_sources?: Record<string, RoomFunctionSource>;
   /** Idem voor de op naam gekoppelde materialen (keyword/heuristiek). */
   material_matches?: IfcMaterialMatch[];
+  /** Engine-voorstellen per materiaalnaam (uit `report.materialen`), bewaard bij overname. */
+  material_suggestions?: IfcMaterialSuggestion[];
   /**
    * Projectwaarden op het moment van overname die de import zelf als default
    * invult (niet uit de IFC komen). De checklist toont ze zolang ze

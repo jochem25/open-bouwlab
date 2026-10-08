@@ -13,7 +13,7 @@ import { importThermal, type ThermalImportResult } from "../lib/thermalImport";
 import { useModellerStore } from "../components/modeller/modellerStore";
 import { PageHeader } from "../components/layout/PageHeader";
 import { IfcImportChecklistPanel } from "../components/ifcImport/IfcImportChecklistPanel";
-import { computeMaterialMatches } from "../lib/ifcImportChecklist";
+import { computeMaterialMatches, computeMaterialSuggestions } from "../lib/ifcImportChecklist";
 import { applyRoomFunctions, computeFunctionSources } from "../lib/roomFunctionFromModel";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
 import { UploadPanel } from "../components/ifcImport/UploadPanel";
@@ -101,6 +101,7 @@ export function IfcImport() {
           approvedIds,
         ),
         material_matches: computeMaterialMatches(loaded.response.thermal, approvedIds),
+        material_suggestions: computeMaterialSuggestions(loaded.response.report),
         defaults: {
           heating_system: kept.rooms[0]?.heating_system ?? "",
           ventilation_system: kept.ventilation.system_type,

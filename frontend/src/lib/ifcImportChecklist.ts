@@ -8,7 +8,7 @@
  */
 import type { ProjectConstruction } from "../components/modeller/types";
 import type { Project } from "../types";
-import type { IfcImportOrigin, IfcMaterialMatch } from "../types/ifcImport";
+import type { IfcImportOrigin, IfcMaterialMatch, IfcMaterialSuggestion } from "../types/ifcImport";
 import {
   BUILDING_TYPE_LABELS,
   HEATING_SYSTEM_LABELS,
@@ -34,7 +34,50 @@ export interface ChecklistItem {
   aantal: number;
   /** Uitklapbare regels (bv. gekoppelde materialen ter controle). */
   details?: string[];
+  /** Per onbekende materiaalnaam: keuzelijst + engine-voorstel (alleen "materiaal-onbekend"). */
+  onbekendeMaterialen?: UnknownMaterialRow[];
 }
+
+export interface UnknownMaterialRow {
+  /** Laag-materiaalnaam zoals in de projectconstructies (lowercased IFC-naam). */
+  name: string;
+  area: number;
+  constructions: number;
+  suggestion?: IfcMaterialSuggestion;
+}
+
+/**
+ * Leest `report.materialen[]` uit de /ifc/analyse-response (defensief: `report`
+ * is `unknown`) en houdt alleen de regels met een voorstel of hernoemadvies.
+ */
+export function computeMaterialSuggestions(report: unknown): IfcMaterialSuggestion[] {
+  const list = (report as { materialen?: unknown } | null | undefined)?.materialen;
+  if (!Array.isArray(list)) return [];
+  const out: IfcMaterialSuggestion[] = [];
+  for (const raw of list) {
+    if (!raw || typeof raw !== "object") continue;
+    const r = raw as Record<string, unknown>;
+    if (typeof r["naam"] !== "string" || r["naam"].trim() === "") continue;
+    const expected =
+      typeof r["verwacht_materiaal_id"] === "string" && r["verwacht_materiaal_id"] !== ""
+        ? r["verwacht_materiaal_id"]
+        : undefined;
+    const proposal =
+      typeof r["voorstel_v2_5"] === "string" && r["voorstel_v2_5"] !== ""
+        ? r["voorstel_v2_5"]
+        : undefined;
+    const rename = r["modelleur_moet_hernoemen"] === true;
+    if (expected === undefined && proposal === undefined && !rename) continue;
+    const s: IfcMaterialSuggestion = { name: r["naam"], rename_advised: rename };
+    if (expected !== undefined) s.expected_material_id = expected;
+    if (proposal !== undefined) s.proposal = proposal;
+    out.push(s);
+  }
+  return out;
+}
+
+/** Sleutel waarmee een suggestie aan een laagnaam (lowercased raw naam) koppelt. */
+export const suggestionKey = (name: string): string => name.trim().toLowerCase();
 
 const EXTERIOR_TYPES = new Set(["exterior", "ground", "water"]);
 const MAX_DESCRIPTIONS = 4;
@@ -242,6 +285,10 @@ export function buildIfcImportChecklist(
       aantal: unknown.length,
       link: "/constructies",
       tekst: `λ onbekend, laag telt als R = 0 — U te hoog: ${list}.`,
+      onbekendeMaterialen: unknown.map((u) => ({
+        ...u,
+        suggestion: origin.material_suggestions?.find((s) => suggestionKey(s.name) === u.name),
+      })),
     });
   }
   const linked = linkedMaterialLines(origin);

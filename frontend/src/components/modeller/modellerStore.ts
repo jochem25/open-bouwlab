@@ -181,6 +181,12 @@ interface ModellerStore {
   addProjectConstruction: (construction: Omit<ProjectConstruction, "id">) => string;
   updateProjectConstruction: (id: string, updates: Partial<Omit<ProjectConstruction, "id">>) => void;
   removeProjectConstruction: (id: string) => void;
+  /**
+   * Vervang `materialId === fromId` door `toId` op ALLE lagen van alle
+   * projectconstructies (één undo-stap). Een lambdaOverride blijft staan.
+   * Geeft de ids van de gewijzigde constructies terug.
+   */
+  remapLayerMaterial: (fromId: string, toId: string) => string[];
   importProjectConstructions: (constructions: Omit<ProjectConstruction, "id">[]) => void;
   /**
    * Replace the entire project construction list with the given entries,
@@ -428,6 +434,22 @@ export const useModellerStore = create<ModellerStore>()(
             c.id === id ? { ...c, ...updates } : c,
           ),
         });
+      },
+
+      remapLayerMaterial: (fromId, toId) => {
+        const state = get();
+        const changed: string[] = [];
+        const next = state.projectConstructions.map((pc) => {
+          if (!pc.layers.some((l) => l.materialId === fromId)) return pc;
+          changed.push(pc.id);
+          return {
+            ...pc,
+            layers: pc.layers.map((l) => (l.materialId === fromId ? { ...l, materialId: toId } : l)),
+          };
+        });
+        if (changed.length === 0) return changed;
+        set({ ...pushUndo(state), projectConstructions: next });
+        return changed;
       },
 
       removeProjectConstruction: (id) => {
