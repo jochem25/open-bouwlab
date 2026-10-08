@@ -5,6 +5,7 @@ mod calculation;
 mod cloud;
 mod constructie;
 mod cooling;
+mod ifc_analyse;
 mod ifc_import;
 mod ifcx;
 mod projects;
@@ -22,6 +23,7 @@ pub use cloud::{
     cloud_list_calculations, cloud_list_models, cloud_list_projects, cloud_save_calculation,
     cloud_status,
 };
+pub use ifc_analyse::analyse_ifc;
 pub use ifc_import::import_ifc;
 pub use ifcx::calculate_ifcx_handler;
 pub use projects::{

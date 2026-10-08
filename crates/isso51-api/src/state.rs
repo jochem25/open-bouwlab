@@ -1,6 +1,10 @@
 //! Application state shared across handlers.
 
 use std::sync::Arc;
+use std::time::Duration;
+
+/// Default timeout voor de IFC-analyse-sidecar.
+const DEFAULT_IFC_ANALYSE_TIMEOUT: Duration = Duration::from_secs(300);
 
 use openaec_cloud::TenantsRegistry;
 use sqlx::SqlitePool;
@@ -27,6 +31,10 @@ pub struct AppState {
     pub report_default_cover_dir: Option<std::path::PathBuf>,
     /// Path to the `ifc-tool` CLI for server-side IFC import.
     pub ifc_tool_path: String,
+    /// Basis-URL van de private IFC-analyse-sidecar (None = uitgeschakeld).
+    pub ifc_analyse_url: Option<String>,
+    /// Timeout per request naar de IFC-analyse-sidecar.
+    pub ifc_analyse_timeout: Duration,
     /// Multi-tenant cloud storage registry.
     pub tenants: Arc<TenantsRegistry>,
     /// Default tenant slug (fallback when token has no tenant claim).
@@ -54,6 +62,8 @@ impl AppState {
             reports_api_service_token,
             report_default_cover_dir: None,
             ifc_tool_path: ifc_tool_path.unwrap_or_else(|| DEFAULT_IFC_TOOL_PATH.to_string()),
+            ifc_analyse_url: None,
+            ifc_analyse_timeout: DEFAULT_IFC_ANALYSE_TIMEOUT,
             tenants: Arc::new(tenants),
             default_tenant,
             entitlements: crate::entitlements::Config::default(),

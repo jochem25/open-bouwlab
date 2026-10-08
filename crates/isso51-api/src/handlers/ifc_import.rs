@@ -182,6 +182,15 @@ pub async fn import_ifc(
 /// het oude gedrag voor naamloze uploads. Onbekende extensie → `Err` met
 /// een client-veilige melding (geen interne paden).
 fn safe_upload_filename(client_filename: &str) -> Result<String, String> {
+    safe_upload_filename_in(client_filename, ALLOWED_UPLOAD_EXTENSIONS)
+}
+
+/// Zoals [`safe_upload_filename`], maar met een eigen extensie-whitelist
+/// (lowercase, zonder punt). Gedeeld met de IFC-analyse-handler.
+pub(super) fn safe_upload_filename_in(
+    client_filename: &str,
+    allowed: &[&str],
+) -> Result<String, String> {
     let extension = std::path::Path::new(client_filename)
         .extension()
         .and_then(|e| e.to_str())
@@ -189,12 +198,17 @@ fn safe_upload_filename(client_filename: &str) -> Result<String, String> {
 
     match extension {
         None => Ok("upload.ifc".to_string()),
-        Some(ext) if ALLOWED_UPLOAD_EXTENSIONS.contains(&ext.as_str()) => {
-            Ok(format!("upload.{ext}"))
+        Some(ext) if allowed.contains(&ext.as_str()) => Ok(format!("upload.{ext}")),
+        Some(ext) => {
+            let toegestaan = allowed
+                .iter()
+                .map(|e| format!(".{e}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            Err(format!(
+                "Bestandstype '.{ext}' niet ondersteund — toegestaan: {toegestaan}"
+            ))
         }
-        Some(ext) => Err(format!(
-            "Bestandstype '.{ext}' niet ondersteund — toegestaan: .ifc, .ifczip, .ifcxml"
-        )),
     }
 }
 

@@ -133,6 +133,8 @@ async fn main() {
         Some(dir) => tracing::info!(dir = %dir.display(), "Standaard-coverfoto's per tenant actief"),
         None => tracing::info!("Geen REPORT_DEFAULT_COVER_DIR — rapporten zonder coverfoto gaan ongewijzigd door"),
     }
+    app_state.ifc_analyse_url = config.ifc_analyse_url.clone();
+    app_state.ifc_analyse_timeout = config.ifc_analyse_timeout;
 
     // --- Routes ---
     // Publieke reken-routes: geen auth (bewust — publieke reken-API), maar
@@ -230,6 +232,9 @@ async fn main() {
     // IFC import with 100 MB body limit (default is 2 MB).
     let ifc_routes = Router::new()
         .route("/import", post(handlers::import_ifc))
+        // TODO: hier komt later de module-gating (entitlement-middleware via
+        // `from_fn_with_state`, zoals bij de constructiemodule). Nu alleen auth.
+        .route("/analyse", post(handlers::analyse_ifc))
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024));
 
     // --- CORS ---
