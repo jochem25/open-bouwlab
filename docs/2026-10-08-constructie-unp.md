@@ -44,6 +44,10 @@ UNP-ligger S235, l = 4,20 m, belastingbreedte 2,40 m, CC2, woningvloer (g_k 0,75
 advies UNP 140 (UC buiging 0,94); UNP 120 voldoet niet (UC 1,33). Test
 `crates/constructie-core/tests/norm_s2_unp.rs`, waarden uit het controlescript.
 
+Golden S2b (hoge dwarskracht): l = 1,00 m, belastingbreedte 4,50 m, g_k 15 kN/m2. UNP 80
+V/V_pl = 0,72, rho = 0,19, M_Rd = (1 - rho) M_el,Rd = 5,04 kNm; UNP 100 rho = 0,02; UNP 120
+geen reductie. rho is begrensd op 1 (bij V_Ed > V_pl,Rd is de buigweerstand nul).
+
 ## Voorstel, niet gebouwd: 2 x UNP rug aan rug
 
 Twee UNP's met de ruggen tegen elkaar (gekoppeld met bouten of vulplaatjes) vormen een

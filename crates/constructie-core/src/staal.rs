@@ -99,12 +99,6 @@ pub fn bereken_staal_met_profielen(
     profielen: &[Profiel],
 ) -> Result<StaalResultaat> {
     invoer.valideer()?;
-    if let Some(p) = profielen.iter().find(|p| p.is_u_profiel() && p.w_el_y.is_none()) {
-        return Err(ConstructieFout::Data(format!(
-            "{}: W_el_y ontbreekt (verplicht voor U-profielen)",
-            p.naam
-        )));
-    }
     let bel = bepaal_belasting(&invoer.algemeen)?;
     let mut meldingen = bel.meldingen.clone();
 
@@ -123,6 +117,13 @@ pub fn bereken_staal_met_profielen(
                 reeks.naam()
             )));
         }
+    }
+    // Alleen de gekozen profielen: een onvolledige UNP-rij hindert een IPE-berekening niet.
+    if let Some(p) = gekozen.iter().find(|p| p.is_u_profiel() && p.w_el_y.is_none()) {
+        return Err(ConstructieFout::Data(format!(
+            "{}: W_el_y ontbreekt (verplicht voor U-profielen)",
+            p.naam
+        )));
     }
     if gekozen.iter().any(|p| p.is_u_profiel()) {
         meldingen.push(Melding::waarschuwing(UNP_WAARSCHUWING));
@@ -283,10 +284,11 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
     // U-profiel: elastische buigweerstand (W_el,y, 6.2.5 (6.14)); bij V_Ed > 0,5 V_pl,Rd
     // conservatief (1 - rho) M_el,Rd, want (6.30) geldt voor I-doorsneden.
     let ratio_v = ugt.v_ed / v_rd;
+    // rho <= 1: bij V_Ed > V_pl,Rd is de buigweerstand nul (de dwarskrachttoets faalt al).
     let rho = if ratio_v <= 0.5 {
         0.0
     } else {
-        (2.0 * ratio_v - 1.0).powi(2)
+        (2.0 * ratio_v - 1.0).powi(2).min(1.0)
     };
     let m_rd = if unp {
         let m_el_rd = p.w_el_y.unwrap_or(0.0) * fy / 1e6;
@@ -298,7 +300,7 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
         if rho > 0.0 {
             let a_w = h_w * p.t_w;
             let m_v_rd = (p.w_pl_y - rho * a_w * a_w / (4.0 * p.t_w)) * fy / 1e6;
-            m_v_rd.min(m_pl_rd)
+            m_v_rd.clamp(0.0, m_pl_rd)
         } else {
             m_pl_rd
         }
@@ -593,19 +595,6 @@ mod tests {
     }
 
     #[test]
-    fn hoge_dwarskracht_reduceert_unp_conservatief() {
-        let json = r#"{ "algemeen": { "overspanning_m": 1.0, "permanent_kn_m2": 15.0 },
-            "belastingbreedte_m": 10.0, "staalsoort": "S235", "reeksen": ["UNP"] }"#;
-        let r = bereken_staal(&invoer(json)).unwrap();
-        let k = r.kandidaten.iter().find(|k| k.naam == "UNP 80").unwrap();
-        let t = &k.tussenwaarden;
-        let ratio = t["v_ed"] / t["v_pl_rd"];
-        assert!(ratio > 0.5, "ratio {ratio}");
-        let rho = (2.0 * ratio - 1.0).powi(2);
-        assert!((t["m_rd"] - (1.0 - rho) * t["m_el_rd"]).abs() < 1e-9);
-    }
-
-    #[test]
     fn unp_zonder_w_el_y_is_een_datafout() {
         let mut p: Vec<Profiel> = standaard_profielen()
             .unwrap()
@@ -619,6 +608,21 @@ mod tests {
             bereken_staal_met_profielen(&invoer(json), &p),
             Err(ConstructieFout::Data(_))
         ));
+        // Wie alleen IPE kiest, heeft geen last van een onvolledige UNP-rij.
+        let mut alles = standaard_profielen().unwrap();
+        alles.iter_mut().filter(|x| x.reeks == Reeks::Unp).for_each(|x| x.w_el_y = None);
+        assert!(bereken_staal_met_profielen(&invoer(BASIS), &alles).is_ok());
+    }
+
+    #[test]
+    fn rho_begrensd_buigweerstand_nooit_negatief() {
+        let json = r#"{ "algemeen": { "overspanning_m": 1.0, "permanent_kn_m2": 15.0 },
+            "belastingbreedte_m": 30.0, "staalsoort": "S235", "reeksen": ["UNP", "IPE"] }"#;
+        let r = bereken_staal(&invoer(json)).unwrap();
+        for k in &r.kandidaten {
+            assert!(k.tussenwaarden["rho_mv"] <= 1.0, "{}", k.naam);
+            assert!(k.tussenwaarden["m_rd"] >= 0.0, "{}", k.naam);
+        }
     }
 
     #[test]

@@ -91,3 +91,36 @@ fn s2_alle_unp_maten_aanwezig() {
     }
     assert_eq!(namen.len(), 16);
 }
+
+// naam, V_Ed, V_pl,Rd, rho, M_Ed, M_el,Rd, M_Rd, UC M
+type RijB = (&'static str, f64, f64, f64, f64, f64, f64, f64);
+
+/// Golden S2b: hoge dwarskracht (V_Ed > 0,5 V_pl,Rd), M_Rd = (1 - rho) M_el,Rd.
+/// S235, l = 1,00 m, belastingbreedte 4,50 m, g_k 15 kN/m2. Waarden: controlescript deel 3.
+#[test]
+fn s2b_hoge_dwarskracht() {
+    let invoer: StaalInvoer = serde_json::from_str(
+        r#"{ "algemeen": { "overspanning_m": 1.0, "permanent_kn_m2": 15.0,
+                            "gevolgklasse": "CC2" },
+             "belastingbreedte_m": 4.5, "staalsoort": "S235", "reeksen": ["UNP"] }"#,
+    )
+    .unwrap();
+    let r = bereken_staal(&invoer).unwrap();
+    let tabel: [RijB; 3] = [
+        ("UNP 80", 47.983, 66.75, 0.1915, 11.996, 6.228, 5.035, 2.383),
+        ("UNP 100", 47.997, 84.56, 0.0183, 11.999, 9.682, 9.505, 1.262),
+        ("UNP 120", 48.015, 115.87, 0.0, 12.004, 14.264, 14.264, 0.842),
+    ];
+    for (naam, v, vrd, rho, m, mel, mrd, ucm) in tabel {
+        let k = r.kandidaten.iter().find(|k| k.naam == naam).unwrap();
+        let t = &k.tussenwaarden;
+        golden(&format!("{naam} V_Ed"), t["v_ed"], v, 3);
+        golden(&format!("{naam} V_pl,Rd"), t["v_pl_rd"], vrd, 2);
+        assert!((t["rho_mv"] - rho).abs() <= 0.0005, "{naam} rho {}", t["rho_mv"]);
+        golden(&format!("{naam} M_Ed"), t["m_ed"], m, 3);
+        golden(&format!("{naam} M_el,Rd"), t["m_el_rd"], mel, 3);
+        golden(&format!("{naam} M_Rd"), t["m_rd"], mrd, 3);
+        let buiging = k.toetsen.iter().find(|x| x.id == "buiging").unwrap();
+        uc(&format!("{naam} buiging"), buiging.uc.unwrap(), ucm);
+    }
+}
