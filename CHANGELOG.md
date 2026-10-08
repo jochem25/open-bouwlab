@@ -10,6 +10,10 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **API `POST /api/v1/ifc/analyse`** — geeft de upload door aan de IFC-analyse-sidecar (`IFC_ANALYSE_URL`, `IFC_ANALYSE_TIMEOUT_S`); 503 `analyse_unavailable` als die ontbreekt, 422/502/504 bij sidecar-fouten
 - **Checklist "Nog in te vullen na IFC-import"** op Vertrekken en IFC-import: vlakken zonder U (tellen als 0 W/K), geschatte ruimtefuncties, gebruikte projectdefaults; live, met links
 - **Ruimtefunctie uit de naam** bij IFC-import (toilet, gang, keuken, berging, …); niet herkend blijft woonkamer en wordt gemarkeerd
+- **3D-controle in het tabblad IFC-import** — berekende vlakken (gekleurd per buur: buiten/grond/onverwarmd/verwarmde buur/water), openingen en het originele model (transparant, exact uitgelijnd via `geometry_origin` van de engine); ruimte in de tabel kiezen zoomt in, vlak aanklikken toont de rij; vlakken met QC-bevinding of zonder U rood
+- **Melding "Berekening onvolledig"** in Resultaten zolang vlakken geen U-waarde hebben (niet weg te klikken)
+- **Keuzelijst voor onbekende materialen** in de checklist, met engine-voorstel; nieuw materiaal **HPL-plaat (Trespa Meteon)**
+- **Overnemen vervangt alleen de vertrekken**; projectgegevens, klimaat, instellingen en serverkoppeling blijven behouden
 - **Herkomst van de IFC-import reist mee in het projectbestand** (`ifcImport`: bestandsnaam, engine en versie, datum, goedgekeurde ruimten en de volledige engine-uitvoer voor latere ventilatie/BENG-import)
 
 ### 🐛 Bug fixes

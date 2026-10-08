@@ -416,10 +416,14 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
   - [x] Tab: upload, samenvatting/QC, ruimtetabel, goedkeuren, overnemen via thermal-import v1.2, vervangen/annuleren, herkomst + engine-uitvoer in envelope
   - [x] Checklist "nog in te vullen", ruimtefunctie uit naam, QC-waarschuwingen inklapbaar
   - [x] Materiaalkoppeling (f920bb8, ca231a6): `Holz`/`f2_cempanel` geen match (laag R≈0 → U te hoog), `o1_glas_helder` → Foamglas (fout); checklist voor onbekende/geschatte materialen
-  - [ ] Besluit planner: U-default voor constructie zonder opbouw (nu 0 W/K + rood op checklist)
-  - [ ] e2e met ifc-ruimtebalans-container (R-1, 2786), proef voor Jochem
+  - [x] Besluit planner U-default: geen verzonnen U; 0 W/K + rood op checklist + niet-wegklikbare melding in Resultaten
+  - [x] e2e met ifc-ruimtebalans-container d382150 (R-1 3.499 W, 2786 24.387 W), PNG-proef in `%KBA_SHARED%\uitvoer\open-bouwlab-ifc\2026-10-08-proef-png\`
+  - [x] 3D-viewer ronde 1: vlakken/openingen uit thermal-vertices, origineel model transparant (web-ifc terug alleen voor weergave), exacte uitlijning via `geometry_origin`, tabel<->3D
+  - [x] Keuzelijst onbekende materialen + HPL-plaat (Trespa Meteon, lambda 0,3, rho 1350 uit fabrikantenblad)
+  - [ ] mu HPL-plaat: geen fabrikantwaarde gevonden, nu indicatief 10000 (besluit planner)
+  - [ ] Viewer: overzicht van groot model (2786) staat ver uitgezoomd; fit op vlakken i.p.v. model
   - [x] Oude IFC-paden verwijderd (08-10, akkoord planner): `tools/ifc-tool`, `/ifc/import`, Tauri-import + sidecar, web-ifc-import in Modeller, reconstructie-bèta (`/ifc-reconstructie` redirect naar `/ifc-import`); ribbon-knop "IFC importeren" opent het tabblad
-  - [ ] Ronde 2: samenvoegen met bestaande ruimten, 3D-weergave vlakken, ruimtenummer-kolom (engine levert nog geen nummer), EN-vertaling
+  - [ ] Ronde 2: samenvoegen met bestaande ruimten, EN-vertaling
 - [x] ~~**BUG: desktop-IFC-import is stuk**~~ — vervallen 08-10-2026: de Tauri-import en de sidecar-placeholder zijn verwijderd; IFC loopt alleen nog via het tabblad IFC-import.
   Oorspronkelijk: `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` staat als **0-byte placeholder** in git (`git cat-file -s` = 0) en `build-installer.yml` bouwt geen sidecar, dus de NSIS-installer levert een niet-werkende `ifc-tool`. `_handleImportIfcNative` (`Modeller.tsx`) heeft geen web-ifc-fallback. Bewust laten staan tot de ifc-ruimtebalans-sidecar er is (die vervangt `tools/ifc-tool`); tot dan in de desktop-app alleen IFC via de web-app.
 - [x] ~~**ifc-tool: server en desktop draaien verschillend**~~ — vervallen 08-10-2026: `ifc-tool` is verwijderd, er is één IFC-route.
