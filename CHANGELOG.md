@@ -2,6 +2,20 @@
 
 Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) en [Semver](https://semver.org/lang/nl/).
 
+## [Unreleased]
+
+### ✨ Nieuw
+
+- **Tabblad IFC-import** (`/ifc-import`, vervangt IFC-reconstructie bèta; `/ifc-reconstructie` stuurt door) — IFC uploaden (max 100 MB), samenvatting met modelcheck en QC-bevindingen, ruimtetabel met grensvlakken/openingen/constructies, per ruimte goedkeuren, overnemen via de bestaande thermal-import v1.2 (vervangen of annuleren bij een project met ruimten), daarna naar Vertrekken
+- **API `POST /api/v1/ifc/analyse`** — geeft de upload door aan de IFC-analyse-sidecar (`IFC_ANALYSE_URL`, `IFC_ANALYSE_TIMEOUT_S`); 503 `analyse_unavailable` als die ontbreekt, 422/502/504 bij sidecar-fouten
+- **Checklist "Nog in te vullen na IFC-import"** op Vertrekken en IFC-import: vlakken zonder U (tellen als 0 W/K), geschatte ruimtefuncties, gebruikte projectdefaults; live, met links
+- **Ruimtefunctie uit de naam** bij IFC-import (toilet, gang, keuken, berging, …); niet herkend blijft woonkamer en wordt gemarkeerd
+- **Herkomst van de IFC-import reist mee in het projectbestand** (`ifcImport`: bestandsnaam, engine en versie, datum, goedgekeurde ruimten en de volledige engine-uitvoer voor latere ventilatie/BENG-import)
+
+### 🧹 Refactor
+
+- Overname-logica van de thermal-import-wizard gedeeld in `lib/applyThermalImport.ts` (wizard-gedrag ongewijzigd, met test)
+
 ## [0.2.0] — 2026-05-26
 
 **Milestone: ISSO 51 feature-complete.** Deze release markeert de ISSO 51 warmteverliesberekening als voorlopig af. ISSO 53 (utiliteit) blijft in ontwikkeling.

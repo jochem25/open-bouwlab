@@ -411,6 +411,15 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 
 > **Koers 05-10-2026 (besluit Jochem):** de IFC-route gaat naar de externe engine ifc-ruimtebalans (eigen, privé repo), die thermal.json v1.1 levert aan het bestaande `POST /api/v1/import/thermal` + wizard. Open Bouwlab houdt contract + UI; de IFC-dienst krijgt een eigen route-groep `/api/v1/ifc/*` met een (nu lege) middleware-haak voor latere modules. Eerst rekenkern-reparatie (branch `fix/rekenkern-3076`), dan de integratie. `/ifc-reconstructie` later omvormen tot viewer van die uitvoer.
 
+- [ ] **Tabblad IFC-import (08-10, branch `feat/ifc-tab`, opdracht planner msg_7452bfa66350)** — plan: `%KBA_SHARED%\uitvoer\open-bouwlab-ifc\2026-10-08-plan-ifc-tab.md`
+  - [x] API `/api/v1/ifc/analyse` (doorgifte sidecar) + tests
+  - [x] Tab: upload, samenvatting/QC, ruimtetabel, goedkeuren, overnemen via thermal-import v1.2, vervangen/annuleren, herkomst + engine-uitvoer in envelope
+  - [x] Checklist "nog in te vullen", ruimtefunctie uit naam, QC-waarschuwingen inklapbaar
+  - [ ] Materiaalkoppeling: `Holz`/`f2_cempanel` geen match (laag R≈0 → U te hoog), `o1_glas_helder` → Foamglas (fout); checklist voor onbekende/geschatte materialen
+  - [ ] Besluit planner: U-default voor constructie zonder opbouw (nu 0 W/K + rood op checklist)
+  - [ ] e2e met ifc-ruimtebalans-container (R-1, 2786), proef voor Jochem
+  - [ ] Oude IFC-paden verwijderen na akkoord (plan sectie 5): ifc-tool/`/ifc/import`, Tauri-import, web-ifc in Modeller, reconstructie-rest
+  - [ ] Ronde 2: samenvoegen met bestaande ruimten, 3D-weergave vlakken, ruimtenummer-kolom (engine levert nog geen nummer), EN-vertaling
 - [ ] **BUG: desktop-IFC-import is stuk** — `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` staat als **0-byte placeholder** in git (`git cat-file -s` = 0) en `build-installer.yml` bouwt geen sidecar, dus de NSIS-installer levert een niet-werkende `ifc-tool`. `_handleImportIfcNative` (`Modeller.tsx`) heeft geen web-ifc-fallback. Bewust laten staan tot de ifc-ruimtebalans-sidecar er is (die vervangt `tools/ifc-tool`); tot dan in de desktop-app alleen IFC via de web-app.
 - [ ] **ifc-tool: server en desktop draaien verschillend** — server `--no-close-gaps` (`handlers/ifc_import.rs`), desktop zonder (`src-tauri/src/commands.rs`). Vervalt bij vervanging; tot dan bekend verschil.
 - [x] **Thermal-import: gespiegelde zijde draait oriëntatie om ✅ (05-10, branch `fix/spiegelzijde`)** — zijde B: floor↔ceiling, roof→floor; lagen bewust in room_a-volgorde (catalogus); waarschuwing bij een paar dat van beide kanten binnenkomt. Spec: `docs/thermal-import-construction-catalog-spec.md` § Spiegelregel.
