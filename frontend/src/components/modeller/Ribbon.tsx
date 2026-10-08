@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import type { LucideIcon } from "lucide-react";
 import {
@@ -30,7 +31,6 @@ interface RibbonProps {
   onRedo: () => void;
   onImportDwg: () => void;
   onImportPdf: () => void;
-  onImportIfc: () => void;
   onExportIfc: () => void;
   onImportJson: () => void;
   onExportJson: () => void;
@@ -297,11 +297,11 @@ function BeeldTab({
 function InvoegenTab({
   onImportDwg,
   onImportPdf,
-  onImportIfc,
   onExportIfc,
   onImportJson,
   onExportJson,
 }: RibbonProps) {
+  const navigate = useNavigate();
   return (
     <>
       <RibbonGroup label="Onderlegger">
@@ -313,7 +313,7 @@ function InvoegenTab({
 
       <RibbonGroup label="IFC">
         <div className="flex h-full items-center gap-1">
-          <LargeButton icon={Download} label="Importeren" onClick={onImportIfc} />
+          <LargeButton icon={Download} label="Importeren" onClick={() => navigate("/ifc-import")} />
           <LargeButton icon={Upload} label="Exporteren" onClick={onExportIfc} />
         </div>
       </RibbonGroup>

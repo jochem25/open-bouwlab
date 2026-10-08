@@ -1,6 +1,10 @@
 //! Server configuration loaded from environment variables.
 
 use std::env;
+use std::time::Duration;
+
+/// Default timeout (seconden) voor de IFC-analyse-sidecar.
+const DEFAULT_IFC_ANALYSE_TIMEOUT_S: u64 = 300;
 
 /// API route prefix.
 pub const API_PREFIX: &str = "/api/v1";
@@ -30,8 +34,14 @@ pub struct Config {
     /// vult de rapport-proxy die aan uit dit bestand. Staat bewust buiten de
     /// (publieke) repo; zie `crate::handlers::report`.
     pub report_default_cover_dir: Option<String>,
-    /// Path to the `ifc-tool` executable for server-side IFC import.
-    pub ifc_tool_path: Option<String>,
+    /// Basis-URL van de private IFC-analyse-sidecar (env `IFC_ANALYSE_URL`,
+    /// leeg = niet beschikbaar).
+    pub ifc_analyse_url: Option<String>,
+    /// Optioneel Bearer-token voor de sidecar (env `IFC_ANALYSE_TOKEN`).
+    /// Nooit loggen.
+    pub ifc_analyse_token: Option<String>,
+    /// Timeout per analyse-request (env `IFC_ANALYSE_TIMEOUT_S`, default 300).
+    pub ifc_analyse_timeout: Duration,
     /// Path to tenants.json for multi-tenant cloud storage.
     pub tenants_config: Option<String>,
     /// Default tenant slug (used when no tenant header in request).
@@ -75,9 +85,20 @@ impl Config {
             report_default_cover_dir: env::var("REPORT_DEFAULT_COVER_DIR")
                 .ok()
                 .filter(|s| !s.is_empty()),
-            ifc_tool_path: env::var("IFC_TOOL_PATH")
+            ifc_analyse_url: env::var("IFC_ANALYSE_URL")
                 .ok()
+                .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty()),
+            ifc_analyse_token: env::var("IFC_ANALYSE_TOKEN")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+            ifc_analyse_timeout: Duration::from_secs(
+                env::var("IFC_ANALYSE_TIMEOUT_S")
+                    .ok()
+                    .and_then(|v| v.trim().parse().ok())
+                    .unwrap_or(DEFAULT_IFC_ANALYSE_TIMEOUT_S),
+            ),
             tenants_config: env::var("TENANTS_CONFIG")
                 .ok()
                 .filter(|s| !s.is_empty()),

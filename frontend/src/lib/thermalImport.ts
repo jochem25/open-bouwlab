@@ -38,6 +38,10 @@ export interface ThermalRoom {
    * veld (geen `deny_unknown_fields`); de mapping gebeurt client-side.
    */
   zone?: string;
+  /** Ruimtefunctie uit het IFC-model (Bbl/pset-term), indien aanwezig. Additief. */
+  function?: string | null;
+  /** Herkomst van `function` (bv. pset of IfcSpace-eigenschap). Additief. */
+  function_source?: string | null;
 }
 
 export interface ThermalConstructionLayer {

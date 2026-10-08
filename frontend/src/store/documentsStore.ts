@@ -31,7 +31,8 @@ import type {
 } from "../components/modeller/types";
 import type { UnderlayImage } from "../components/modeller/modellerStore";
 import { useModellerStore } from "../components/modeller/modellerStore";
-import { detectNormFromProject, useProjectStore } from "./projectStore";
+import type { IfcImportOrigin } from "../types/ifcImport";
+import { detectNormFromProject, stripIfcAnalyse, useProjectStore } from "./projectStore";
 import { useSaveStatusStore } from "./saveStatusStore";
 import type { Project, ProjectResult } from "../types";
 import type { Isso53ProjectResult } from "../types/isso53Result";
@@ -94,6 +95,8 @@ interface ProjectSnapshot {
   activeProjectId?: string | null;
   serverUpdatedAt?: string | null;
   hasConflict?: boolean;
+  /** IFC-import-herkomst per tab (optioneel voor legacy snapshots). */
+  ifcImport?: IfcImportOrigin | null;
   /** Undo-stack (max 50 entries, gehandhaafd per tab). */
   past: ProjectHistoryEntry[];
   /** Redo-stack (gewist bij elke nieuwe edit). */
@@ -168,6 +171,7 @@ function captureSnapshot(): DocumentSnapshot {
     activeProjectId: string | null;
     serverUpdatedAt: string | null;
     hasConflict: boolean;
+    ifcImport: IfcImportOrigin | null;
     _past: ProjectHistoryEntry[];
     _future: ProjectHistoryEntry[];
   };
@@ -199,6 +203,7 @@ function captureSnapshot(): DocumentSnapshot {
       activeProjectId: ps.activeProjectId,
       serverUpdatedAt: ps.serverUpdatedAt,
       hasConflict: ps.hasConflict,
+      ifcImport: ps.ifcImport ?? null,
       past: ps._past ?? [],
       future: ps._future ?? [],
     },
@@ -239,6 +244,8 @@ function loadSnapshot(snap: DocumentSnapshot): void {
       snap.project.isso53Building ?? { ...DEFAULT_ISSO53_BUILDING },
     isso53Rooms: snap.project.isso53Rooms ?? {},
     ventilation: snap.project.ventilation ?? { terminals: [], rooms: {} },
+    // IFC-import-herkomst per tab herstellen (legacy snapshot: geen herkomst).
+    ifcImport: snap.project.ifcImport ?? null,
     // Per-tab server-binding herstellen i.p.v. kaal resetten: de auto-save
     // van deze tab moet naar zíjn serverproject schrijven. Een stale
     // debounce-timer van de vórige tab valt nu in de race-guard van
@@ -271,6 +278,30 @@ function loadSnapshot(snap: DocumentSnapshot): void {
   // "Offline"/"Fout"-indicator mag niet blijven staan op de tab waarnaar
   // gewisseld wordt. Zelfde reset als openServerProject/projectStore.reset.
   useSaveStatusStore.getState().resetStatus();
+}
+
+/** Persist-selectie (geëxporteerd voor tests): geen history, geen IFC-`analyse`. */
+export function partializeDocumentsStore(state: DocumentsStore) {
+  return {
+    tabs: state.tabs,
+    snapshots: Object.fromEntries(
+      Object.entries(state.snapshots).map(([id, snap]) => [
+        id,
+        {
+          project: {
+            ...snap.project,
+            // `analyse` (enkele MB) niet naar localStorage, zoals projectStore.
+            ifcImport: stripIfcAnalyse(snap.project.ifcImport),
+            past: [],
+            future: [],
+          },
+          modeller: { ...snap.modeller, past: [], future: [] },
+        },
+      ]),
+    ),
+    activeId: state.activeId,
+    nextNamelessIndex: state.nextNamelessIndex,
+  };
 }
 
 export const useDocumentsStore = create<DocumentsStore>()(
@@ -400,20 +431,7 @@ export const useDocumentsStore = create<DocumentsStore>()(
       // 50 entries × deep-cloned project per tab × N tabs zou snel boven het
       // 5MB localStorage budget komen. Bij app-restart is undo-history leeg
       // maar de huidige project-data per tab blijft.
-      partialize: (state) => ({
-        tabs: state.tabs,
-        snapshots: Object.fromEntries(
-          Object.entries(state.snapshots).map(([id, snap]) => [
-            id,
-            {
-              project: { ...snap.project, past: [], future: [] },
-              modeller: { ...snap.modeller, past: [], future: [] },
-            },
-          ]),
-        ),
-        activeId: state.activeId,
-        nextNamelessIndex: state.nextNamelessIndex,
-      }),
+      partialize: partializeDocumentsStore,
     },
   ),
 );

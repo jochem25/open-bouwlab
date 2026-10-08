@@ -102,19 +102,8 @@ COPY --from=rust-builder /build/target/release/isso51-api /app/isso51-api
 # Copy frontend dist from Node builder
 COPY --from=node-builder /build/frontend/dist /app/static
 
-# Install Python + ifc-tool for server-side IFC import
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY tools/ifc-tool /tmp/ifc-tool-src
-RUN python3 -m venv /opt/ifc-tool-venv \
- && /opt/ifc-tool-venv/bin/pip install --no-cache-dir /tmp/ifc-tool-src \
- && rm -rf /tmp/ifc-tool-src
-
 # Create data directory for SQLite
-RUN mkdir -p /data && chown app:app /data \
- && chown -R app:app /opt/ifc-tool-venv
+RUN mkdir -p /data && chown app:app /data
 VOLUME /data
 
 USER app

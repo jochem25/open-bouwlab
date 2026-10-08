@@ -8,7 +8,7 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
 import type { ModelRoom, ModelWindow, ModelDoor, WallBoundaryType, ProjectConstruction, ImportedBoundary, ImportGeometry } from "./types";
-import { buildLayerName, type CatalogueEntry } from "../../lib/constructionCatalogue";
+import { buildLayerName, type CatalogueEntry, type CatalogueLayer } from "../../lib/constructionCatalogue";
 import { normalizeProjectConstructionUValue } from "./projectConstructionUtils";
 import { EXAMPLE_ROOMS, EXAMPLE_WINDOWS } from "./exampleData";
 
@@ -181,6 +181,12 @@ interface ModellerStore {
   addProjectConstruction: (construction: Omit<ProjectConstruction, "id">) => string;
   updateProjectConstruction: (id: string, updates: Partial<Omit<ProjectConstruction, "id">>) => void;
   removeProjectConstruction: (id: string) => void;
+  /**
+   * Vervang `materialId === fromId` door `toId` op ALLE lagen van alle
+   * projectconstructies (één undo-stap). Een lambdaOverride blijft staan.
+   * Geeft de ids van de gewijzigde constructies terug.
+   */
+  remapLayerMaterial: (fromId: string, toId: string) => string[];
   importProjectConstructions: (constructions: Omit<ProjectConstruction, "id">[]) => void;
   /**
    * Replace the entire project construction list with the given entries,
@@ -224,6 +230,11 @@ interface ModellerStore {
   // Utility
   nextRoomId: (floor: number) => string;
   resetToExample: () => void;
+}
+
+/** Laagopbouw gelijk (materiaal, dikte, lambda-override, stijl) — volgorde telt. */
+export function sameLayers(a: CatalogueLayer[], b: CatalogueLayer[]): boolean {
+  return a.length === b.length && a.every((l, i) => JSON.stringify(l) === JSON.stringify(b[i]));
 }
 
 /** Generate next room ID like "0.07" for the given floor. */
@@ -425,6 +436,22 @@ export const useModellerStore = create<ModellerStore>()(
         });
       },
 
+      remapLayerMaterial: (fromId, toId) => {
+        const state = get();
+        const changed: string[] = [];
+        const next = state.projectConstructions.map((pc) => {
+          if (!pc.layers.some((l) => l.materialId === fromId)) return pc;
+          changed.push(pc.id);
+          return {
+            ...pc,
+            layers: pc.layers.map((l) => (l.materialId === fromId ? { ...l, materialId: toId } : l)),
+          };
+        });
+        if (changed.length === 0) return changed;
+        set({ ...pushUndo(state), projectConstructions: next });
+        return changed;
+      },
+
       removeProjectConstruction: (id) => {
         const state = get();
         // Clean up any assignment references pointing to this construction
@@ -489,7 +516,11 @@ export const useModellerStore = create<ModellerStore>()(
               (c) =>
                 c.name === data.name &&
                 c.category === data.category &&
-                c.materialType === data.materialType,
+                c.materialType === data.materialType &&
+                // Zonder deze check hergebruikte een herhaalde import (bijv.
+                // een herziene IFC, of na een matcher-fix) de oude constructie
+                // met verouderde lagen, op naam alleen.
+                sameLayers(c.layers, data.layers),
             );
         if (existing) return existing.id;
 

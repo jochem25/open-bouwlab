@@ -191,6 +191,7 @@ export function applyServerProjectResponse(
       isso53Rooms: imported.isso53?.rooms,
       sharedExtra: imported.sharedExtra,
       ventilation: imported.ventilation,
+      ifcImport: imported.ifcImport,
     },
   );
 

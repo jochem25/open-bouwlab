@@ -56,6 +56,6 @@
 - [ ] Onderlegger positioneren/schalen/roteren via UI controls
 - [ ] Schuine daken en dakkapellen
 - [ ] Modeller data <-> project store synchronisatie
-- [ ] Code-splitting web-ifc (5.8MB main bundle)
+- [x] ~~Code-splitting web-ifc (5.8MB main bundle)~~ - vervallen 08-10-2026: web-ifc-import verwijderd
 - [ ] Batch constructie-toewijzing aan meerdere elementen
 - [ ] U-waarde weergeven op wanden in 2D view

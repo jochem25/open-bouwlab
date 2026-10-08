@@ -1,12 +1,13 @@
 //! Application state shared across handlers.
 
 use std::sync::Arc;
+use std::time::Duration;
+
+/// Default timeout voor de IFC-analyse-sidecar.
+const DEFAULT_IFC_ANALYSE_TIMEOUT: Duration = Duration::from_secs(300);
 
 use openaec_cloud::TenantsRegistry;
 use sqlx::SqlitePool;
-
-/// Default path to the `ifc-tool` executable inside the Docker container.
-const DEFAULT_IFC_TOOL_PATH: &str = "/opt/ifc-tool-venv/bin/ifc-tool";
 
 /// Tool slug used for cloud storage directory mapping.
 /// Maps to `calculations/` via `openaec_cloud::container::output_dir_for_tool`.
@@ -25,8 +26,12 @@ pub struct AppState {
     pub reports_api_service_token: Option<String>,
     /// Map met standaard-coverfoto's per tenant (env `REPORT_DEFAULT_COVER_DIR`).
     pub report_default_cover_dir: Option<std::path::PathBuf>,
-    /// Path to the `ifc-tool` CLI for server-side IFC import.
-    pub ifc_tool_path: String,
+    /// Basis-URL van de private IFC-analyse-sidecar (None = uitgeschakeld).
+    pub ifc_analyse_url: Option<String>,
+    /// Optioneel Bearer-token voor de IFC-analyse-sidecar. Nooit loggen.
+    pub ifc_analyse_token: Option<String>,
+    /// Timeout per request naar de IFC-analyse-sidecar.
+    pub ifc_analyse_timeout: Duration,
     /// Multi-tenant cloud storage registry.
     pub tenants: Arc<TenantsRegistry>,
     /// Default tenant slug (fallback when token has no tenant claim).
@@ -42,7 +47,6 @@ impl AppState {
         reports_api_url: Option<String>,
         reports_api_key: Option<String>,
         reports_api_service_token: Option<String>,
-        ifc_tool_path: Option<String>,
         tenants: TenantsRegistry,
         default_tenant: Option<String>,
     ) -> Self {
@@ -53,7 +57,9 @@ impl AppState {
             reports_api_key,
             reports_api_service_token,
             report_default_cover_dir: None,
-            ifc_tool_path: ifc_tool_path.unwrap_or_else(|| DEFAULT_IFC_TOOL_PATH.to_string()),
+            ifc_analyse_url: None,
+            ifc_analyse_token: None,
+            ifc_analyse_timeout: DEFAULT_IFC_ANALYSE_TIMEOUT,
             tenants: Arc::new(tenants),
             default_tenant,
             entitlements: crate::entitlements::Config::default(),

@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useDocumentsStore } from "./documentsStore";
+import { partializeDocumentsStore, useDocumentsStore } from "./documentsStore";
 import { useProjectStore } from "./projectStore";
+import type { IfcImportOrigin } from "../types/ifcImport";
 import { useSaveStatusStore } from "./saveStatusStore";
 import { saveExistingServerProject } from "../lib/serverProjects";
 import {
@@ -213,5 +214,42 @@ describe("tabs-pad × race-guard saveExistingServerProject", () => {
     const s = useProjectStore.getState();
     expect(s.serverUpdatedAt).toBe("2026-06-10 11:00:00");
     expect(s.isDirty).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// IFC-import-herkomst per tab
+// ---------------------------------------------------------------------------
+
+describe("ifcImport per tab", () => {
+  const origin = {
+    ifc_filename: "a.ifc",
+    engine_name: "e",
+    engine_version: "1",
+    imported_at: "2026-10-08T10:00:00.000Z",
+    rooms_count: 1,
+    approved_room_ids: ["r1"],
+    analyse: { big: true },
+  } as unknown as IfcImportOrigin;
+
+  it("tabwissel A -> B -> A behoudt de herkomst; B lekt niet mee", () => {
+    const tabA = useDocumentsStore.getState().newTab();
+    useProjectStore.getState().setIfcImport(origin);
+    const tabB = useDocumentsStore.getState().newTab();
+    expect(useProjectStore.getState().ifcImport).toBeNull();
+    useDocumentsStore.getState().switchTab(tabA);
+    expect(useProjectStore.getState().ifcImport).toEqual(origin);
+    useDocumentsStore.getState().switchTab(tabB);
+    expect(useProjectStore.getState().ifcImport).toBeNull();
+  });
+
+  it("persist-partialize van de documentsStore bevat geen analyse", () => {
+    useDocumentsStore.getState().newTab();
+    useProjectStore.getState().setIfcImport(origin);
+    useDocumentsStore.getState().snapshotActive();
+    const slim = partializeDocumentsStore(useDocumentsStore.getState());
+    const snap = Object.values(slim.snapshots)[0]!;
+    expect(snap.project.ifcImport?.ifc_filename).toBe("a.ifc");
+    expect(snap.project.ifcImport).not.toHaveProperty("analyse");
   });
 });

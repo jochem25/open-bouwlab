@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useNavigate } from "react-router-dom";
 
 import type { LucideIcon } from "lucide-react";
 import {
@@ -297,6 +298,7 @@ function BeeldSubTab() {
 
 function InvoegenSubTab() {
   const { t } = useTranslation("ribbon");
+  const navigate = useNavigate();
 
   // These callbacks are handled by the Modeller page via event dispatch
   const dispatch = (eventName: string) => () => {
@@ -313,7 +315,7 @@ function InvoegenSubTab() {
       </Group>
       <Group label="IFC">
         <div className="flex h-full items-center gap-1">
-          <LargeBtn icon={Download} label={t("modeller.import")} onClick={dispatch("modeller:import-ifc")} />
+          <LargeBtn icon={Download} label={t("modeller.import")} onClick={() => navigate("/ifc-import")} />
           <LargeBtn icon={Upload} label={t("modeller.export")} onClick={dispatch("modeller:export-ifc")} />
         </div>
       </Group>

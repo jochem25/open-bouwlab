@@ -34,6 +34,7 @@ import type {
   VentilationSystemKey,
 } from "../types/ventilation";
 import { VENTILATION_SYSTEMS } from "../types/ventilation";
+import type { IfcImportOrigin } from "../types/ifcImport";
 import {
   buildIfcEnergyDocument,
   detectFormat,
@@ -139,6 +140,11 @@ export interface ProjectEnvelope {
    * opslaan/heropenen (valkuil commit `8ccff9f`).
    */
   ventilation?: VentilationState;
+  /**
+   * Herkomst + analyse van de IFC-import. Alleen geschreven wanneer aanwezig
+   * (exports van projecten zonder IFC-import blijven byte-gelijk).
+   */
+  ifcImport?: IfcImportOrigin;
 }
 
 /** Result of a successful regular project import. */
@@ -168,6 +174,8 @@ export interface ImportResult {
    * voor bestanden zonder ventilatie-data — de store reset dan naar leeg.
    */
   ventilation?: VentilationState;
+  /** IFC-import-herkomst uit de envelope; `undefined` voor oude bestanden. */
+  ifcImport?: IfcImportOrigin;
 }
 
 /**
@@ -240,6 +248,11 @@ export function buildProjectEnvelope(
   // zodat exports van projecten zonder ventilatie byte-gelijk blijven.
   if (isMeaningfulVentilation(projectState.ventilation)) {
     envelope.ventilation = projectState.ventilation;
+  }
+
+  // IFC-import-herkomst (+ analyse) reist mee wanneer aanwezig.
+  if (projectState.ifcImport) {
+    envelope.ifcImport = projectState.ifcImport;
   }
 
   return envelope;
@@ -336,6 +349,7 @@ export async function exportIfcEnergy(
     ventilation: isMeaningfulVentilation(projectState.ventilation)
       ? projectState.ventilation
       : undefined,
+    ifcImport: projectState.ifcImport ?? undefined,
   });
   const json = serializeIfcEnergy(doc);
 
@@ -442,8 +456,17 @@ export function openProjectFile(
     // Ventilatie-sidecar terug uit de envelope; `undefined` bij bestanden
     // zonder ventilatie-data.
     const ventilation = readVentilationEnvelope(parsed.ventilation);
+    const ifcImport = parsed.ifcImport;
 
-    return { type: "project", project, result, sharedExtra, ventilation, format: "ifcenergy" };
+    return {
+      type: "project",
+      project,
+      result,
+      sharedExtra,
+      ventilation,
+      ifcImport,
+      format: "ifcenergy",
+    };
   }
 
   // Fall back to legacy importer for `.isso51.json`, raw Project JSON,
@@ -564,8 +587,18 @@ function importProjectValue(
     const isso53 = readIsso53Envelope(obj.isso53);
     const sharedExtra = readSharedExtraEnvelope(obj.sharedExtra);
     const ventilation = readVentilationEnvelope(obj.ventilation);
+    const ifcImport = readIfcImportEnvelope(obj.ifcImport);
 
-    return { type: "project", project, result, norm, isso53, sharedExtra, ventilation };
+    return {
+      type: "project",
+      project,
+      result,
+      norm,
+      isso53,
+      sharedExtra,
+      ventilation,
+      ifcImport,
+    };
   }
 
   // Try as raw Project JSON. No envelope means no modeller data either —
@@ -654,6 +687,13 @@ function isMeaningfulVentilation(v: VentilationState | undefined): boolean {
  * → `undefined`, zodat de caller terugvalt op leeg (huidig gedrag voor bestanden
  * zonder ventilatie-data).
  */
+export function readIfcImportEnvelope(raw: unknown): IfcImportOrigin | undefined {
+  if (raw == null || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  if (typeof o.ifc_filename !== "string") return undefined;
+  return raw as IfcImportOrigin;
+}
+
 function readVentilationEnvelope(raw: unknown): VentilationState | undefined {
   if (raw == null || typeof raw !== "object") return undefined;
   const o = raw as Record<string, unknown>;

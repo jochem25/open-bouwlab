@@ -67,7 +67,7 @@ In v0.1 zit alle warmteverlies-data nog in één vendor-namespace attribute (`is
 
 Daarnaast ondersteund:
 - **`.isso51.json`** (legacy read-only) — eerdere proprietary envelope; volledig backwards-compatibel bij openen
-- **IFC import** via Python `ifc-tool` sidecar (PyInstaller bundle, IfcOpenShell-based) — `.ifc` STEP files → ruimtes, ramen, deuren en wandtypes
+- **IFC import** via het tabblad IFC-import (`/ifc-import`): upload naar `POST /api/v1/ifc/analyse`, dat doorgeeft aan een externe analyse-engine (`IFC_ANALYSE_URL`); ruimtes, constructies en openingen na controle in het tabblad
 - **IFC4X3 STEP export** — pure-TS generator in IFC-tab (geen Python afhankelijkheid)
 - **IFCX export** met `isso51::` namespace + `isso51::modeller::` constants voor 2D/3D-geometrie
 
@@ -199,7 +199,6 @@ open-heatloss-studio/
 │   └── capabilities/             # Tauri 2 permissions (window · dialog · fs · shell)
 ├── libs/openaec-reports/         # Submodule — PDF rendering crates (openaec-layout)
 ├── tools/                        # Build + test scripts
-│   ├── ifc-tool/                 # Python sidecar (IfcOpenShell + PyInstaller)
 │   ├── sync-version.ps1          # Workspace versie → tauri.conf.json + package.json
 │   ├── make-logo.ps1             # Genereert app-icon source.png
 │   └── check_pdf_overflow.py     # Regressie-detector voor PDF layout

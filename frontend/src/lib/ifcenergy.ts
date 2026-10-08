@@ -36,6 +36,7 @@ import type {
 import type { UnderlayImage } from "../components/modeller/modellerStore";
 import type { SharedExtra } from "../types/projectV2";
 import type { VentilationState } from "../types/ventilation";
+import type { IfcImportOrigin } from "../types/ifcImport";
 
 // ---------------------------------------------------------------------------
 // Namespace constants — mirror crates/isso51-ifcx/src/namespace.rs
@@ -110,6 +111,11 @@ interface IfcEnergyEnvelope {
    * veld gingen ventielen verloren bij heropenen (valkuil commit `8ccff9f`).
    */
   ventilation?: VentilationState;
+  /**
+   * Herkomst + analyse van de IFC-import (tab "IFC-import"). Optioneel — oude
+   * bestanden hebben dit veld niet.
+   */
+  ifcImport?: IfcImportOrigin;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,6 +136,8 @@ export interface BuildIfcEnergyOptions {
    * betekenisvolle ventilatie-data is. Wordt 1:1 in de envelope opgenomen.
    */
   ventilation?: VentilationState;
+  /** IFC-import-herkomst. Optioneel — alleen meegeven wanneer aanwezig. */
+  ifcImport?: IfcImportOrigin;
   author?: string;
 }
 
@@ -158,6 +166,7 @@ export function buildIfcEnergyDocument(opts: BuildIfcEnergyOptions): IfcxDocumen
     modeller: opts.modeller,
     ...(opts.sharedExtra ? { sharedExtra: opts.sharedExtra } : {}),
     ...(opts.ventilation ? { ventilation: opts.ventilation } : {}),
+    ...(opts.ifcImport ? { ifcImport: opts.ifcImport } : {}),
   };
 
   const projectEntry: IfcxDataEntry = {
@@ -214,6 +223,8 @@ export interface ParsedIfcEnergy {
    * voor bestanden zonder ventilatie-data — caller valt terug op leeg.
    */
   ventilation?: VentilationState;
+  /** IFC-import-herkomst uit de envelope; `undefined` voor oude bestanden. */
+  ifcImport?: IfcImportOrigin;
   /** Schema version of the parsed envelope (for migration logic). */
   envelopeVersion: string;
 }
@@ -265,12 +276,19 @@ export function parseIfcEnergy(jsonString: string): ParsedIfcEnergy {
         Array.isArray((e.ventilation as VentilationState).terminals)
           ? (e.ventilation as VentilationState)
           : undefined;
+      const ifcImport =
+        e.ifcImport &&
+        typeof e.ifcImport === "object" &&
+        typeof (e.ifcImport as IfcImportOrigin).ifc_filename === "string"
+          ? (e.ifcImport as IfcImportOrigin)
+          : undefined;
       return {
         project: e.project as Project,
         result: (e.result ?? null) as ProjectResult | null,
         modeller,
         sharedExtra,
         ventilation,
+        ifcImport,
         envelopeVersion: e.version ?? "unknown",
       };
     }

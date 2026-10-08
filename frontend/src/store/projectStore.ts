@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import type { Isso53ProjectResult } from "../types/isso53Result";
 import type { EnergyInput } from "../types/beng";
+import type { IfcImportOrigin } from "../types/ifcImport";
 import type { BengGeometry } from "../types/bengGeometry";
 import type { Uniec3CertifiedResults } from "../types/uniec";
 import { isIsso53Heating } from "../lib/normSwitch";
@@ -179,6 +180,12 @@ interface ProjectStore {
    */
   uniecReference: Uniec3CertifiedResults | null;
   /**
+   * Herkomst van de laatste IFC-import (tab "IFC-import"). Reist mee in de
+   * server-/`.ifcenergy`-envelope. In localStorage wordt alleen de herkomst
+   * gepersisteerd, zonder `analyse` (grootte); `null` bij projectwissel/-reset.
+   */
+  ifcImport: IfcImportOrigin | null;
+  /**
    * Calculation result (null if not yet calculated). Houdt een ISSO 51
    * (`ProjectResult`) of ISSO 53 (`Isso53ProjectResult`) resultaat —
    * consumers discrimineren op `norm`, niet op het result-shape zelf.
@@ -233,6 +240,8 @@ interface ProjectStore {
    * vergelijkings-paneel. Zet `isDirty`.
    */
   setUniecReference: (reference: Uniec3CertifiedResults | null) => void;
+  /** Zet de herkomst van een IFC-import (metadata, raakt `isDirty` niet). */
+  setIfcImport: (origin: IfcImportOrigin | null) => void;
   /**
    * Zet de actieve norm. Wordt aangeroepen door de Backstage NormChoiceModal
    * bij nieuw-project en (in fase 4) door de wissel-flow.
@@ -331,7 +340,19 @@ interface ProjectStore {
        * leeg (huidig gedrag voor bestanden zonder ventilatie-data).
        */
       ventilation?: VentilationState;
+      /** IFC-import-herkomst (+ analyse) uit de envelope. Afwezig -> `null`. */
+      ifcImport?: IfcImportOrigin;
     },
+  ) => void;
+  /**
+   * IFC-overname: vervangt alleen de ruimten (en hun per-ruimte sidecars) door
+   * die van `imported`. Projectgegevens, klimaat, gebouw, ventilatie-systeem,
+   * sharedExtra, serverkoppeling en lokaal pad blijven behouden; markeert dirty
+   * zodat auto-save loopt. Zet de herkomst op `ifcImport` (default `null`).
+   */
+  replaceRoomsFromImport: (
+    imported: Project,
+    opts?: { ifcImport?: IfcImportOrigin },
   ) => void;
   /** Set the active server-side project ID. */
   setActiveProjectId: (id: string | null) => void;
@@ -378,6 +399,7 @@ interface ProjectStore {
       isso53Rooms?: Record<string, Isso53RoomState>;
       sharedExtra?: SharedExtra;
       ventilation?: VentilationState;
+      ifcImport?: IfcImportOrigin;
     },
   ) => void;
   /** Update the server timestamp after a successful save. */
@@ -480,6 +502,7 @@ export const useProjectStore = create<ProjectStore>()(
       energy: null,
       bengGeometry: null,
       uniecReference: null,
+      ifcImport: null,
       result: null,
       error: null,
       isCalculating: false,
@@ -534,6 +557,8 @@ export const useProjectStore = create<ProjectStore>()(
 
       setUniecReference: (uniecReference) =>
         set({ uniecReference, isDirty: true }),
+
+      setIfcImport: (ifcImport) => set({ ifcImport }),
 
       setNorm: (norm) => set({ norm, isDirty: true }),
 
@@ -784,6 +809,7 @@ export const useProjectStore = create<ProjectStore>()(
             energy: null,
             bengGeometry: null,
             uniecReference: null,
+            ifcImport: opts?.ifcImport ?? null,
             isDirty: true,
             result: null,
             error: null,
@@ -791,6 +817,44 @@ export const useProjectStore = create<ProjectStore>()(
             serverUpdatedAt: null,
             hasConflict: false,
             currentLocalPath: null,
+            _past: [],
+            _future: [],
+          };
+        }),
+
+      replaceRoomsFromImport: (imported, opts) =>
+        set((state) => {
+          // Per-ruimte sidecars van de vervangen ruimten opruimen (zoals removeRoom).
+          const oldIds = new Set(state.project.rooms.map((r) => r.id));
+          const isso53Rooms = Object.fromEntries(
+            Object.entries(state.isso53Rooms).filter(([id]) => !oldIds.has(id)),
+          );
+          const ventRooms = Object.fromEntries(
+            Object.entries(state.ventilation.rooms).filter(([id]) => !oldIds.has(id)),
+          );
+          return {
+            // Instellingen blijven van het project; het gebruiksoppervlak is
+            // geometrie en komt uit de import (stuurt o.a. de infiltratie).
+            project: {
+              ...state.project,
+              rooms: imported.rooms,
+              building: {
+                ...state.project.building,
+                total_floor_area: imported.building.total_floor_area,
+              },
+            },
+            isso53Rooms,
+            ventilation: {
+              ...state.ventilation,
+              terminals: state.ventilation.terminals.filter(
+                (t) => !oldIds.has(t.roomId),
+              ),
+              rooms: ventRooms,
+            },
+            ifcImport: opts?.ifcImport ?? null,
+            isDirty: true,
+            result: null,
+            error: null,
             _past: [],
             _future: [],
           };
@@ -839,6 +903,7 @@ export const useProjectStore = create<ProjectStore>()(
           energy: null,
           bengGeometry: null,
           uniecReference: null,
+          ifcImport: opts?.ifcImport ?? null,
           activeProjectId: id,
           result,
           isDirty: false,
@@ -891,6 +956,7 @@ export const useProjectStore = create<ProjectStore>()(
           energy: null,
           bengGeometry: null,
           uniecReference: null,
+          ifcImport: null,
           result: null,
           error: null,
           isCalculating: false,
@@ -1230,6 +1296,14 @@ export const useProjectStore = create<ProjectStore>()(
  * {@link ProjectStore.clearServerBinding} (aangeroepen in `lib/auth.ts`
  * `logoutRedirect` en `lib/serverProjects.ts` `recordSaveFailure`).
  */
+export function stripIfcAnalyse(
+  origin: IfcImportOrigin | null | undefined,
+): IfcImportOrigin | null {
+  if (!origin) return null;
+  const { analyse: _analyse, ...rest } = origin;
+  return rest;
+}
+
 export function partializeProjectStore(state: ProjectStore) {
   return {
     project: state.project,
@@ -1241,6 +1315,8 @@ export function partializeProjectStore(state: ProjectStore) {
     energy: state.energy,
     bengGeometry: state.bengGeometry,
     uniecReference: state.uniecReference,
+    // `analyse` (complete thermal.json, enkele MB) blijft buiten localStorage.
+    ifcImport: stripIfcAnalyse(state.ifcImport),
     result: state.result,
     isDirty: state.isDirty,
     activeProjectId: state.activeProjectId,
@@ -1293,6 +1369,7 @@ export function mergePersistedProjectStore(
     // Silent migration voor projecten van vóór de Uniec 3-import (F8).
     uniecReference:
       (persisted as Partial<ProjectStore>)?.uniecReference ?? null,
+    ifcImport: (persisted as Partial<ProjectStore>)?.ifcImport ?? null,
     // Silent migration voor projecten van vóór de ventilatiebalans-module.
     ventilation: (() => {
       const v = (persisted as Partial<ProjectStore>)?.ventilation;

@@ -70,8 +70,8 @@ export function HelpGebruik() {
             <strong className="text-on-surface">Handmatig</strong> — vertrekken
             en constructies rechtstreeks invoeren via de pagina&apos;s{" "}
             <Kbd>Vertrekken</Kbd> en <Kbd>Constructies</Kbd>, eventueel
-            ondersteund door de 2D-<Kbd>Modeller</Kbd> of een{" "}
-            <Kbd>IFC</Kbd>-model als onderlegger.
+            ondersteund door de 2D-<Kbd>Modeller</Kbd> of een IFC-model dat je
+            laat analyseren via het tabblad <Kbd>IFC-import</Kbd>.
           </li>
           <li>
             <strong className="text-on-surface">Revit thermal-import</strong>{" "}

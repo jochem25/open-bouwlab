@@ -411,8 +411,23 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 
 > **Koers 05-10-2026 (besluit Jochem):** de IFC-route gaat naar de externe engine ifc-ruimtebalans (eigen, privé repo), die thermal.json v1.1 levert aan het bestaande `POST /api/v1/import/thermal` + wizard. Open Bouwlab houdt contract + UI; de IFC-dienst krijgt een eigen route-groep `/api/v1/ifc/*` met een (nu lege) middleware-haak voor latere modules. Eerst rekenkern-reparatie (branch `fix/rekenkern-3076`), dan de integratie. `/ifc-reconstructie` later omvormen tot viewer van die uitvoer.
 
-- [ ] **BUG: desktop-IFC-import is stuk** — `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` staat als **0-byte placeholder** in git (`git cat-file -s` = 0) en `build-installer.yml` bouwt geen sidecar, dus de NSIS-installer levert een niet-werkende `ifc-tool`. `_handleImportIfcNative` (`Modeller.tsx`) heeft geen web-ifc-fallback. Bewust laten staan tot de ifc-ruimtebalans-sidecar er is (die vervangt `tools/ifc-tool`); tot dan in de desktop-app alleen IFC via de web-app.
-- [ ] **ifc-tool: server en desktop draaien verschillend** — server `--no-close-gaps` (`handlers/ifc_import.rs`), desktop zonder (`src-tauri/src/commands.rs`). Vervalt bij vervanging; tot dan bekend verschil.
+- [ ] **Tabblad IFC-import (08-10, branch `feat/ifc-tab`, opdracht planner msg_7452bfa66350)** — plan: `%KBA_SHARED%\uitvoer\open-bouwlab-ifc\2026-10-08-plan-ifc-tab.md`
+  - [x] API `/api/v1/ifc/analyse` (doorgifte sidecar) + tests
+  - [x] Tab: upload, samenvatting/QC, ruimtetabel, goedkeuren, overnemen via thermal-import v1.2, vervangen/annuleren, herkomst + engine-uitvoer in envelope
+  - [x] Checklist "nog in te vullen", ruimtefunctie uit naam, QC-waarschuwingen inklapbaar
+  - [x] Materiaalkoppeling (f920bb8, ca231a6): `Holz`/`f2_cempanel` geen match (laag R≈0 → U te hoog), `o1_glas_helder` → Foamglas (fout); checklist voor onbekende/geschatte materialen
+  - [x] Besluit planner U-default: geen verzonnen U; 0 W/K + rood op checklist + niet-wegklikbare melding in Resultaten
+  - [x] e2e met ifc-ruimtebalans-container d382150 (R-1 3.499 W, 2786 24.387 W), PNG-proef in `%KBA_SHARED%\uitvoer\open-bouwlab-ifc\2026-10-08-proef-png\`
+  - [x] 3D-viewer ronde 1: vlakken/openingen uit thermal-vertices, origineel model transparant (web-ifc terug alleen voor weergave), exacte uitlijning via `geometry_origin`, tabel<->3D
+  - [x] Keuzelijst onbekende materialen + HPL-plaat (Trespa Meteon, lambda 0,3, rho 1350 uit fabrikantenblad)
+  - [ ] mu HPL-plaat: geen fabrikantwaarde gevonden, nu indicatief 10000 (besluit planner)
+  - [ ] Viewer: overzicht van groot model (2786) staat ver uitgezoomd; fit op vlakken i.p.v. model
+  - [x] Oude IFC-paden verwijderd (08-10, akkoord planner): `tools/ifc-tool`, `/ifc/import`, Tauri-import + sidecar, web-ifc-import in Modeller, reconstructie-bèta (`/ifc-reconstructie` redirect naar `/ifc-import`); ribbon-knop "IFC importeren" opent het tabblad
+  - [ ] Ronde 2: samenvoegen met bestaande ruimten, EN-vertaling
+- [x] ~~**BUG: desktop-IFC-import is stuk**~~ — vervallen 08-10-2026: de Tauri-import en de sidecar-placeholder zijn verwijderd; IFC loopt alleen nog via het tabblad IFC-import.
+  Oorspronkelijk: `src-tauri/binaries/ifc-tool-x86_64-pc-windows-msvc.exe` staat als **0-byte placeholder** in git (`git cat-file -s` = 0) en `build-installer.yml` bouwt geen sidecar, dus de NSIS-installer levert een niet-werkende `ifc-tool`. `_handleImportIfcNative` (`Modeller.tsx`) heeft geen web-ifc-fallback. Bewust laten staan tot de ifc-ruimtebalans-sidecar er is (die vervangt `tools/ifc-tool`); tot dan in de desktop-app alleen IFC via de web-app.
+- [x] ~~**ifc-tool: server en desktop draaien verschillend**~~ — vervallen 08-10-2026: `ifc-tool` is verwijderd, er is één IFC-route.
+  Oorspronkelijk: server `--no-close-gaps` (`handlers/ifc_import.rs`), desktop zonder (`src-tauri/src/commands.rs`). Vervalt bij vervanging; tot dan bekend verschil.
 - [x] **Thermal-import: gespiegelde zijde draait oriëntatie om ✅ (05-10, branch `fix/spiegelzijde`)** — zijde B: floor↔ceiling, roof→floor; lagen bewust in room_a-volgorde (catalogus); waarschuwing bij een paar dat van beide kanten binnenkomt. Spec: `docs/thermal-import-construction-catalog-spec.md` § Spiegelregel.
 - [x] **Thermal-import v1.2 `pair_id` ✅ (06-10, branch `fix/thermal-v12`)** — scheidingen per kant (eigen vertrekmaat), niet gespiegeld; QC bij ontbrekende kant of > 5 % verschil; v1.1 byte-identiek. Spec § Contract v1.2.
   - [x] **Bronfixture v1.2 (06-10, branch `test/v12-fixture`)** — synthetische levering van ifc-ruimtebalans (ongelijke vrije hoogte, deur per kant) byte-identiek in `tests/fixtures/thermal-import-v12-ongelijke-hoogte.json`; `tests/thermal_v12_fixture_test.rs` 3 tests, verwachting met de hand; tegenproef op 5e7f9a8: 2 falen.
@@ -422,6 +437,7 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 ---
 
 ## Fase 1: IFC Parser (Python sidecar) — GROTENDEELS KLAAR
+> 08-10-2026: `tools/ifc-tool` is vervangen door het tabblad IFC-import (externe engine); onderstaande items zijn historie.
 - [x] Python project opzetten (`tools/ifc-tool/`) met IfcOpenShell
 - [x] Import: IfcSpace → polygonen, verdiepingen
 - [x] Storey clustering (nabije bouwlagen samenvoegen)
@@ -448,8 +464,8 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [ ] IFC parser output converteren naar IFCX (→ verplaatst naar Fase 3)
 
 ## Fase 3: Web-app IFC integratie
-- [x] IFC parser als server-side service (Docker)
-- [x] REST endpoint: `POST /api/v1/ifc/import` (file upload → JSON)
+- [x] IFC parser als server-side service (Docker) — vervangen door het tabblad IFC-import + externe engine (08-10-2026: oude route verwijderd)
+- [x] REST endpoint: `POST /api/v1/ifc/import` (file upload → JSON) — vervangen door `/ifc/analyse` (08-10-2026)
 - [x] Frontend: IFC upload → server → modeller store (met web-ifc fallback)
 - [ ] Modeller toont geïmporteerde ruimtes in 2D/3D
 - [ ] Modeller → IFCX → isso51-core → resultaten

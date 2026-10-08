@@ -19,8 +19,8 @@ describe("generate-materialen-json — generator-output", () => {
   const source = readFileSync(sourcePath, "utf8");
   const rawMaterials = parseRawMaterials(source);
 
-  it("levert precies 157 materialen op", () => {
-    expect(rawMaterials.length).toBe(157);
+  it("levert precies 158 materialen op", () => {
+    expect(rawMaterials.length).toBe(158);
   });
 
   it("heeft voor elk materiaal een niet-leeg id", () => {
@@ -52,7 +52,7 @@ describe("generate-materialen-json — generator-output", () => {
     expect(/^[\x00-\x7e\n]*$/.test(json)).toBe(true);
 
     const parsed = JSON.parse(json);
-    expect(parsed.materialen).toHaveLength(157);
+    expect(parsed.materialen).toHaveLength(158);
     expect(parsed.versie).toBe("3.0");
     expect(typeof parsed._gegenereerd).toBe("string");
     expect(parsed._gegenereerd).toContain("materialsDatabase.ts");
