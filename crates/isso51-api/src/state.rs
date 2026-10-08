@@ -23,6 +23,8 @@ pub struct AppState {
     pub reports_api_key: Option<String>,
     /// Authentik service-token voor backend-to-backend reports calls.
     pub reports_api_service_token: Option<String>,
+    /// Map met standaard-coverfoto's per tenant (env `REPORT_DEFAULT_COVER_DIR`).
+    pub report_default_cover_dir: Option<std::path::PathBuf>,
     /// Path to the `ifc-tool` CLI for server-side IFC import.
     pub ifc_tool_path: String,
     /// Multi-tenant cloud storage registry.
@@ -50,6 +52,7 @@ impl AppState {
             reports_api_url,
             reports_api_key,
             reports_api_service_token,
+            report_default_cover_dir: None,
             ifc_tool_path: ifc_tool_path.unwrap_or_else(|| DEFAULT_IFC_TOOL_PATH.to_string()),
             tenants: Arc::new(tenants),
             default_tenant,

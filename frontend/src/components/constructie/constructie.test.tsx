@@ -10,6 +10,7 @@ import { CONSTRUCTIE_DISCLAIMER } from "../../lib/constructieFormat";
 import type { Resultaat, Toets } from "../../types/constructie";
 import { Sidebar } from "../layout/Sidebar";
 import { ConstructiePagina } from "./ConstructiePagina";
+import { CoverfotoKiezer } from "./CoverfotoKiezer";
 import { STANDAARD_FORMULIER, TRILLING_UIT_ZIN, toonTrillingUitBanner } from "./formulier";
 import { TrillingUitBanner } from "./TrillingUitBanner";
 import { ToetsingTabel } from "./ToetsingTabel";
@@ -156,10 +157,27 @@ describe("Uitkomst zonder advies", () => {
         rapportBezig={false}
         rapportFout={null}
         onRapport={() => {}}
+        coverfoto={null}
+        onCoverfoto={() => {}}
       />,
     );
     expect(html).toContain("Geen advies binnen bereik");
     expect(html).not.toContain("advies-naam");
+    // Coverfoto-keuze staat bij de rapportknop; zonder upload de standaardfoto.
+    expect(html).toContain("Coverfoto");
+    expect(html).toContain("Geen eigen foto: standaardfoto van je organisatie");
+  });
+
+  it("toont de gekozen coverfoto met verwijderknop", () => {
+    const html = render(
+      <CoverfotoKiezer
+        waarde={{ data: "QUJD", media_type: "image/jpeg", filename: "bouwplaats.jpg" }}
+        onChange={() => {}}
+      />,
+    );
+    expect(html).toContain("bouwplaats.jpg");
+    expect(html).toContain("Verwijderen");
+    expect(html).not.toContain("standaardfoto van je organisatie");
   });
 });
 

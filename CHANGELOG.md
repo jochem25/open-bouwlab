@@ -40,6 +40,17 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - Norm-conformiteit regressie-tests WTW + infiltratie SystemD (659b658)
 - NTA8800-cooling Vabi-cross-validatie scaffold (51dc6ae)
 
+## [Unreleased] — 2026-10-08 (branch `feat/rapport-coverfoto`)
+
+### ✨ Nieuw
+
+- **Standaard-coverfoto per organisatie**: bevat een rapport geen voorbladafbeelding, dan vult de backend `cover.image` aan uit `REPORT_DEFAULT_COVER_DIR/<tenant>.{jpg,png}`. Daarmee werkt een huisstijl met een verplichte coverfoto ook zonder upload. Het beeld staat op de server, niet in de repo. Zonder bestand voor de tenant gaat het rapport ongewijzigd door.
+- **Coverfoto in de constructiemodule**: optionele upload (PNG/JPEG, max 2 MB) bij de rapportknop, meegestuurd als `project.coverfoto`; geldt alleen voor dat rapport. `/constructie/rapport` accepteert daarvoor een body tot 4 MB.
+
+### 🐛 Bug fixes
+
+- **Afgekeurd rapport gaf alleen "report_service_error"**: een 4xx van de Reports API komt nu door met dezelfde status, `error: "report_rejected"` en de leesbare `detail`-tekst; 5xx en onbereikbaar blijven 502. De constructiemodule toonde de foutcode (`error`) in plaats van `detail`; dat gold ook voor invoerfouten (422).
+
 ## [Unreleased] — 2026-10-07 (branch `feat/constructie-hout-trilling`)
 
 ### Nieuw

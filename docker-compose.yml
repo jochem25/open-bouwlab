@@ -15,6 +15,8 @@ services:
       # Constructiemodule (defaults getoond; groep = Authentik-entitlement):
       # - CONSTRUCTIE_ENABLED=true
       # - CONSTRUCTIE_ENTITLEMENT_GROUP=openbouwlab-constructie
+      # Standaard-coverfoto per tenant (<tenant>.jpg|png); map read-only mounten:
+      # - REPORT_DEFAULT_COVER_DIR=/etc/openaec/covers
     volumes:
       - warmteverlies-data:/data
       - ./tenants.json:/etc/openaec/tenants.json:ro

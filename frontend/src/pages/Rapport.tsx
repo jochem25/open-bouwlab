@@ -16,6 +16,7 @@ import RapportOpmaakDialog from "../components/rapport/RapportOpmaakDialog";
 import { useReportStore, type ReportSections } from "../store/reportStore";
 import { useProjectStore } from "../store/projectStore";
 import { useToastStore } from "../store/toastStore";
+import { controleerAfbeelding, leesAfbeelding } from "../lib/afbeelding";
 
 /** Volgorde + labels van sectie-toggles in het opties-paneel. */
 const SECTION_LABELS: ReadonlyArray<readonly [keyof ReportSections, string]> = [
@@ -30,8 +31,6 @@ const SECTION_LABELS: ReadonlyArray<readonly [keyof ReportSections, string]> = [
   ["tojuli", "TO-juli (koelbehoefte indicatie)"],
   ["backcover", "Backcover"],
 ];
-
-const MAX_COVER_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB
 
 export function Rapport() {
   const pdfBlobUrl = useReportStore((s) => s.pdfBlobUrl);
@@ -68,31 +67,19 @@ export function Rapport() {
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      if (file.size > MAX_COVER_IMAGE_SIZE) {
-        addToast("Afbeelding is groter dan 2 MB.", "error");
-        e.target.value = "";
-        return;
-      }
-      if (file.type !== "image/png" && file.type !== "image/jpeg") {
-        addToast("Alleen PNG of JPEG worden ondersteund.", "error");
+      const controle = controleerAfbeelding(file);
+      if (controle) {
+        addToast(
+          controle === "te_groot"
+            ? "Afbeelding is groter dan 2 MB."
+            : "Alleen PNG of JPEG worden ondersteund.",
+          "error",
+        );
         e.target.value = "";
         return;
       }
       try {
-        const dataUrl: string = await new Promise((resolve, reject) => {
-          const fr = new FileReader();
-          fr.onload = () => resolve(String(fr.result));
-          fr.onerror = () => reject(fr.error);
-          fr.readAsDataURL(file);
-        });
-        const base64 = dataUrl.replace(/^data:[^;]+;base64,/, "");
-        updateProjectInfo({
-          cover_image: {
-            data: base64,
-            media_type: file.type as "image/png" | "image/jpeg",
-            filename: file.name,
-          },
-        });
+        updateProjectInfo({ cover_image: await leesAfbeelding(file) });
         addToast("Voorbladafbeelding opgeslagen.", "success");
       } catch (err) {
         addToast(
@@ -243,7 +230,9 @@ export function Rapport() {
               Voorbladafbeelding
             </h3>
             <p className="mb-2 text-[10px] text-on-surface-muted">
-              PNG of JPEG, max 2 MB. Verschijnt op het voorblad.
+              PNG of JPEG, max 2 MB. Verschijnt op het voorblad. Zonder
+              afbeelding gebruikt het rapport de standaardfoto van je
+              organisatie, als die is ingesteld.
             </p>
 
             {coverImage ? (

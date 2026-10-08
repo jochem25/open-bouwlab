@@ -4,7 +4,7 @@
 //! en het entitlement `constructie` (403 zonder), zie [`crate::entitlements`].
 //! De rekenkern staat in `constructie-core`; dit bestand doet alleen HTTP.
 
-use axum::extract::{Path, State};
+use axum::extract::{DefaultBodyLimit, Path, State};
 use axum::http::header;
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
@@ -22,6 +22,14 @@ use crate::state::AppState;
 /// Foutmelding bij ontbrekend entitlement (letterlijk in de response).
 const GEEN_TOEGANG: &str = "module constructie niet geactiveerd voor dit account";
 
+/// Maximale grootte van een geuploade coverfoto (bytes, ongecodeerd); gelijk
+/// aan de voorbladafbeelding van de warmteverliesrapportage.
+const MAX_COVERFOTO_BYTES: usize = 2 * 1024 * 1024;
+
+/// Body-limiet van `/constructie/rapport`: coverfoto (base64) plus invoer.
+/// Ruimer dan de reken-routes; de route-laag overschrijft de module-laag.
+const RAPPORT_BODY_LIMIT: usize = 4 * 1024 * 1024;
+
 /// Standaard projectnaam in het rapport als de client er geen meegeeft.
 const STANDAARD_PROJECTNAAM: &str = "Indicatieve voordimensionering";
 
@@ -31,6 +39,45 @@ const STANDAARD_PROJECTNAAM: &str = "Indicatieve voordimensionering";
 struct ProjectMeta {
     naam: Option<String>,
     opsteller: Option<String>,
+    /// Optionele coverfoto (png/jpeg, base64). Zonder foto vult de rapport-proxy
+    /// de standaardfoto van de tenant aan.
+    coverfoto: Option<Coverfoto>,
+}
+
+/// Geuploade coverfoto, in het formaat dat de Reports API als `cover.image` leest.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Coverfoto {
+    data: String,
+    media_type: String,
+    #[serde(default)]
+    filename: Option<String>,
+}
+
+impl Coverfoto {
+    /// Controleer type en grootte; geef de `cover.image`-waarde terug.
+    fn als_cover_image(&self) -> Result<Value, ApiError> {
+        use base64::Engine;
+        if !matches!(self.media_type.as_str(), "image/png" | "image/jpeg") {
+            return Err(ApiError::BadRequest(
+                "coverfoto moet een PNG- of JPEG-afbeelding zijn".to_string(),
+            ));
+        }
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(self.data.as_bytes())
+            .map_err(|_| ApiError::BadRequest("coverfoto is geen geldige base64".to_string()))?;
+        if bytes.len() > MAX_COVERFOTO_BYTES {
+            return Err(ApiError::BadRequest("coverfoto is groter dan 2 MB".to_string()));
+        }
+        let mut image = serde_json::json!({
+            "data": self.data,
+            "media_type": self.media_type,
+        });
+        if let Some(naam) = self.filename.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
+            image["filename"] = Value::String(naam.to_string());
+        }
+        Ok(image)
+    }
 }
 
 /// Body van `POST /constructie/rapport`.
@@ -49,7 +96,10 @@ pub fn constructie_routes() -> Router<AppState> {
         .route("/constructie/staal", post(staal))
         .route("/constructie/beton", post(beton))
         .route("/constructie/hout", post(hout))
-        .route("/constructie/rapport", post(rapport))
+        .route(
+            "/constructie/rapport",
+            post(rapport).layer(DefaultBodyLimit::max(RAPPORT_BODY_LIMIT)),
+        )
         .route("/constructie/schema/{naam}", get(schema))
 }
 
@@ -105,6 +155,7 @@ fn bouw_rapport(body: &str, claims: &OidcClaims) -> Result<Value, ApiError> {
 
     let aanvraag: RapportAanvraag = serde_json::from_str(body).map_err(ConstructieFout::from)?;
     let meta = aanvraag.project.unwrap_or_default();
+    let cover_image = meta.coverfoto.as_ref().map(Coverfoto::als_cover_image).transpose()?;
     let project = meta
         .naam
         .as_deref()
@@ -131,35 +182,39 @@ fn bouw_rapport(body: &str, claims: &OidcClaims) -> Result<Value, ApiError> {
         })
     };
 
-    match aanvraag.materiaal {
+    let mut json = match aanvraag.materiaal {
         Materiaal::Staal => {
             let invoer: StaalInvoer =
                 serde_json::from_value(aanvraag.invoer).map_err(ConstructieFout::from)?;
             let resultaat = constructie_core::bereken_staal(&invoer)?;
-            Ok(rapport(RapportBerekening::Staal {
+            rapport(RapportBerekening::Staal {
                 invoer: &invoer,
                 resultaat: &resultaat,
-            }))
+            })
         }
         Materiaal::Beton => {
             let invoer: BetonInvoer =
                 serde_json::from_value(aanvraag.invoer).map_err(ConstructieFout::from)?;
             let resultaat = constructie_core::bereken_beton(&invoer)?;
-            Ok(rapport(RapportBerekening::Beton {
+            rapport(RapportBerekening::Beton {
                 invoer: &invoer,
                 resultaat: &resultaat,
-            }))
+            })
         }
         Materiaal::Hout => {
             let invoer: HoutInvoer =
                 serde_json::from_value(aanvraag.invoer).map_err(ConstructieFout::from)?;
             let resultaat = constructie_core::bereken_hout(&invoer)?;
-            Ok(rapport(RapportBerekening::Hout {
+            rapport(RapportBerekening::Hout {
                 invoer: &invoer,
                 resultaat: &resultaat,
-            }))
+            })
         }
+    };
+    if let Some(image) = cover_image {
+        json["cover"]["image"] = image;
     }
+    Ok(json)
 }
 
 /// POST /constructie/rapport — server-side herberekening en PDF via de rapport-proxy.
@@ -376,6 +431,40 @@ mod tests {
         )
         .await;
         assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[test]
+    fn rapport_neemt_geuploade_coverfoto_over_en_controleert_hem() {
+        use base64::Engine;
+        let claims = OidcClaims::default();
+        let b64 = |n: usize| base64::engine::general_purpose::STANDARD.encode(vec![0u8; n]);
+        let aanvraag = |foto: String| {
+            format!(r#"{{"materiaal":"staal","invoer":{S1},"project":{{"coverfoto":{foto}}}}}"#)
+        };
+
+        let goed = aanvraag(format!(
+            r#"{{"data":"{}","media_type":"image/jpeg","filename":"bouwplaats.jpg"}}"#,
+            b64(10)
+        ));
+        let json = bouw_rapport(&goed, &claims).expect("rapport met foto");
+        assert_eq!(json["cover"]["image"]["media_type"], "image/jpeg");
+        assert_eq!(json["cover"]["image"]["filename"], "bouwplaats.jpg");
+        assert_eq!(json["cover"]["image"]["data"], b64(10));
+        assert!(json["cover"]["subtitle"].is_string(), "ondertitel blijft staan");
+
+        // Zonder foto: geen cover.image (de proxy vult de standaard aan).
+        let zonder = format!(r#"{{"materiaal":"staal","invoer":{S1}}}"#);
+        assert!(bouw_rapport(&zonder, &claims).expect("rapport")["cover"]["image"].is_null());
+
+        let gif = aanvraag(format!(r#"{{"data":"{}","media_type":"image/gif"}}"#, b64(10)));
+        assert!(matches!(bouw_rapport(&gif, &claims), Err(ApiError::BadRequest(_))));
+        let groot = aanvraag(format!(
+            r#"{{"data":"{}","media_type":"image/png"}}"#,
+            b64(MAX_COVERFOTO_BYTES + 1)
+        ));
+        assert!(matches!(bouw_rapport(&groot, &claims), Err(ApiError::BadRequest(_))));
+        let kapot = aanvraag(r#"{"data":"!!","media_type":"image/png"}"#.to_string());
+        assert!(matches!(bouw_rapport(&kapot, &claims), Err(ApiError::BadRequest(_))));
     }
 
     #[test]

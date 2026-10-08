@@ -28,6 +28,12 @@ pub enum ApiError {
     Internal(String),
     /// External report service error.
     ReportService(String),
+    /// De Reports API keurde het rapport af (4xx). Status en `detail` gaan
+    /// ongewijzigd door, zodat de gebruiker de oorzaak leest.
+    ReportRejected {
+        status: StatusCode,
+        detail: String,
+    },
     /// Service not configured / unavailable.
     ServiceUnavailable(String),
     /// Constructie-rekenkern: invoerfout of niet beschikbaar (HTTP 422).
@@ -74,6 +80,7 @@ impl IntoResponse for ApiError {
             ApiError::ReportService(msg) => {
                 (StatusCode::BAD_GATEWAY, "report_service_error", msg)
             }
+            ApiError::ReportRejected { status, detail } => (status, "report_rejected", detail),
             ApiError::ServiceUnavailable(msg) => {
                 (StatusCode::SERVICE_UNAVAILABLE, "service_unavailable", msg)
             }

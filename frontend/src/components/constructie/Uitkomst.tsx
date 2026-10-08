@@ -2,10 +2,12 @@ import { useTranslation } from "react-i18next";
 
 import { formatGetal, formatUc } from "../../lib/constructieFormat";
 import type { Materiaal, Resultaat } from "../../types/constructie";
+import type { CoverImage } from "../../types/project";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { AdviesKaart } from "./AdviesKaart";
 import { AlternatievenTabel } from "./AlternatievenTabel";
+import { CoverfotoKiezer } from "./CoverfotoKiezer";
 import { MeldingenLijst } from "./MeldingenLijst";
 import { SchemaSvg } from "./SchemaSvg";
 import { ToetsingTabel } from "./ToetsingTabel";
@@ -19,6 +21,8 @@ interface Props {
   rapportBezig: boolean;
   rapportFout: string | null;
   onRapport: () => void;
+  coverfoto: CoverImage | null;
+  onCoverfoto: (foto: CoverImage | null) => void;
 }
 
 export function Uitkomst({
@@ -29,6 +33,8 @@ export function Uitkomst({
   rapportBezig,
   rapportFout,
   onRapport,
+  coverfoto,
+  onCoverfoto,
 }: Props) {
   const { t } = useTranslation();
   const { advies, laagste_bouwhoogte: laagste } = resultaat;
@@ -128,6 +134,7 @@ export function Uitkomst({
         </Card>
       )}
 
+      <CoverfotoKiezer waarde={coverfoto} onChange={onCoverfoto} />
       <div className="flex items-center gap-3">
         <Button type="button" variant="secondary" onClick={onRapport} disabled={rapportBezig}>
           {rapportBezig ? t("constructie.rapport.bezig") : t("constructie.rapport.knop")}

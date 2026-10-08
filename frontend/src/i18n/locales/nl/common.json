@@ -893,7 +893,12 @@
       "laagToevoegen": "Laag toevoegen",
       "laagVerwijder": "Laag verwijderen",
       "laagHelp": "Vul de waarde in die de leverancier of de productnorm opgeeft; die wordt hier niet aangenomen. Een laag zonder E-modulus telt niet mee. Alleen lagen van soort vloerplaat tellen mee in de puntlastreductie.",
-      "laagSoorten": {"vloerplaat": "Vloerplaat", "dekvloer": "Dekvloer", "plafond": "Plafond", "overig": "Overig"},
+      "laagSoorten": {
+        "vloerplaat": "Vloerplaat",
+        "dekvloer": "Dekvloer",
+        "plafond": "Plafond",
+        "overig": "Overig"
+      },
       "trillingstoets": "Trillingstoets (EC5 7.3) meenemen",
       "vloerbreedte": "Vloerbreedte B (dwars op de balken)"
     },
@@ -996,7 +1001,17 @@
     },
     "rapport": {
       "knop": "Rapport (PDF)",
-      "bezig": "Rapport maken..."
+      "bezig": "Rapport maken...",
+      "coverfoto": {
+        "label": "Coverfoto",
+        "standaard": "Geen eigen foto: standaardfoto van je organisatie",
+        "kiezen": "Foto kiezen...",
+        "verwijderen": "Verwijderen",
+        "hint": "PNG of JPEG, max 2 MB. Alleen voor dit rapport; wordt niet opgeslagen.",
+        "fout_type": "Alleen PNG of JPEG wordt ondersteund.",
+        "fout_te_groot": "Afbeelding is groter dan 2 MB.",
+        "fout_lezen": "Afbeelding kon niet worden ingelezen."
+      }
     },
     "hout": {
       "titel": "Hout - houten balk(laag)"
