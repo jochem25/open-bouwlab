@@ -24,6 +24,8 @@ import { useToastStore } from "../store/toastStore";
 interface Loaded {
   response: IfcAnalyseResponse;
   importResult: ThermalImportResult;
+  /** Alleen paginastate, voor het originele model in de 3D-viewer (nooit in een store). */
+  file: File | null;
 }
 
 /** Tab "IFC-import" (route `/ifc-import`): upload, controleer, keur goed, neem over. */
@@ -52,7 +54,7 @@ export function IfcImport() {
       const response = await analyseIfc(file, setProgress);
       // Hergebruik de echte mapping + catalogus van de bestaande thermal-import.
       const importResult = await importThermal(response.thermal);
-      setLoaded({ response, importResult });
+      setLoaded({ response, importResult, file });
     } catch (e) {
       setError(e instanceof Error ? e.message : "IFC-analyse mislukt");
     } finally {
@@ -140,6 +142,7 @@ export function IfcImport() {
             key={loaded.response.source_filename + loaded.response.thermal.exported_at}
             response={loaded.response}
             importResult={loaded.importResult}
+            ifcFile={loaded.file}
             existingRoomCount={existingRoomCount}
             onImport={handleImport}
           />

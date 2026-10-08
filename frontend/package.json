@@ -11,7 +11,8 @@
         "test": "vitest run",
         "test:watch": "vitest",
         "generate-types": "json2ts -i ../schemas/v1/project.schema.json -o src/types/project.ts && json2ts -i ../schemas/v1/result.schema.json -o src/types/result.ts",
-        "generate:materialen": "node scripts/generate-materialen-json.mjs"
+        "generate:materialen": "node scripts/generate-materialen-json.mjs",
+        "postinstall": "node -e \"const fs=require('fs');const s='node_modules/web-ifc/web-ifc.wasm';const d='public/wasm';fs.mkdirSync(d,{recursive:true});fs.copyFileSync(s,d+'/web-ifc.wasm');console.log('Copied web-ifc.wasm to public/wasm/');\""
     },
     "dependencies": {
         "@openaec/ui": "github:OpenAEC-Foundation/openaec-ui",
@@ -34,6 +35,7 @@
         "react-konva": "^19.2.3",
         "react-router-dom": "^7.0.0",
         "three": "^0.183.2",
+        "web-ifc": "^0.0.77",
         "zustand": "^5.0.0"
     },
     "devDependencies": {

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 
 import type { IfcAnalyseResponse, QcFinding } from "../../lib/ifcAnalyse";
 import { filterApprovedRooms, type FilteredImport } from "../../lib/ifcImportFilter";
@@ -18,7 +18,13 @@ import type { ThermalImportResult, ThermalRoom } from "../../lib/thermalImport";
 import { qcCodeText } from "../../lib/qcCodeTexts";
 import { openingTypeLabel } from "../../lib/thermalImport";
 import { Card } from "../ui/Card";
+import { buildViewModel, type ViewSurface } from "../../lib/ifcImportGeometry";
 import { ConfirmModal } from "./ConfirmModal";
+
+// three/@thatopen/web-ifc zitten in een eigen chunk: pas laden als de viewer opent.
+const IfcImportViewer3D = lazy(() =>
+  import("./IfcImportViewer3D").then((m) => ({ default: m.IfcImportViewer3D })),
+);
 
 const fmt = (n: number | undefined, digits = 1): string =>
   n == null ? "-" : n.toLocaleString("nl-NL", { minimumFractionDigits: digits, maximumFractionDigits: digits });
@@ -42,10 +48,18 @@ interface Props {
   importResult: ThermalImportResult;
   /** Aantal ruimten dat het project nu al heeft (bepaalt "Vervangen"). */
   existingRoomCount: number;
+  /** Het geuploade IFC (alleen voor de 3D-weergave); null na herladen. */
+  ifcFile?: File | null;
   onImport: (filtered: FilteredImport, approvedIds: string[]) => void;
 }
 
-export function ImportResultView({ response, importResult, existingRoomCount, onImport }: Props) {
+export function ImportResultView({
+  response,
+  importResult,
+  existingRoomCount,
+  ifcFile = null,
+  onImport,
+}: Props) {
   const { thermal, qc } = response;
   const rooms = useMemo(() => realRooms(thermal), [thermal]);
   const [approved, setApproved] = useState<Set<string>>(() =>
@@ -54,6 +68,27 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [confirming, setConfirming] = useState(false);
   const rowRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const [viewerOpen, setViewerOpen] = useState(true);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
+  const [selectedSurface, setSelectedSurface] = useState<ViewSurface | null>(null);
+  const viewModel = useMemo(
+    () => buildViewModel(thermal, qc.findings, importResult.construction_catalog),
+    [thermal, qc.findings, importResult.construction_catalog],
+  );
+
+  const selectSurfaceFrom3d = (s: ViewSurface | null) => {
+    setSelectedSurface(s);
+    if (!s) return;
+    setSelectedRoomId(s.roomIds[0] ?? null);
+    setExpanded((prev) => new Set([...prev, ...s.roomIds]));
+  };
+
+  useEffect(() => {
+    if (!selectedSurface) return;
+    const id = selectedSurface.constructionIds[0];
+    const el = document.querySelector(`[data-surface-id="${id}"]`);
+    (el as HTMLElement | null)?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, [selectedSurface]);
 
   const blockingFindings = qc.findings.filter((f) => f.severity === "blocking");
   const warningFindings = qc.findings.filter((f) => f.severity === "warning");
@@ -161,6 +196,7 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
         />
       </Card>
 
+      <div className={viewerOpen ? "grid gap-5 2xl:grid-cols-2" : ""}>
       <Card title="Ruimten">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm" data-testid="rooms-table">
@@ -192,6 +228,15 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
                   response={response}
                   checked={approved.has(room.id)}
                   open={expanded.has(room.id)}
+                  selected={selectedRoomId === room.id}
+                  selectedSurface={selectedSurface}
+                  onSelectSurface={(sid) => {
+                    setSelectedRoomId(room.id);
+                    setSelectedSurface(
+                      viewModel.surfaces.find((v) => v.constructionIds.includes(sid)) ?? null,
+                    );
+                  }}
+                  onSelectRoom={() => setSelectedRoomId(room.id)}
                   onCheck={() => toggleApproved(room.id)}
                   onToggle={() => toggleExpanded(room.id)}
                   number={numberById.get(room.id) ?? null}
@@ -204,6 +249,31 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
           </table>
         </div>
       </Card>
+
+      <div className="2xl:sticky 2xl:top-4 2xl:self-start">
+        <Card title="3D-controle">
+          <button
+            type="button"
+            className="mb-2 text-xs underline"
+            aria-expanded={viewerOpen}
+            onClick={() => setViewerOpen((v) => !v)}
+          >
+            {viewerOpen ? "Inklappen" : "3D-weergave tonen"}
+          </button>
+          {viewerOpen && (
+            <Suspense fallback={<p className="text-sm text-on-surface-muted">3D-viewer laden…</p>}>
+              <IfcImportViewer3D
+                model={viewModel}
+                file={ifcFile}
+                selectedRoomId={selectedRoomId}
+                selectedSurfaceId={selectedSurface?.id ?? null}
+                onSelectSurface={selectSurfaceFrom3d}
+              />
+            </Suspense>
+          )}
+        </Card>
+      </div>
+      </div>
 
       <Card title="Constructies">
         <table className="w-full text-left text-sm" data-testid="constructions-table">
@@ -385,6 +455,10 @@ function FindingGroups({
 }
 
 function RoomRows({
+  selected,
+  selectedSurface,
+  onSelectSurface,
+  onSelectRoom,
   room,
   response,
   checked,
@@ -395,6 +469,10 @@ function RoomRows({
   number,
 }: {
   number: string | null;
+  selected: boolean;
+  selectedSurface: ViewSurface | null;
+  onSelectSurface: (constructionId: string) => void;
+  onSelectRoom: () => void;
   room: ThermalRoom;
   response: IfcAnalyseResponse;
   checked: boolean;
@@ -409,7 +487,7 @@ function RoomRows({
     <>
       <tr
         ref={register}
-        className="border-t border-[var(--oaec-border-subtle)]"
+        className={`border-t border-[var(--oaec-border-subtle)] ${selected ? "bg-[var(--theme-accent-soft)]" : ""}`}
         data-testid="room-row"
       >
         <td className="py-1 pr-2">
@@ -422,7 +500,7 @@ function RoomRows({
         </td>
         <td className="pr-3 text-on-surface-muted">{number ?? "-"}</td>
         <td className="pr-3">
-          <button type="button" className="text-left text-on-surface underline-offset-2 hover:underline" onClick={onToggle} aria-expanded={open}>
+          <button type="button" className="text-left text-on-surface underline-offset-2 hover:underline" onClick={() => { onSelectRoom(); onToggle(); }} aria-expanded={open}>
             {open ? "▾" : "▸"} {room.name}
           </button>
         </td>
@@ -437,7 +515,12 @@ function RoomRows({
         <tr>
           <td />
           <td colSpan={8} className="pb-3">
-            <RoomDetail room={room} response={response} />
+            <RoomDetail
+              room={room}
+              response={response}
+              selectedSurface={selectedSurface}
+              onSelectSurface={onSelectSurface}
+            />
           </td>
         </tr>
       )}
@@ -445,7 +528,17 @@ function RoomRows({
   );
 }
 
-function RoomDetail({ room, response }: { room: ThermalRoom; response: IfcAnalyseResponse }) {
+function RoomDetail({
+  room,
+  response,
+  selectedSurface,
+  onSelectSurface,
+}: {
+  room: ThermalRoom;
+  response: IfcAnalyseResponse;
+  selectedSurface: ViewSurface | null;
+  onSelectSurface: (constructionId: string) => void;
+}) {
   const { thermal } = response;
   const surfaces = roomSurfaces(thermal, room.id);
   if (surfaces.length === 0) {
@@ -464,7 +557,16 @@ function RoomDetail({ room, response }: { room: ThermalRoom; response: IfcAnalys
       </thead>
       <tbody>
         {surfaces.map((s) => (
-          <tr key={s.construction.id} className="align-top">
+          <tr
+            key={s.construction.id}
+            data-surface-id={s.construction.id}
+            onClick={() => onSelectSurface(s.construction.id)}
+            className={`cursor-pointer align-top ${
+              selectedSurface?.constructionIds.includes(s.construction.id)
+                ? "bg-[var(--theme-accent-soft)] outline outline-1 outline-amber-500"
+                : ""
+            }`}
+          >
             <td className="pr-3">{ORIENTATION_LABEL[s.orientation]}</td>
             <td className="pr-3 text-right">{fmt(s.construction.gross_area_m2, 2)}</td>
             <td className="pr-3">{s.construction.compass ?? "-"}</td>
