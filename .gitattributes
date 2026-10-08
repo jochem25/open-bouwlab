@@ -1,0 +1,3 @@
+# Node-scripts met shebang moeten LF houden: met CRLF (core.autocrlf=true op
+# Windows) faalt vitest op de import ("Invalid or unexpected token").
+frontend/scripts/*.mjs text eol=lf
