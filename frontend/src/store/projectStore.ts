@@ -833,7 +833,16 @@ export const useProjectStore = create<ProjectStore>()(
             Object.entries(state.ventilation.rooms).filter(([id]) => !oldIds.has(id)),
           );
           return {
-            project: { ...state.project, rooms: imported.rooms },
+            // Instellingen blijven van het project; het gebruiksoppervlak is
+            // geometrie en komt uit de import (stuurt o.a. de infiltratie).
+            project: {
+              ...state.project,
+              rooms: imported.rooms,
+              building: {
+                ...state.project.building,
+                total_floor_area: imported.building.total_floor_area,
+              },
+            },
             isso53Rooms,
             ventilation: {
               ...state.ventilation,

@@ -38,7 +38,12 @@ describe("replaceRoomsFromImport", () => {
     const s = useProjectStore.getState();
     expect(s.project.info).toEqual(before.info);
     expect(s.project.climate).toEqual(before.climate);
-    expect(s.project.building).toEqual(before.building);
+    // Instellingen blijven; alleen het gebruiksoppervlak (geometrie) komt uit de import.
+    expect(s.project.building).toEqual({
+      ...before.building,
+      total_floor_area: imported.building.total_floor_area,
+    });
+    expect(s.project.building.total_floor_area).not.toBe(before.building.total_floor_area);
     expect(s.project.rooms.map((r) => r.id)).toEqual(imported.rooms.map((r) => r.id));
     expect(s.activeProjectId).toBe("srv-1");
     expect(s.currentLocalPath).toBe("C:/x.ifcenergy");
