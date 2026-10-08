@@ -12,6 +12,11 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Ruimtefunctie uit de naam** bij IFC-import (toilet, gang, keuken, berging, …); niet herkend blijft woonkamer en wordt gemarkeerd
 - **Herkomst van de IFC-import reist mee in het projectbestand** (`ifcImport`: bestandsnaam, engine en versie, datum, goedgekeurde ruimten en de volledige engine-uitvoer voor latere ventilatie/BENG-import)
 
+### 🐛 Bug fixes
+
+- **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard
+- **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (2786-proef: 45,0 → 24,3 kW na matcher-fix)
+
 ### 🧹 Refactor
 
 - Overname-logica van de thermal-import-wizard gedeeld in `lib/applyThermalImport.ts` (wizard-gedrag ongewijzigd, met test)

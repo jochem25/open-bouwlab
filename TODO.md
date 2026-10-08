@@ -415,7 +415,7 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
   - [x] API `/api/v1/ifc/analyse` (doorgifte sidecar) + tests
   - [x] Tab: upload, samenvatting/QC, ruimtetabel, goedkeuren, overnemen via thermal-import v1.2, vervangen/annuleren, herkomst + engine-uitvoer in envelope
   - [x] Checklist "nog in te vullen", ruimtefunctie uit naam, QC-waarschuwingen inklapbaar
-  - [ ] Materiaalkoppeling: `Holz`/`f2_cempanel` geen match (laag R≈0 → U te hoog), `o1_glas_helder` → Foamglas (fout); checklist voor onbekende/geschatte materialen
+  - [x] Materiaalkoppeling (f920bb8, ca231a6): `Holz`/`f2_cempanel` geen match (laag R≈0 → U te hoog), `o1_glas_helder` → Foamglas (fout); checklist voor onbekende/geschatte materialen
   - [ ] Besluit planner: U-default voor constructie zonder opbouw (nu 0 W/K + rood op checklist)
   - [ ] e2e met ifc-ruimtebalans-container (R-1, 2786), proef voor Jochem
   - [ ] Oude IFC-paden verwijderen na akkoord (plan sectie 5): ifc-tool/`/ifc/import`, Tauri-import, web-ifc in Modeller, reconstructie-rest
