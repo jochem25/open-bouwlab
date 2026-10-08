@@ -126,6 +126,7 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
         <FindingsList
           title="Waarschuwingen"
           tone="text-amber-500"
+          collapsible
           findings={warningFindings}
           rooms={thermal.rooms}
           onJump={jumpToRoom}
@@ -256,27 +257,40 @@ function Stat({
   );
 }
 
+const COLLAPSED_PREVIEW = 3;
+
 function FindingsList({
   title,
   tone,
   findings,
   rooms,
   onJump,
+  collapsible = false,
 }: {
   title: string;
   tone: string;
+  collapsible?: boolean;
   findings: QcFinding[];
   rooms: ThermalRoom[];
   onJump: (roomId: string) => void;
 }) {
+  // Standaard dicht: aantal + eerste 3. Open: gegroepeerd per code.
+  const [showAll, setShowAll] = useState(!collapsible);
   if (findings.length === 0) return null;
+  const shown = showAll ? findings : findings.slice(0, COLLAPSED_PREVIEW);
+  const groups = showAll && collapsible ? groupByCode(findings) : null;
   return (
     <div className="mt-4">
       <h4 className={`text-sm font-medium ${tone}`}>
         {title} ({findings.length})
       </h4>
+      {groups && (
+        <p className="mt-1 text-xs text-on-surface-muted">
+          {groups.map(([code, n]) => `${code} (${n})`).join(", ")}
+        </p>
+      )}
       <ul className="mt-1 flex flex-col gap-1 text-sm text-on-surface-secondary">
-        {findings.map((f, i) => {
+        {shown.map((f, i) => {
           const room = f.room_id ? rooms.find((r) => r.id === f.room_id) : undefined;
           return (
             <li key={`${f.code}-${i}`}>
@@ -294,8 +308,25 @@ function FindingsList({
           );
         })}
       </ul>
+      {collapsible && findings.length > COLLAPSED_PREVIEW && (
+        <button
+          type="button"
+          className="mt-1 text-xs underline"
+          aria-expanded={showAll}
+          onClick={() => setShowAll((v) => !v)}
+        >
+          {showAll ? "Toon minder" : `Toon alle ${findings.length}`}
+        </button>
+      )}
     </div>
   );
+}
+
+/** Aantal bevindingen per code, grootste groep eerst. */
+export function groupByCode(findings: QcFinding[]): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const f of findings) counts.set(f.code, (counts.get(f.code) ?? 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
 
 function RoomRows({

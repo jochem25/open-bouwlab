@@ -12,6 +12,7 @@
  */
 import * as WebIfc from "web-ifc";
 
+import { matchRoomFunction } from "../../lib/roomFunctionFromName";
 import type { ModelRoom, Point2D } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -89,32 +90,6 @@ async function getIfcApi(): Promise<WebIfc.IfcAPI> {
   await api.Init();
   apiInstance = api;
   return api;
-}
-
-// ---------------------------------------------------------------------------
-// Keyword → room function mapping
-// ---------------------------------------------------------------------------
-
-const FUNCTION_KEYWORDS: [RegExp, string][] = [
-  [/woonkamer|huiskamer|living|zitkamer/i, "woonkamer"],
-  [/slaapkamer|bedroom/i, "slaapkamer"],
-  [/keuken|kitchen/i, "keuken"],
-  [/badkamer|bathroom/i, "badkamer"],
-  [/toilet|wc/i, "toilet"],
-  [/hal|gang|entree|corridor|overloop/i, "hal"],
-  [/berging|storage|opslag/i, "berging"],
-  [/garage/i, "garage"],
-  [/kantoor|office|studeerkamer|werkruimte/i, "kantoor"],
-  [/wasruimte|laundry|bijkeuken/i, "bijkeuken"],
-  [/zolder|attic/i, "zolder"],
-  [/kelder|basement|souterrain/i, "kelder"],
-];
-
-function matchRoomFunction(name: string): string {
-  for (const [pattern, func] of FUNCTION_KEYWORDS) {
-    if (pattern.test(name)) return func;
-  }
-  return "custom";
 }
 
 // ---------------------------------------------------------------------------

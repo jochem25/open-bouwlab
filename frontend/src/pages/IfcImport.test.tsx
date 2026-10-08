@@ -5,6 +5,9 @@
 import { renderToString as ssr } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { MemoryRouter } from "react-router-dom";
+
+import { ChecklistView } from "../components/ifcImport/IfcImportChecklistPanel";
 import { ConfirmModal } from "../components/ifcImport/ConfirmModal";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
 import { progressLabel, validateIfcFile } from "../components/ifcImport/UploadPanel";
@@ -99,5 +102,57 @@ describe("upload-validatie", () => {
   it("voortgangslabels", () => {
     expect(progressLabel({ phase: "upload", fraction: 0.42 })).toBe("Uploaden… 42%");
     expect(progressLabel({ phase: "analyse" })).toBe("Analyseren…");
+  });
+});
+
+describe("QC-waarschuwingen inklapbaar", () => {
+  it("standaard dicht: aantal + eerste 3 + 'Toon alle N'; blokkerend blijft open", () => {
+    const many = {
+      ...ifcAnalyseMock,
+      qc: {
+        verdict: "waarschuwing" as const,
+        findings: Array.from({ length: 159 }, (_, i) => ({
+          severity: "warning" as const,
+          code: i % 2 ? "code_a" : "code_b",
+          message: `Melding nummer ${i}`,
+        })).concat([
+          { severity: "blocking" as never, code: "x", message: "Blokkade 1" },
+          { severity: "blocking" as never, code: "x", message: "Blokkade 2" },
+          { severity: "blocking" as never, code: "x", message: "Blokkade 3" },
+          { severity: "blocking" as never, code: "x", message: "Blokkade 4" },
+        ]),
+      },
+    };
+    const html = renderToString(
+      <ImportResultView
+        response={many}
+        importResult={makeImportResult(many.thermal)}
+        existingRoomCount={0}
+        onImport={() => {}}
+      />,
+    );
+    expect(html).toContain("Waarschuwingen (159)");
+    expect(html).toContain("Toon alle 159");
+    expect(html).toContain("Melding nummer 2");
+    expect(html).not.toContain("Melding nummer 3<");
+    expect(html).toContain("Blokkade 4");
+  });
+});
+
+describe("ChecklistView", () => {
+  it("toont ontbreekt-items in foutkleur met link en niets bij lege lijst", () => {
+    const html = renderToString(
+      <MemoryRouter><ChecklistView
+        items={[
+          { id: "u-constructies", severity: "ontbreekt", aantal: 3, link: "/constructies", tekst: "3 vlakken tellen nu als 0 W/K" },
+          { id: "klimaat", severity: "default", aantal: 1, link: "/project", tekst: "Klimaat default" },
+        ]}
+      /></MemoryRouter>,
+    );
+    expect(html).toContain("Nog in te vullen na IFC-import (2)");
+    expect(html).toContain("tellen nu als 0 W/K");
+    expect(html).toContain("text-red-400");
+    expect(html).toContain("--theme-warning-border");
+    expect(renderToString(<ChecklistView items={[]} />)).toBe("");
   });
 });

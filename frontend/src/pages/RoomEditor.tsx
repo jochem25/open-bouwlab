@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { PageHeader } from "../components/layout/PageHeader";
+import { IfcImportChecklistPanel } from "../components/ifcImport/IfcImportChecklistPanel";
 import { RoomTable } from "../components/rooms/RoomTable";
 import { Button } from "../components/ui/Button";
 import { useProjectStore } from "../store/projectStore";
@@ -33,7 +34,8 @@ export function RoomEditor() {
           </Button>
         }
       />
-      <div className="p-4">
+      <div className="flex flex-col gap-4 p-4">
+        <IfcImportChecklistPanel />
         <RoomTable />
       </div>
     </div>

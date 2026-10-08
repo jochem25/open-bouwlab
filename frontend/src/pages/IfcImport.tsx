@@ -11,6 +11,11 @@ import type { FilteredImport } from "../lib/ifcImportFilter";
 import { importThermal, type ThermalImportResult } from "../lib/thermalImport";
 import { useModellerStore } from "../components/modeller/modellerStore";
 import { PageHeader } from "../components/layout/PageHeader";
+import {
+  DISMISS_KEY,
+  IfcImportChecklistPanel,
+} from "../components/ifcImport/IfcImportChecklistPanel";
+import { applyRoomFunctionsFromNames } from "../lib/roomFunctionFromName";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
 import { UploadPanel } from "../components/ifcImport/UploadPanel";
 import { IfcImportOriginNote } from "../components/ifcImport/IfcImportOriginNote";
@@ -72,7 +77,9 @@ export function IfcImport() {
           getProjectConstructions: () => useModellerStore.getState().projectConstructions,
         },
       );
-      setProject(applied.project);
+      // Alleen in dit overnamepad: functie uit de naam (wizard blijft ongemoeid).
+      const project = applyRoomFunctionsFromNames(applied.project, importFile.rooms);
+      setProject(project);
       setImportedBoundaries(applied.boundaries);
       setImportGeometry(applied.importGeometry);
       // Na setProject: die wist de herkomst van het vorige project.
@@ -83,8 +90,20 @@ export function IfcImport() {
         imported_at: new Date().toISOString(),
         rooms_count: approvedIds.length,
         approved_room_ids: approvedIds,
+        defaults: {
+          heating_system: project.rooms[0]?.heating_system ?? "",
+          ventilation_system: project.ventilation.system_type,
+          theta_e: project.climate.theta_e ?? 0,
+          qv10: project.building.qv10,
+          building_type: project.building.building_type,
+        },
         analyse: loaded.response,
       });
+      try {
+        sessionStorage.removeItem(DISMISS_KEY);
+      } catch {
+        // sessionStorage niet beschikbaar
+      }
       addToast(`${approvedIds.length} ruimten overgenomen uit ${loaded.response.source_filename}`, "success");
       navigate("/rooms");
     },
@@ -108,6 +127,7 @@ export function IfcImport() {
       />
       <div className="flex flex-col gap-5 p-6">
         {origin && <IfcImportOriginNote origin={origin} />}
+        <IfcImportChecklistPanel />
         <UploadPanel busy={busy} progress={progress} error={error} onFile={handleFile} />
         {loaded && (
           <ImportResultView
