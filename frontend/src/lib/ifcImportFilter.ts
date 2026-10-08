@@ -7,17 +7,33 @@
  * project-elementen (`{room}-c{n}`) hebben GEEN relatie met thermal-
  * construction-id's; die link loopt alleen via de ruimte.
  *
- * Constructies naar een niet-goedgekeurde verwarmde buurruimte blijven staan:
- * de rekenkern geeft een verweesde `adjacent_room_id` 0 W/K. Ze worden geteld
- * (`orphanedSurfaceCount`) zodat de UI dat kan melden.
+ * Constructies naar een niet-goedgekeurde buurruimte blijven staan. Gevolg in de
+ * rekenkern hangt af van het type: `adjacent_room` valt terug op theta_i (dT = 0,
+ * dus 0 W/K); `unheated_space` rekent A*U*f_k met f_k default 0,5 zonder
+ * room-lookup. Beide worden apart geteld zodat de UI het juiste kan melden.
  */
 import type { ThermalImportFile, ThermalImportResult } from "./thermalImport";
 
 export interface FilteredImport {
   importFile: ThermalImportFile;
   importResult: ThermalImportResult;
-  /** Aantal vlakken (excl. openingen) dat grenst aan een niet-overgenomen ruimte. */
-  orphanedSurfaceCount: number;
+  /** Vlakken naar een niet-overgenomen verwarmde ruimte (`adjacent_room`): 0 W/K. */
+  orphanedHeatedCount: number;
+  /** Vlakken naar een niet-overgenomen onverwarmde ruimte: rekenen met f_k (default 0,5). */
+  orphanedUnheatedCount: number;
+}
+
+/** Soort wees-vlak: grenst aan een ruimte die niet in het project zit. */
+export function orphanKind(
+  ce: { catalog_ref?: string | null; adjacent_room_id?: string | null; boundary_type?: string },
+  projectRoomIds: ReadonlySet<string>,
+): "heated" | "unheated" | null {
+  if (!ce.catalog_ref || !ce.adjacent_room_id || projectRoomIds.has(ce.adjacent_room_id)) {
+    return null;
+  }
+  if (ce.boundary_type === "unheated_space") return "unheated";
+  if (ce.boundary_type === "adjacent_room") return "heated";
+  return null;
 }
 
 export function filterApprovedRooms(
@@ -48,14 +64,15 @@ export function filterApprovedRooms(
 
   const rooms = importResult.project.rooms.filter((r) => approvedRoomIds.has(r.id));
   const usedCatalogRefs = new Set<string>();
-  let orphanedSurfaceCount = 0;
+  let orphanedHeatedCount = 0;
+  let orphanedUnheatedCount = 0;
   for (const room of rooms) {
     for (const ce of room.constructions) {
       if (ce.catalog_ref) {
         usedCatalogRefs.add(ce.catalog_ref);
-        if (ce.adjacent_room_id && !approvedRoomIds.has(ce.adjacent_room_id)) {
-          orphanedSurfaceCount += 1;
-        }
+        const kind = orphanKind(ce, approvedRoomIds);
+        if (kind === "heated") orphanedHeatedCount += 1;
+        else if (kind === "unheated") orphanedUnheatedCount += 1;
       }
     }
   }
@@ -75,5 +92,10 @@ export function filterApprovedRooms(
     ),
   };
 
-  return { importFile: filteredFile, importResult: filteredResult, orphanedSurfaceCount };
+  return {
+    importFile: filteredFile,
+    importResult: filteredResult,
+    orphanedHeatedCount,
+    orphanedUnheatedCount,
+  };
 }

@@ -12,10 +12,7 @@ import type { FilteredImport } from "../lib/ifcImportFilter";
 import { importThermal, type ThermalImportResult } from "../lib/thermalImport";
 import { useModellerStore } from "../components/modeller/modellerStore";
 import { PageHeader } from "../components/layout/PageHeader";
-import {
-  DISMISS_KEY,
-  IfcImportChecklistPanel,
-} from "../components/ifcImport/IfcImportChecklistPanel";
+import { IfcImportChecklistPanel } from "../components/ifcImport/IfcImportChecklistPanel";
 import { computeMaterialMatches } from "../lib/ifcImportChecklist";
 import { applyRoomFunctions, computeFunctionSources } from "../lib/roomFunctionFromModel";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
@@ -38,7 +35,7 @@ export function IfcImport() {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
 
   const existingRoomCount = useProjectStore((s) => s.project.rooms.length);
-  const setProject = useProjectStore((s) => s.setProject);
+  const replaceRoomsFromImport = useProjectStore((s) => s.replaceRoomsFromImport);
   const setIfcImport = useProjectStore((s) => s.setIfcImport);
   const origin = useProjectStore((s) => s.ifcImport);
   const addToast = useToastStore((s) => s.addToast);
@@ -81,10 +78,13 @@ export function IfcImport() {
       );
       // Alleen in dit overnamepad: functie uit model, naam, default (wizard blijft ongemoeid).
       const project = applyRoomFunctions(applied.project, importFile.rooms, loaded.response.rooms_extra);
-      setProject(project);
+      // Alleen de ruimten vervangen: projectgegevens, klimaat, instellingen en
+      // serverkoppeling blijven behouden.
+      replaceRoomsFromImport(project);
       setImportedBoundaries(applied.boundaries);
       setImportGeometry(applied.importGeometry);
-      // Na setProject: die wist de herkomst van het vorige project.
+      // Defaults uit het BEHOUDEN project (niet uit de mapper-defaults).
+      const kept = useProjectStore.getState().project;
       setIfcImport({
         ifc_filename: loaded.response.source_filename,
         engine_name: loaded.response.engine.name,
@@ -100,26 +100,21 @@ export function IfcImport() {
         ),
         material_matches: computeMaterialMatches(loaded.response.thermal, approvedIds),
         defaults: {
-          heating_system: project.rooms[0]?.heating_system ?? "",
-          ventilation_system: project.ventilation.system_type,
-          theta_e: project.climate.theta_e ?? 0,
-          qv10: project.building.qv10,
-          building_type: project.building.building_type,
+          heating_system: kept.rooms[0]?.heating_system ?? "",
+          ventilation_system: kept.ventilation.system_type,
+          theta_e: kept.climate.theta_e ?? 0,
+          qv10: kept.building.qv10,
+          building_type: kept.building.building_type,
         },
         analyse: stripAnalyse(loaded.response),
       });
-      try {
-        sessionStorage.removeItem(DISMISS_KEY);
-      } catch {
-        // sessionStorage niet beschikbaar
-      }
       addToast(`${approvedIds.length} ruimten overgenomen uit ${loaded.response.source_filename}`, "success");
       navigate("/rooms");
     },
     [
       loaded,
       ensureProjectConstruction,
-      setProject,
+      replaceRoomsFromImport,
       setImportedBoundaries,
       setImportGeometry,
       setIfcImport,

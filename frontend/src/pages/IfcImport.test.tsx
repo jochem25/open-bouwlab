@@ -96,31 +96,41 @@ describe("ImportResultView", () => {
 });
 
 describe("ConfirmModal", () => {
-  const base = { blocking: [], orphanedSurfaces: 0, replacesExisting: false, approvedCount: 1 };
+  const base = {
+    blocking: [],
+    orphanedHeated: 0,
+    orphanedUnheated: 0,
+    replacesExisting: false,
+    approvedCount: 1,
+  };
   it("toont blokkerende bevindingen en wees-vlakken", () => {
     const html = renderToString(
       <ConfirmModal
         open
-        notices={{ ...base, blocking: ["Schil niet gesloten"], orphanedSurfaces: 3 }}
+        notices={{ ...base, blocking: ["Schil niet gesloten"], orphanedHeated: 3, orphanedUnheated: 2 }}
         onConfirm={() => {}}
         onCancel={() => {}}
       />,
     );
     expect(html).toContain("Schil niet gesloten");
-    expect(html).toContain("3 vlakken grenzen aan niet-overgenomen ruimten en tellen als 0 W/K");
+    expect(html).toContain("verwarmde ruimten en tellen als");
+    expect(html).toContain("onverwarmde ruimten en rekenen");
+    expect(html).toContain("f_k = 0,5 (standaard)");
     expect(html).toContain("Toch overnemen");
   });
   it("biedt Vervangen als het project al ruimten heeft", () => {
     const html = renderToString(
       <ConfirmModal
         open
-        notices={{ ...base, replacesExisting: true }}
+        notices={{ ...base, replacesExisting: true, existingRoomCount: 7 }}
         onConfirm={() => {}}
         onCancel={() => {}}
       />,
     );
     expect(html).toContain("Vervangen");
     expect(html).toContain("Annuleren");
+    expect(html).toContain("klimaat");
+    expect(html).toContain("blijven behouden");
   });
   it("rendert niets als gesloten", () => {
     expect(

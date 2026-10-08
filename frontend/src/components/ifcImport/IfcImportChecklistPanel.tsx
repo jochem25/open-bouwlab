@@ -5,11 +5,18 @@ import { buildIfcImportChecklist, type ChecklistItem } from "../../lib/ifcImport
 import { useProjectStore } from "../../store/projectStore";
 import { useModellerStore } from "../modeller/modellerStore";
 
-export const DISMISS_KEY = "ifcImport.checklistDismissed";
+const DISMISS_KEY_PREFIX = "ifcImport.checklistDismissed";
 
-function readDismissed(): boolean {
+/** Per import: een nieuwe overname (andere `imported_at`) toont de checklist weer. */
+export function dismissKey(importedAt: string): string {
+  return `${DISMISS_KEY_PREFIX}:${importedAt}`;
+}
+
+function readDismissed(importedAt: string | undefined): boolean {
+  if (!importedAt) return false;
   try {
-    return typeof sessionStorage !== "undefined" && sessionStorage.getItem(DISMISS_KEY) === "1";
+    return typeof sessionStorage !== "undefined" &&
+      sessionStorage.getItem(dismissKey(importedAt)) === "1";
   } catch {
     return false;
   }
@@ -106,7 +113,8 @@ export function IfcImportChecklistPanel() {
   const project = useProjectStore((s) => s.project);
   const origin = useProjectStore((s) => s.ifcImport);
   const projectConstructions = useModellerStore((s) => s.projectConstructions);
-  const [dismissed, setDismissed] = useState(readDismissed);
+  const [, setTick] = useState(0);
+  const dismissed = readDismissed(origin?.imported_at);
   const items = useMemo(() => buildIfcImportChecklist(project, origin, projectConstructions),
     [project, origin, projectConstructions],);
 
@@ -116,11 +124,11 @@ export function IfcImportChecklistPanel() {
       items={items}
       onDismiss={() => {
         try {
-          sessionStorage.setItem(DISMISS_KEY, "1");
+          sessionStorage.setItem(dismissKey(origin.imported_at), "1");
         } catch {
           // sessionStorage niet beschikbaar: alleen lokaal verbergen.
         }
-        setDismissed(true);
+        setTick((n) => n + 1);
       }}
     />
   );

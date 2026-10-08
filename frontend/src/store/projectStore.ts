@@ -344,6 +344,16 @@ interface ProjectStore {
       ifcImport?: IfcImportOrigin;
     },
   ) => void;
+  /**
+   * IFC-overname: vervangt alleen de ruimten (en hun per-ruimte sidecars) door
+   * die van `imported`. Projectgegevens, klimaat, gebouw, ventilatie-systeem,
+   * sharedExtra, serverkoppeling en lokaal pad blijven behouden; markeert dirty
+   * zodat auto-save loopt. Zet de herkomst op `ifcImport` (default `null`).
+   */
+  replaceRoomsFromImport: (
+    imported: Project,
+    opts?: { ifcImport?: IfcImportOrigin },
+  ) => void;
   /** Set the active server-side project ID. */
   setActiveProjectId: (id: string | null) => void;
   /** Set the local filesystem path (or clear with null on New). */
@@ -812,6 +822,35 @@ export const useProjectStore = create<ProjectStore>()(
           };
         }),
 
+      replaceRoomsFromImport: (imported, opts) =>
+        set((state) => {
+          // Per-ruimte sidecars van de vervangen ruimten opruimen (zoals removeRoom).
+          const oldIds = new Set(state.project.rooms.map((r) => r.id));
+          const isso53Rooms = Object.fromEntries(
+            Object.entries(state.isso53Rooms).filter(([id]) => !oldIds.has(id)),
+          );
+          const ventRooms = Object.fromEntries(
+            Object.entries(state.ventilation.rooms).filter(([id]) => !oldIds.has(id)),
+          );
+          return {
+            project: { ...state.project, rooms: imported.rooms },
+            isso53Rooms,
+            ventilation: {
+              ...state.ventilation,
+              terminals: state.ventilation.terminals.filter(
+                (t) => !oldIds.has(t.roomId),
+              ),
+              rooms: ventRooms,
+            },
+            ifcImport: opts?.ifcImport ?? null,
+            isDirty: true,
+            result: null,
+            error: null,
+            _past: [],
+            _future: [],
+          };
+        }),
+
       loadServerProject: (id, project, result, updatedAt, opts) =>
         set({
           project,
@@ -1248,6 +1287,14 @@ export const useProjectStore = create<ProjectStore>()(
  * {@link ProjectStore.clearServerBinding} (aangeroepen in `lib/auth.ts`
  * `logoutRedirect` en `lib/serverProjects.ts` `recordSaveFailure`).
  */
+export function stripIfcAnalyse(
+  origin: IfcImportOrigin | null | undefined,
+): IfcImportOrigin | null {
+  if (!origin) return null;
+  const { analyse: _analyse, ...rest } = origin;
+  return rest;
+}
+
 export function partializeProjectStore(state: ProjectStore) {
   return {
     project: state.project,
@@ -1260,9 +1307,7 @@ export function partializeProjectStore(state: ProjectStore) {
     bengGeometry: state.bengGeometry,
     uniecReference: state.uniecReference,
     // `analyse` (complete thermal.json, enkele MB) blijft buiten localStorage.
-    ifcImport: state.ifcImport
-      ? (({ analyse: _analyse, ...origin }) => origin)(state.ifcImport)
-      : null,
+    ifcImport: stripIfcAnalyse(state.ifcImport),
     result: state.result,
     isDirty: state.isDirty,
     activeProjectId: state.activeProjectId,

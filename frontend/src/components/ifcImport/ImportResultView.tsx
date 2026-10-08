@@ -95,7 +95,10 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
     (f) => !f.room_id || approved.has(f.room_id),
   );
   const needsConfirm =
-    relevantBlocking.length > 0 || filtered.orphanedSurfaceCount > 0 || existingRoomCount > 0;
+    relevantBlocking.length > 0 ||
+    filtered.orphanedHeatedCount > 0 ||
+    filtered.orphanedUnheatedCount > 0 ||
+    existingRoomCount > 0;
 
   const handleImportClick = () => {
     if (needsConfirm) setConfirming(true);
@@ -248,7 +251,9 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
         open={confirming}
         notices={{
           blocking: relevantBlocking.map((f) => f.message),
-          orphanedSurfaces: filtered.orphanedSurfaceCount,
+          orphanedHeated: filtered.orphanedHeatedCount,
+          orphanedUnheated: filtered.orphanedUnheatedCount,
+          existingRoomCount,
           replacesExisting: existingRoomCount > 0,
           approvedCount: approved.size,
         }}

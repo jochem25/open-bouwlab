@@ -3,8 +3,8 @@
  *
  * Twee lagen:
  *  - {@link matchRoomFunction}: de oorspronkelijke keyword-mapping van de
- *    modeller-IFC-import (Nederlandse modeller-sleutels, ongewijzigd verplaatst
- *    uit `components/modeller/ifc-import.ts`).
+ *    modeller-IFC-import (Nederlandse modeller-sleutels; de oude
+ *    `components/modeller/ifc-import.ts` is verwijderd).
  *  - {@link roomFunctionFromName}: vertaling naar de echte `RoomFunction`-enum
  *    van het project, voor het IFC-tab-overnamepad.
  *

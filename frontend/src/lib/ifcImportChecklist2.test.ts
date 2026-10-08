@@ -59,7 +59,25 @@ describe("checklist: vlakken naar niet-overgenomen ruimten", () => {
     ) as { aantal: number; severity: string; tekst: string };
     expect(item.aantal).toBe(toLaag);
     expect(item.severity).toBe("default");
-    expect(item.tekst).toContain("niet-overgenomen ruimten en tellen als 0 W/K");
+    expect(item.tekst).toContain("niet-overgenomen verwarmde ruimten en tellen als 0 W/K");
+  });
+});
+
+describe("checklist: wees-vlakken naar onverwarmde ruimten", () => {
+  it("telt apart en meldt f_k = 0,5 i.p.v. 0 W/K", () => {
+    const { project, origin } = setup();
+    const hoog = project.rooms.find((r) => r.id === MOCK_ROOM_HOOG)!;
+    const toLaag = hoog.constructions.filter(
+      (c) => c.adjacent_room_id === MOCK_ROOM_LAAG && c.catalog_ref,
+    );
+    expect(toLaag.length).toBeGreaterThan(0);
+    for (const c of toLaag) c.boundary_type = "unheated_space";
+    const partial = { ...project, rooms: project.rooms.filter((r) => r.id === MOCK_ROOM_HOOG) };
+    const items = buildIfcImportChecklist(partial, origin);
+    expect(find(items, "wees-vlakken")).toBeUndefined();
+    const item = find(items, "wees-vlakken-onverwarmd") as { aantal: number; tekst: string };
+    expect(item.aantal).toBe(toLaag.length);
+    expect(item.tekst).toContain("niet-overgenomen onverwarmde ruimten en rekenen met f_k = 0,5");
   });
 });
 

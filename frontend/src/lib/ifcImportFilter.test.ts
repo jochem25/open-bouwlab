@@ -13,7 +13,7 @@ describe("filterApprovedRooms", () => {
     expect(out.importResult.project.rooms).toHaveLength(2);
     expect(out.importFile.constructions).toHaveLength(file.constructions.length);
     expect(out.importResult.construction_catalog.map((e) => e.id)).toEqual(["cat-1", "cat-2"]);
-    expect(out.orphanedSurfaceCount).toBe(0);
+    expect(out.orphanedHeatedCount).toBe(0);
   });
 
   it("één ruimte: project-rooms, polygonen en geometrie worden gefilterd", () => {
@@ -43,7 +43,9 @@ describe("filterApprovedRooms", () => {
     const toLaag = hoogRoom.constructions.filter((c) => c.adjacent_room_id === MOCK_ROOM_LAAG);
     expect(toLaag.length).toBeGreaterThan(0);
     const out = filterApprovedRooms(file, result, new Set([MOCK_ROOM_HOOG]));
-    expect(out.orphanedSurfaceCount).toBe(toLaag.length);
+    expect(out.orphanedHeatedCount).toBe(
+      toLaag.filter((c) => c.boundary_type === "adjacent_room").length,
+    );
     // de elementen blijven staan
     const kept = out.importResult.project.rooms[0]!.constructions;
     expect(kept).toHaveLength(hoogRoom.constructions.length);

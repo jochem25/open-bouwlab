@@ -16,6 +16,7 @@ import {
   ROOM_FUNCTION_TEMPERATURES,
   VENTILATION_SYSTEM_LABELS,
 } from "./constants";
+import { orphanKind } from "./ifcImportFilter";
 import { matchIfcMaterial } from "./ifcMaterialMatcher";
 import { getMaterialById } from "./materialsDatabase";
 import { modelTermFor, resolveRoomFunction } from "./roomFunctionFromModel";
@@ -257,21 +258,31 @@ export function buildIfcImportChecklist(
 
   // --- Vlakken naar niet-overgenomen ruimten -----------------------------------
   const projectRoomIds = new Set(project.rooms.map((r) => r.id));
-  let orphaned = 0;
+  let orphanedHeated = 0;
+  let orphanedUnheated = 0;
   for (const room of rooms) {
     for (const ce of room.constructions) {
-      if (ce.catalog_ref && ce.adjacent_room_id && !projectRoomIds.has(ce.adjacent_room_id)) {
-        orphaned += 1;
-      }
+      const kind = orphanKind(ce, projectRoomIds);
+      if (kind === "heated") orphanedHeated += 1;
+      else if (kind === "unheated") orphanedUnheated += 1;
     }
   }
-  if (orphaned > 0) {
+  if (orphanedHeated > 0) {
     items.push({
       id: "wees-vlakken",
       severity: "default",
-      aantal: orphaned,
+      aantal: orphanedHeated,
       link: "/rooms",
-      tekst: `${orphaned} vlakken grenzen aan niet-overgenomen ruimten en tellen als 0 W/K.`,
+      tekst: `${orphanedHeated} vlakken grenzen aan niet-overgenomen verwarmde ruimten en tellen als 0 W/K.`,
+    });
+  }
+  if (orphanedUnheated > 0) {
+    items.push({
+      id: "wees-vlakken-onverwarmd",
+      severity: "default",
+      aantal: orphanedUnheated,
+      link: "/rooms",
+      tekst: `${orphanedUnheated} vlakken grenzen aan niet-overgenomen onverwarmde ruimten en rekenen met f_k = 0,5 (standaard).`,
     });
   }
 
