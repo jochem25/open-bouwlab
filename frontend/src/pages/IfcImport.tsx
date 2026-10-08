@@ -16,7 +16,7 @@ import {
   DISMISS_KEY,
   IfcImportChecklistPanel,
 } from "../components/ifcImport/IfcImportChecklistPanel";
-import { applyRoomFunctionsFromNames } from "../lib/roomFunctionFromName";
+import { applyRoomFunctions } from "../lib/roomFunctionFromModel";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
 import { UploadPanel } from "../components/ifcImport/UploadPanel";
 import { IfcImportOriginNote } from "../components/ifcImport/IfcImportOriginNote";
@@ -78,8 +78,8 @@ export function IfcImport() {
           getProjectConstructions: () => useModellerStore.getState().projectConstructions,
         },
       );
-      // Alleen in dit overnamepad: functie uit de naam (wizard blijft ongemoeid).
-      const project = applyRoomFunctionsFromNames(applied.project, importFile.rooms);
+      // Alleen in dit overnamepad: functie uit model, naam, default (wizard blijft ongemoeid).
+      const project = applyRoomFunctions(applied.project, importFile.rooms, loaded.response.rooms_extra);
       setProject(project);
       setImportedBoundaries(applied.boundaries);
       setImportGeometry(applied.importGeometry);
@@ -127,8 +127,10 @@ export function IfcImport() {
         subtitle="Upload een IFC, controleer de ruimten en neem ze over"
       />
       <div className="flex flex-col gap-5 p-6">
-        {origin && <IfcImportOriginNote origin={origin} />}
-        <IfcImportChecklistPanel />
+        {/* Herkomst/checklist van een eerdere import verwarren naast een nieuwe,
+            nog niet overgenomen analyse: pas tonen als die is overgenomen of gewist. */}
+        {!loaded && origin && <IfcImportOriginNote origin={origin} />}
+        {!loaded && <IfcImportChecklistPanel />}
         <UploadPanel busy={busy} progress={progress} error={error} onFile={handleFile} />
         {loaded && (
           <ImportResultView

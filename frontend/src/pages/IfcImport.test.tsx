@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { MemoryRouter } from "react-router-dom";
 
+import { MissingUBannerView } from "../components/ifcImport/MissingUBanner";
 import { ChecklistView } from "../components/ifcImport/IfcImportChecklistPanel";
 import { ConfirmModal } from "../components/ifcImport/ConfirmModal";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
@@ -190,5 +191,34 @@ describe("ChecklistView", () => {
     expect(html).toContain("text-red-400");
     expect(html).toContain("--theme-warning-border");
     expect(renderToString(<ChecklistView items={[]} />)).toBe("");
+  });
+});
+
+describe("MissingUBannerView (Resultaten)", () => {
+  it("toont X m2, N vlakken, link naar /constructies en geen sluitknop", () => {
+    const html = renderToString(
+      <MemoryRouter>
+        <MissingUBannerView
+          area={242.5}
+          count={23}
+          geenOpbouwText="Bouwdeel zonder laagopbouw in het model; U-waarde ontbreekt"
+        />
+      </MemoryRouter>,
+    );
+    expect(html).toContain("Berekening onvolledig: 242,5 m² zonder U-waarde (23 vlakken)");
+    expect(html).toContain("tellen als 0 W/K");
+    expect(html).toContain('href="/constructies"');
+    expect(html).toContain("Bouwdeel zonder laagopbouw in het model");
+    expect(html).not.toContain("Verberg");
+    expect(html).not.toContain("&times;");
+  });
+  it("niets als er geen vlakken zonder U zijn", () => {
+    expect(
+      renderToString(
+        <MemoryRouter>
+          <MissingUBannerView area={0} count={0} />
+        </MemoryRouter>,
+      ),
+    ).toBe("");
   });
 });

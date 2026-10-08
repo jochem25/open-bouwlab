@@ -18,7 +18,7 @@ import {
 } from "./constants";
 import { matchIfcMaterial } from "./ifcMaterialMatcher";
 import { getMaterialById } from "./materialsDatabase";
-import { roomFunctionFromName } from "./roomFunctionFromName";
+import { modelTermFor, resolveRoomFunction } from "./roomFunctionFromModel";
 
 export type ChecklistSeverity = "ontbreekt" | "default";
 
@@ -99,6 +99,58 @@ function linkedMaterialLines(origin: IfcImportOrigin, approved: Set<string>): st
   return lines;
 }
 
+export interface MissingU {
+  /** Vlakken met catalogus (wanden, vloeren, daken) zonder U-waarde. */
+  surfaces: number;
+  outsideSurfaces: number;
+  /** Openingen (geen catalogus) zonder U-waarde. */
+  openings: number;
+  outsideOpenings: number;
+  /** m² van vlakken en openingen samen. */
+  area: number;
+  /** m² van alleen de vlakken met catalogus. */
+  surfaceArea: number;
+  /** Aantal vlakken per catalogus-beschrijving. */
+  byDescription: Map<string, number>;
+}
+
+/**
+ * Elementen met `u_value` 0/leeg en `area > 0`: die tellen als 0 W/K. Geen
+ * enkel grenstype mag legitiem U = 0 hebben (ook adjacent_room, ground en water
+ * rekenen met de U-waarde van het element); alleen open verbindingen ("-oc",
+ * vaste U) en elementen zonder oppervlak worden overgeslagen.
+ * Gedeeld door de checklist en de melding op de Resultaten-pagina.
+ */
+export function findMissingU(rooms: Project["rooms"]): MissingU {
+  const out: MissingU = {
+    surfaces: 0,
+    outsideSurfaces: 0,
+    openings: 0,
+    outsideOpenings: 0,
+    area: 0,
+    surfaceArea: 0,
+    byDescription: new Map(),
+  };
+  for (const room of rooms) {
+    for (const ce of room.constructions) {
+      if (ce.u_value > 0 || !(ce.area > 0) || ce.id.includes("-oc")) continue;
+      const outside = EXTERIOR_TYPES.has(ce.boundary_type);
+      out.area += ce.area;
+      if (ce.catalog_ref) {
+        out.surfaces += 1;
+        out.surfaceArea += ce.area;
+        if (outside) out.outsideSurfaces += 1;
+        const label = ce.description || ce.catalog_ref;
+        out.byDescription.set(label, (out.byDescription.get(label) ?? 0) + 1);
+      } else {
+        out.openings += 1;
+        if (outside) out.outsideOpenings += 1;
+      }
+    }
+  }
+  return out;
+}
+
 export function buildIfcImportChecklist(
   project: Project,
   origin: IfcImportOrigin | null | undefined,
@@ -110,29 +162,9 @@ export function buildIfcImportChecklist(
   const items: ChecklistItem[] = [];
 
   // --- U-waarden ontbreken ------------------------------------------------
-  const byDescription = new Map<string, number>();
-  let surfaces = 0;
-  let outsideSurfaces = 0;
-  let area = 0;
-  let openings = 0;
-  let outsideOpenings = 0;
-  for (const room of rooms) {
-    for (const ce of room.constructions) {
-      if (ce.u_value > 0) continue;
-      const outside = EXTERIOR_TYPES.has(ce.boundary_type);
-      if (ce.catalog_ref) {
-        surfaces += 1;
-        if (outside) outsideSurfaces += 1;
-        area += ce.area;
-        const label = ce.description || ce.catalog_ref;
-        byDescription.set(label, (byDescription.get(label) ?? 0) + 1);
-      } else if (!ce.id.includes("-oc")) {
-        // Openingen (geen catalogus). Open verbindingen ("-oc") hebben een vaste U.
-        openings += 1;
-        if (outside) outsideOpenings += 1;
-      }
-    }
-  }
+  const missing = findMissingU(rooms);
+  const { surfaces, outsideSurfaces, openings, outsideOpenings, byDescription } = missing;
+  const area = missing.surfaceArea;
   if (surfaces > 0) {
     const geenOpbouw = (origin.analyse?.qc.findings ?? [])
       .filter((f) => f.code === "L-GEEN-OPBOUW")
@@ -193,20 +225,42 @@ export function buildIfcImportChecklist(
     });
   }
 
-  // --- Ruimtefunctie --------------------------------------------------------
-  const thermalType = new Map(
-    (origin.analyse?.thermal.rooms ?? []).map((r) => [r.id, r.type]),
-  );
-  let guessed = 0;
+  // --- Vlakken naar niet-overgenomen ruimten -----------------------------------
+  const projectRoomIds = new Set(project.rooms.map((r) => r.id));
+  let orphaned = 0;
+  for (const room of rooms) {
+    for (const ce of room.constructions) {
+      if (ce.catalog_ref && ce.adjacent_room_id && !projectRoomIds.has(ce.adjacent_room_id)) {
+        orphaned += 1;
+      }
+    }
+  }
+  if (orphaned > 0) {
+    items.push({
+      id: "wees-vlakken",
+      severity: "default",
+      aantal: orphaned,
+      link: "/rooms",
+      tekst: `${orphaned} vlakken grenzen aan niet-overgenomen ruimten en tellen als 0 W/K.`,
+    });
+  }
+
+  // --- Ruimtefunctie: model -> naam -> default --------------------------------
+  const thermalRooms = origin.analyse?.thermal.rooms ?? [];
+  const roomsExtra = origin.analyse?.rooms_extra;
+  let fromModel = 0;
+  let fromName = 0;
   let unrecognized = 0;
   for (const room of rooms) {
-    // Onverwarmde ruimten krijgen bij import vast "storage"; geen naam-schatting.
-    const type = thermalType.get(room.id);
+    // Onverwarmde ruimten krijgen bij import vast "storage"; geen schatting.
+    const type = thermalRooms.find((r) => r.id === room.id)?.type;
     if (type !== undefined && type !== "heated") continue;
-    const guess = roomFunctionFromName(room.name);
-    if (guess.recognized && room.function === guess.function) guessed += 1;
-    if (!guess.recognized && room.function === "living_room" && room.custom_temperature == null) {
-      unrecognized += 1;
+    const resolved = resolveRoomFunction(room.name, modelTermFor(room.id, thermalRooms, roomsExtra));
+    if (resolved.source === "default") {
+      if (room.function === "living_room" && room.custom_temperature == null) unrecognized += 1;
+    } else if (room.function === resolved.function) {
+      if (resolved.source === "model") fromModel += 1;
+      else fromName += 1;
     }
   }
   const livingTemp = ROOM_FUNCTION_TEMPERATURES["living_room"] ?? 22;
@@ -217,17 +271,26 @@ export function buildIfcImportChecklist(
       aantal: unrecognized,
       link: "/rooms",
       tekst:
-        `${unrecognized} vertrekken: functie niet herkend uit de naam; staat op ` +
-        `${ROOM_FUNCTION_LABELS["living_room"] ?? "woonkamer"} (${livingTemp} °C). Kies de juiste functie.`,
+        `${unrecognized} vertrekken: functie niet herkend; staat op ` +
+        `${ROOM_FUNCTION_LABELS["living_room"] ?? "woonkamer"} (${livingTemp} °C, default). Kies de juiste functie.`,
     });
   }
-  if (guessed > 0) {
+  if (fromName > 0) {
     items.push({
       id: "functie-geschat",
       severity: "default",
-      aantal: guessed,
+      aantal: fromName,
       link: "/rooms",
-      tekst: `${guessed} vertrekken: functie geschat uit de naam. Controleer functie en temperatuur.`,
+      tekst: `${fromName} vertrekken: functie geschat uit de naam. Controleer functie en temperatuur.`,
+    });
+  }
+  if (fromModel > 0) {
+    items.push({
+      id: "functie-model",
+      severity: "default",
+      aantal: fromModel,
+      link: "/rooms",
+      tekst: `${fromModel} vertrekken: functie uit het model overgenomen. Controleer functie en temperatuur.`,
     });
   }
 

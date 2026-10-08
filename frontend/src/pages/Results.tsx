@@ -10,6 +10,7 @@ import { Button } from "../components/ui/Button";
 import { Card } from "../components/ui/Card";
 import { Table, Th, Td } from "../components/ui/Table";
 import { PageHeader } from "../components/layout/PageHeader";
+import { MissingUBanner } from "../components/ifcImport/MissingUBanner";
 import { useProjectStore } from "../store/projectStore";
 import { useToastStore } from "../store/toastStore";
 import { exportProject } from "../lib/importExport";
@@ -187,6 +188,7 @@ export function Results() {
       />
 
       <div className="space-y-6 p-6">
+        <MissingUBanner />
         {/* Summary metric cards */}
         <div className="grid grid-cols-4 gap-4">
           <div className="metric-card">
