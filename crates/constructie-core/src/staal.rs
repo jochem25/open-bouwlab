@@ -1,4 +1,4 @@
-//! Staal: toetsen van gewalste I- en H-profielen als vrij opgelegde ligger (EC3).
+//! Staal: toetsen van gewalste I-, H- en U-profielen als vrij opgelegde ligger (EC3).
 //!
 //! Eenheden in deze module: mm, N/mm2, kN en kNm waar vermeld. Profieldata wordt als
 //! gegevens geladen (`data/staal_profielen.json`) en kan worden vervangen zonder
@@ -21,6 +21,13 @@ const E_STAAL: f64 = 210_000.0;
 const DICHTHEID_STAAL: f64 = 7850.0;
 /// Grenswaarde voor de trillingstoets: w_inst,qp in mm (EC0 NB A1.4.4).
 const TRILLING_GRENS_MM: f64 = 34.0;
+
+/// Vaste waarschuwing bij U-profielen (scope v1: zijdelingse steun, belasting via het lijf).
+pub const UNP_WAARSCHUWING: &str =
+    "U-profiel: wringing en kip niet getoetst - alleen bij zijdelingse steun, anders constructeur";
+/// Toelichting op de elastische buigweerstand van U-profielen.
+pub const UNP_ELASTISCH: &str = "U-profiel: buigweerstand elastisch (W_el,y). De plastische W_pl,y uit de \
+fabrikantentabel geldt alleen als wringing is uitgesloten (bijv. twee profielen gekoppeld).";
 
 /// Profielrecord met nominale maten. Eenheden: mm, mm2, mm4, mm3.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
@@ -48,8 +55,30 @@ pub struct Profiel {
     /// Plastisch weerstandsmoment W_pl,y.
     #[serde(rename = "W_pl_y")]
     pub w_pl_y: f64,
-    /// Herkomst van de gegevens.
+    /// Elastisch weerstandsmoment W_el,y (verplicht voor U-profielen).
+    #[serde(rename = "W_el_y", default, skip_serializing_if = "Option::is_none")]
+    pub w_el_y: Option<f64>,
+    /// Traagheidsmoment om de zwakke as I_z.
+    #[serde(rename = "I_z", default, skip_serializing_if = "Option::is_none")]
+    pub i_z: Option<f64>,
+    /// Tweede afrondingsstraal r_2 (flenstip, U-profielen).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub r2: Option<f64>,
+    /// Massa per meter G in kg/m volgens de bron.
+    #[serde(rename = "G", default, skip_serializing_if = "Option::is_none")]
+    pub g: Option<f64>,
+    /// Afschuifoppervlak A_vz volgens de bron (ter vergelijking; de toets rekent A_v zelf).
+    #[serde(rename = "A_vz", default, skip_serializing_if = "Option::is_none")]
+    pub a_vz: Option<f64>,
+    /// Herkomst van de gegevens (bron en versie; geldt voor elke waarde in het record).
     pub bron: String,
+}
+
+impl Profiel {
+    /// U-profiel (hellende flenzen, asymmetrisch om de z-as).
+    fn is_u_profiel(&self) -> bool {
+        self.reeks == Reeks::Unp
+    }
 }
 
 /// Standaard profieldata (voorlopig, bron volgt).
@@ -88,6 +117,17 @@ pub fn bereken_staal_met_profielen(
                 reeks.naam()
             )));
         }
+    }
+    // Alleen de gekozen profielen: een onvolledige UNP-rij hindert een IPE-berekening niet.
+    if let Some(p) = gekozen.iter().find(|p| p.is_u_profiel() && p.w_el_y.is_none()) {
+        return Err(ConstructieFout::Data(format!(
+            "{}: W_el_y ontbreekt (verplicht voor U-profielen)",
+            p.naam
+        )));
+    }
+    if gekozen.iter().any(|p| p.is_u_profiel()) {
+        meldingen.push(Melding::waarschuwing(UNP_WAARSCHUWING));
+        meldingen.push(Melding::info(UNP_ELASTISCH));
     }
     if gekozen.iter().any(|p| p.bron.contains("VOORLOPIG")) {
         meldingen.push(Melding::waarschuwing(
@@ -180,9 +220,16 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
 
     // Dwarsdoorsnedeklasse (EC3 tabel 5.2): lijf inwendig deel op buiging (blad 1),
     // flens uitstekend deel op druk (blad 2). Klasse 3/4 valt buiten scope v1.
+    // U-profiel: de flens steekt aan een kant uit, c gemeten vanaf het lijf; t_f is de
+    // tabelwaarde (dikte op de halve flensbreedte bij de hellende flens).
+    let unp = p.is_u_profiel();
     let c_lijf = p.h - 2.0 * p.t_f - 2.0 * p.r;
     let ct_lijf = c_lijf / p.t_w;
-    let c_flens = (p.b - p.t_w - 2.0 * p.r) / 2.0;
+    let c_flens = if unp {
+        p.b - p.t_w - p.r
+    } else {
+        (p.b - p.t_w - 2.0 * p.r) / 2.0
+    };
     let ct_flens = c_flens / p.t_f;
     tw.insert("c_t_lijf".into(), ct_lijf);
     tw.insert("c_t_flens".into(), ct_flens);
@@ -219,53 +266,88 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
         toetsen.push(t);
     }
 
-    // Dwarskracht (EC3 6.2.6(2) formule 6.18, A_v volgens 6.2.6(3)a, eta = 1,0 veilige kant).
+    // Dwarskracht (EC3 6.2.6(2) formule 6.18, eta = 1,0 veilige kant). A_v volgens
+    // 6.2.6(3)a (gewalste I/H) of 6.2.6(3)b (gewalste U-profielen, zonder eta-ondergrens).
     let eta = 1.0;
     let h_w = p.h - 2.0 * p.t_f;
-    let a_v = (p.a - 2.0 * p.b * p.t_f + (p.t_w + 2.0 * p.r) * p.t_f).max(eta * h_w * p.t_w);
+    let a_v = if unp {
+        p.a - 2.0 * p.b * p.t_f + (p.t_w + p.r) * p.t_f
+    } else {
+        (p.a - 2.0 * p.b * p.t_f + (p.t_w + 2.0 * p.r) * p.t_f).max(eta * h_w * p.t_w)
+    };
     let v_rd = a_v * fy / 3f64.sqrt() / 1e3;
     tw.insert("a_v".into(), a_v);
     tw.insert("v_pl_rd".into(), v_rd);
 
     // Interactie M-V (EC3 6.2.8(2)-(3), formules 6.29 en 6.30). Conservatief: V_Ed bij de
     // oplegging gecombineerd met M_Ed in het veld.
+    // U-profiel: elastische buigweerstand (W_el,y, 6.2.5 (6.14)); bij V_Ed > 0,5 V_pl,Rd
+    // conservatief (1 - rho) M_el,Rd, want (6.30) geldt voor I-doorsneden.
     let ratio_v = ugt.v_ed / v_rd;
-    let m_pl_rd = p.w_pl_y * fy / 1e6;
-    let (rho, m_rd) = if ratio_v <= 0.5 {
-        (0.0, m_pl_rd)
+    // rho <= 1: bij V_Ed > V_pl,Rd is de buigweerstand nul (de dwarskrachttoets faalt al).
+    let rho = if ratio_v <= 0.5 {
+        0.0
     } else {
-        let rho = (2.0 * ratio_v - 1.0).powi(2);
-        let a_w = h_w * p.t_w;
-        let m_v_rd = (p.w_pl_y - rho * a_w * a_w / (4.0 * p.t_w)) * fy / 1e6;
-        (rho, m_v_rd.min(m_pl_rd))
+        (2.0 * ratio_v - 1.0).powi(2).min(1.0)
+    };
+    let m_rd = if unp {
+        let m_el_rd = p.w_el_y.unwrap_or(0.0) * fy / 1e6;
+        tw.insert("m_el_rd".into(), m_el_rd);
+        (1.0 - rho) * m_el_rd
+    } else {
+        let m_pl_rd = p.w_pl_y * fy / 1e6;
+        tw.insert("m_pl_rd".into(), m_pl_rd);
+        if rho > 0.0 {
+            let a_w = h_w * p.t_w;
+            let m_v_rd = (p.w_pl_y - rho * a_w * a_w / (4.0 * p.t_w)) * fy / 1e6;
+            m_v_rd.clamp(0.0, m_pl_rd)
+        } else {
+            m_pl_rd
+        }
     };
     tw.insert("rho_mv".into(), rho);
-    tw.insert("m_pl_rd".into(), m_pl_rd);
     tw.insert("m_rd".into(), m_rd);
     let mv = Toets::nieuw(
         "interactie_mv",
         "Interactie moment en dwarskracht",
-        "V_Ed <= 0,5 V_pl,Rd: geen reductie; anders M_y,V,Rd",
-        Bron::basis("EC3", "6.2.8 (6.29), (6.30)"),
+        if unp {
+            "V_Ed <= 0,5 V_pl,Rd: geen reductie; anders (1 - rho) M_el,Rd"
+        } else {
+            "V_Ed <= 0,5 V_pl,Rd: geen reductie; anders M_y,V,Rd"
+        },
+        if unp {
+            Bron::basis("EC3", "6.2.8(3)")
+        } else {
+            Bron::basis("EC3", "6.2.8 (6.29), (6.30)")
+        },
     )
     .waarden(ratio_v, 0.5, "-");
     toetsen.push(if rho > 0.0 {
-        mv.aanname("V_Ed > 0,5 V_pl,Rd: buigweerstand gereduceerd tot M_y,V,Rd")
+        mv.aanname(if unp {
+            "V_Ed > 0,5 V_pl,Rd: buigweerstand conservatief gereduceerd tot (1 - rho) M_el,Rd"
+        } else {
+            "V_Ed > 0,5 V_pl,Rd: buigweerstand gereduceerd tot M_y,V,Rd"
+        })
     } else {
         mv
     });
 
-    // Buiging (EC3 6.2.5, formule 6.13; klasse 1/2 plastisch).
+    // Buiging (EC3 6.2.5; I/H klasse 1/2 plastisch (6.13), U-profiel elastisch (6.14)).
     toetsen.push(
         Toets::nieuw(
             "buiging",
             "Buiging",
-            if rho > 0.0 {
-                "M_Ed <= M_y,V,Rd"
-            } else {
-                "M_Ed <= M_pl,Rd"
+            match (unp, rho > 0.0) {
+                (true, true) => "M_Ed <= (1 - rho) M_el,Rd",
+                (true, false) => "M_Ed <= M_el,Rd",
+                (false, true) => "M_Ed <= M_y,V,Rd",
+                (false, false) => "M_Ed <= M_pl,Rd",
             },
-            Bron::basis("EC3", "6.2.5 (6.13)"),
+            if unp {
+                Bron::basis("EC3", "6.2.5 (6.14)")
+            } else {
+                Bron::basis("EC3", "6.2.5 (6.13)")
+            },
         )
         .waarden(ugt.m_ed, m_rd, "kNm")
         .uc_uit_waarden(),
@@ -276,7 +358,11 @@ fn toets_profiel(p: &Profiel, invoer: &StaalInvoer, bel: &Belasting) -> Kandidaa
             "dwarskracht",
             "Dwarskracht",
             "V_Ed <= V_pl,Rd",
-            Bron::basis("EC3", "6.2.6 (6.18)"),
+            if unp {
+                Bron::basis("EC3", "6.2.6 (6.18), A_v 6.2.6(3)b")
+            } else {
+                Bron::basis("EC3", "6.2.6 (6.18)")
+            },
         )
         .waarden(ugt.v_ed, v_rd, "kN")
         .uc_uit_waarden(),
@@ -492,6 +578,57 @@ mod tests {
         assert_eq!(k.tussenwaarden["klasse_flens"], 4.0);
         assert!(toets(k, "klasse_flens").blokkeert());
         assert!(r.advies.is_none());
+    }
+
+    #[test]
+    fn unp_flens_ct_vanaf_lijf_en_av_voor_u_profielen() {
+        let json = r#"{ "algemeen": { "overspanning_m": 4.2, "permanent_kn_m2": 0.75 },
+            "belastingbreedte_m": 2.4, "staalsoort": "S235", "reeksen": ["UNP"] }"#;
+        let r = bereken_staal(&invoer(json)).unwrap();
+        let k = r.kandidaten.iter().find(|k| k.naam == "UNP 200").unwrap();
+        // UNP 200: b 75, t_w 8,5, t_f 11,5, r 11,5, A 3220.
+        assert!((k.tussenwaarden["c_t_flens"] - (75.0 - 8.5 - 11.5) / 11.5).abs() < 1e-12);
+        let a_v = 3220.0 - 2.0 * 75.0 * 11.5 + (8.5 + 11.5) * 11.5;
+        assert!((k.tussenwaarden["a_v"] - a_v).abs() < 1e-9);
+        assert!(toets(k, "dwarskracht").bron.artikel.contains("6.2.6(3)b"));
+        assert!(toets(k, "buiging").formule.contains("M_el,Rd"));
+    }
+
+    #[test]
+    fn unp_zonder_w_el_y_is_een_datafout() {
+        let mut p: Vec<Profiel> = standaard_profielen()
+            .unwrap()
+            .into_iter()
+            .filter(|p| p.reeks == Reeks::Unp)
+            .collect();
+        p[0].w_el_y = None;
+        let json = r#"{ "algemeen": { "overspanning_m": 4.0, "permanent_kn_m2": 0.75 },
+            "belastingbreedte_m": 2.0, "staalsoort": "S235", "reeksen": ["UNP"] }"#;
+        assert!(matches!(
+            bereken_staal_met_profielen(&invoer(json), &p),
+            Err(ConstructieFout::Data(_))
+        ));
+        // Wie alleen IPE kiest, heeft geen last van een onvolledige UNP-rij.
+        let mut alles = standaard_profielen().unwrap();
+        alles.iter_mut().filter(|x| x.reeks == Reeks::Unp).for_each(|x| x.w_el_y = None);
+        assert!(bereken_staal_met_profielen(&invoer(BASIS), &alles).is_ok());
+    }
+
+    #[test]
+    fn rho_begrensd_buigweerstand_nooit_negatief() {
+        let json = r#"{ "algemeen": { "overspanning_m": 1.0, "permanent_kn_m2": 15.0 },
+            "belastingbreedte_m": 30.0, "staalsoort": "S235", "reeksen": ["UNP", "IPE"] }"#;
+        let r = bereken_staal(&invoer(json)).unwrap();
+        for k in &r.kandidaten {
+            assert!(k.tussenwaarden["rho_mv"] <= 1.0, "{}", k.naam);
+            assert!(k.tussenwaarden["m_rd"] >= 0.0, "{}", k.naam);
+        }
+    }
+
+    #[test]
+    fn i_profielen_krijgen_geen_unp_waarschuwing() {
+        let r = bereken_staal(&invoer(BASIS)).unwrap();
+        assert!(r.meldingen.iter().all(|m| m.tekst != UNP_WAARSCHUWING));
     }
 
     #[test]

@@ -78,6 +78,12 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 - **Afgekeurd rapport gaf alleen "report_service_error"**: een 4xx van de Reports API komt nu door met dezelfde status, `error: "report_rejected"` en de leesbare `detail`-tekst; 5xx en onbereikbaar blijven 502. De constructiemodule toonde de foutcode (`error`) in plaats van `detail`; dat gold ook voor invoerfouten (422).
 
+## [Unreleased] — 2026-10-08 (branch `feat/constructie-unp`)
+
+### ✨ Nieuw
+
+- **Staal: reeks UNP** (UNP 80 - 400, data ArcelorMittal-verkoopprogramma 2018-05, kruisgecontroleerd met een tweede bron en nagerekend uit de afmetingen). U-specifieke toetsing: flens-c/t vanaf het lijf, afschuifoppervlak voor U-profielen, elastische buigweerstand (W_el,y), conservatieve M-V-reductie. Vaste waarschuwing dat wringing en kip niet zijn getoetst. Golden S2. Zie `docs/2026-10-08-constructie-unp.md`. UNP staat standaard uit in het scherm.
+
 ## [Unreleased] — 2026-10-07 (branch `feat/constructie-hout-trilling`)
 
 ### Nieuw

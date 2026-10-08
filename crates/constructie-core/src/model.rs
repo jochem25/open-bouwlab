@@ -220,6 +220,9 @@ pub enum Reeks {
     /// HEB-profielen.
     #[serde(rename = "HEB")]
     Heb,
+    /// UNP-profielen (U-profielen met hellende flenzen).
+    #[serde(rename = "UNP")]
+    Unp,
 }
 
 impl Reeks {
@@ -229,6 +232,7 @@ impl Reeks {
             Reeks::Ipe => "IPE",
             Reeks::Hea => "HEA",
             Reeks::Heb => "HEB",
+            Reeks::Unp => "UNP",
         }
     }
 }

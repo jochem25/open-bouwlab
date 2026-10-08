@@ -304,6 +304,13 @@
           "enum": [
             "HEB"
           ]
+        },
+        {
+          "description": "UNP-profielen (U-profielen met hellende flenzen).",
+          "type": "string",
+          "enum": [
+            "UNP"
+          ]
         }
       ]
     },

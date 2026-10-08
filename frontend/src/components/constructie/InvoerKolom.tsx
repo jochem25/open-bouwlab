@@ -42,7 +42,7 @@ const GEBOUWTYPES: Gebouwtype[] = [
 ];
 const WANDEN: Scheidingswanden[] = ["geen", "tot_een", "tot_twee", "tot_drie"];
 const STAALSOORTEN: Staalsoort[] = ["S235", "S275", "S355"];
-const REEKSEN: Reeks[] = ["IPE", "HEA", "HEB"];
+const REEKSEN: Reeks[] = ["IPE", "HEA", "HEB", "UNP"];
 const STERKTEKLASSEN: Sterkteklasse[] = ["C20/25", "C25/30", "C30/37", "C35/45"];
 const HOUTKLASSEN: Houtklasse[] = ["C14", "C16", "C18", "C20", "C22", "C24", "C27", "C30"];
 const LAAGSOORTEN: VloerlaagSoort[] = ["vloerplaat", "dekvloer", "plafond", "overig"];
