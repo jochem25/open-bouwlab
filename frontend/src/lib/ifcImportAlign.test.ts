@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
+import { Matrix4, Vector3 } from "three";
+
+import fixture from "./__fixtures__/analyse_200_v12_fixture.json";
+import type { GeometryOrigin, IfcAnalyseResponse } from "./ifcAnalyse";
+import { toWorld } from "./ifcImportGeometry";
 import {
   alignByBboxMin,
+  sceneGroupMatrix,
   alignmentFromResponse,
   isoCameraFit,
   residualAfterAlignment,
@@ -9,12 +15,58 @@ import {
 } from "./ifcImportAlign";
 import type { Vec3 } from "./ifcImportGeometry";
 
+const origin: GeometryOrigin = {
+  frame: "ifc_world_m",
+  offset_m: [483686, 116610, 0],
+  matrix_world_from_thermal: [
+    [1, 0, 0, 483686],
+    [0, 1, 0, 116610],
+    [0, 0, 1, 0],
+    [0, 0, 0, 1],
+  ],
+};
+
 describe("uitlijning en camera", () => {
   const surf = { min: [1, 2, -0.2] as Vec3, max: [12, 9, 2.5] as Vec3 };
   const model = { min: [150000, 450000, 0] as Vec3, max: [150013, 450008, 3] as Vec3 };
 
-  it("alignmentFromResponse levert nu undefined", () => {
+  it("alignmentFromResponse: undefined zonder geldig geometry_origin", () => {
     expect(alignmentFromResponse({})).toBeUndefined();
+    expect(alignmentFromResponse({ geometry_origin: null })).toBeUndefined();
+    const bad = { ...origin, matrix_world_from_thermal: [[1, 0, 0]] };
+    expect(alignmentFromResponse({ geometry_origin: bad })).toBeUndefined();
+  });
+  it("alignmentFromResponse: fixture bevat geometry_origin", () => {
+    const a = alignmentFromResponse(fixture as unknown as IfcAnalyseResponse);
+    expect(a?.kind).toBe("exact");
+  });
+  it("thermal -> wereld -> scene: model en vlakken vallen samen", () => {
+    // IFC-wereld = thermal + [483686, 116610, 0]; model geladen met coordinatiematrix
+    // die [483000, 116000, -1] van lokaal naar wereld verschuift.
+    const a = alignmentFromResponse({ geometry_origin: origin })!;
+    const coord = new Matrix4().makeTranslation(483000, 116000, -1);
+    const gm = sceneGroupMatrix(a.matrixWorldFromThermal, coord);
+    // Thermal (1, 2, 3) -> wereld (483687, 116612, 3) -> lokaal (687, 612, 4) -> scene (x, z, -y)
+    const p = toWorld([1, 2, 3]); // geometrie is al met toWorld omgezet
+    const out = new Vector3(...p).applyMatrix4(gm);
+    expect(out.x).toBeCloseTo(687);
+    expect(out.y).toBeCloseTo(4);
+    expect(out.z).toBeCloseTo(-612);
+  });
+  it("zonder coordinatiematrix: alleen M, daarna scene", () => {
+    const a = alignmentFromResponse({ geometry_origin: origin })!;
+    const out = new Vector3(...toWorld([0, 0, 0])).applyMatrix4(
+      sceneGroupMatrix(a.matrixWorldFromThermal, null),
+    );
+    expect([out.x, out.y, out.z]).toEqual([483686, 0, -116610]);
+  });
+  it("rotatie in M (90 graden om z) wordt meegenomen", () => {
+    const rot = [[0, -1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+    const out = new Vector3(...toWorld([1, 0, 0])).applyMatrix4(sceneGroupMatrix(rot, null));
+    // thermal (1,0,0) -> wereld (0,1,0) -> scene (0,0,-1)
+    expect(out.x).toBeCloseTo(0);
+    expect(out.y).toBeCloseTo(0);
+    expect(out.z).toBeCloseTo(-1);
   });
   it("bbox-minimumhoek valt samen na uitlijning", () => {
     const a = alignByBboxMin(model, surf);

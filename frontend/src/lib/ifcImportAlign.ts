@@ -2,7 +2,15 @@
  * Pure helpers voor uitlijning van het originele IFC-model op de berekende
  * vlakken, en de camera-fit van de IFC-import-viewer (geen React, geen DOM).
  */
+import { Matrix4 } from "three";
+
+import type { GeometryOrigin } from "./ifcAnalyse";
 import type { Bbox, Vec3 } from "./ifcImportGeometry";
+
+type Tuple16 = [
+  number, number, number, number, number, number, number, number,
+  number, number, number, number, number, number, number, number,
+];
 
 /** Verschuiving (projectcoordinaten, Z-up, m) die op het model moet worden toegepast. */
 export interface Alignment {
@@ -11,12 +19,47 @@ export interface Alignment {
   kind: "exact" | "bbox";
 }
 
+/** Exacte uitlijning uit `geometry_origin` van de engine. */
+export interface ExactAlignment {
+  kind: "exact";
+  /** IFC-wereld (m) = M @ [x, y, z, 1] met thermal Z-up meters; rij-major 4x4. */
+  matrixWorldFromThermal: number[][];
+}
+
 /**
- * Hook voor een expliciete transformatie uit de engine-response (bv.
- * `geometry_origin`). De engine levert die nog niet: geeft nu altijd undefined.
+ * Expliciete transformatie uit de engine-response (`geometry_origin`), of
+ * undefined als die ontbreekt of ongeldig is (dan geldt de bbox-terugval).
  */
-export function alignmentFromResponse(_response: unknown): Alignment | undefined {
-  return undefined;
+export function alignmentFromResponse(response: {
+  geometry_origin?: GeometryOrigin | null;
+}): ExactAlignment | undefined {
+  const m = response?.geometry_origin?.matrix_world_from_thermal;
+  if (!m || m.length !== 4 || m.some((r) => !Array.isArray(r) || r.length !== 4)) {
+    return undefined;
+  }
+  if (m.some((r) => r.some((v) => !Number.isFinite(v)))) return undefined;
+  return { kind: "exact", matrixWorldFromThermal: m };
+}
+
+/** Z-up -> Y-up wereld: (x, y, z) -> (x, z, -y). */
+const SCENE_FROM_ZUP = new Matrix4().set(1, 0, 0, 0, 0, 0, 1, 0, 0, -1, 0, 0, 0, 0, 0, 1);
+
+/**
+ * Matrix voor de groep met vlakken. De vlakken zijn al per punt omgezet met
+ * toWorld (thermal -> scene zonder verschuiving); deze matrix zet ze daarna naar
+ * waar het model staat:
+ *   scene = W . C^-1 . M . W^-1 (toWorld(p))
+ * met M = matrix_world_from_thermal, C = coordinatiematrix van het geladen
+ * model (lokaal IFC -> IFC-wereld, Z-up; null = identiteit) en W = Z-up -> Y-up.
+ */
+export function sceneGroupMatrix(
+  matrixWorldFromThermal: number[][],
+  coordination: Matrix4 | null,
+): Matrix4 {
+  const m = new Matrix4().set(...(matrixWorldFromThermal.flat() as Tuple16));
+  const cInv = coordination ? coordination.clone().invert() : new Matrix4();
+  const wInv = SCENE_FROM_ZUP.clone().invert();
+  return SCENE_FROM_ZUP.clone().multiply(cInv).multiply(m).multiply(wInv);
 }
 
 /** Three.js-wereldbox (Y-up: x, z, -y) terug naar projectcoordinaten (Z-up). */

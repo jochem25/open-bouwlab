@@ -25,6 +25,7 @@ import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import fragmentsWorkerUrl from "@thatopen/fragments/worker?url";
 
+import type { IfcAnalyseResponse } from "../../lib/ifcAnalyse";
 import {
   CATEGORY_LABEL,
   modelBbox,
@@ -40,6 +41,7 @@ import {
   FIT_MARGIN,
   alignByBboxMin,
   alignmentFromResponse,
+  sceneGroupMatrix,
   isoCameraFit,
   residualAfterAlignment,
   worldBoxToProject,
@@ -64,6 +66,8 @@ const MODEL_OPACITY = 0.15;
 const OPENING_OPACITY = 0.65;
 const RED_MIX = 0.45;
 const CLICK_MOVE_PX = 4;
+/** Boven dit bbox-restverschil is de exacte uitlijning verdacht (eenheid/frame-fout). */
+const EXACT_MAX_RESIDUAL_M = 50;
 const WATER_COLOR = "#1a6b8a"; // = BOUNDARY_CONDITION_COLORS.water in FloorCanvas3D
 
 const CATEGORY_VAR: Record<SurfaceCategory, [string, string]> = {
@@ -145,6 +149,14 @@ export function IfcImportViewer3D({
   const ifcModelRef = useRef<{ object: THREE.Object3D } | null>(null);
   const downPos = useRef<{ x: number; y: number } | null>(null);
   const surfacesBox = useRef<THREE.Box3 | null>(null);
+  const alignMatrix = useRef(new THREE.Matrix4());
+  const applyGroupMatrix = (m: THREE.Matrix4) => {
+    for (const g of [surfaceGroup.current, openingGroup.current]) {
+      g.matrixAutoUpdate = false;
+      g.matrix.copy(m);
+      g.matrixWorldNeedsUpdate = true;
+    }
+  };
 
   const [showModel, setShowModel] = useState(false);
   const [showSurfaces, setShowSurfaces] = useState(true);
@@ -336,7 +348,7 @@ export function IfcImportViewer3D({
   useEffect(() => {
     if (!selectedRoomId) return;
     const b = roomBbox(model, selectedRoomId);
-    if (b) fitBox(worldBox(b));
+    if (b) fitBox(worldBox(b).applyMatrix4(alignMatrix.current));
   }, [selectedRoomId, model, fitBox]);
 
   // --- Origineel model (lazy) ------------------------------------------------
@@ -383,16 +395,35 @@ export function IfcImportViewer3D({
           if (mb.isEmpty()) {
             note = "Uitlijning niet gecontroleerd (model heeft geen afmetingen).";
           } else if (sw && !sw.isEmpty()) {
-            const modelBox = worldBoxToProject(mb.min.toArray(), mb.max.toArray());
-            const surf = worldBoxToProject(sw.min.toArray(), sw.max.toArray());
-            const explicit = alignmentFromResponse(response);
-            const al = explicit ?? alignByBboxMin(modelBox, surf);
-            const d = toWorld(al.offset);
-            frag.object.position.add(new THREE.Vector3(d[0], d[1], d[2]));
-            frag.object.updateMatrixWorld(true);
-            await fragments.core.update(true);
-            const rest = residualAfterAlignment(modelBox, surf, al.offset);
-            note = `Uitlijning: ${al.kind === "exact" ? "exact" : "automatisch op omhullende"}, restverschil ${rest.toFixed(1)} m (bbox-centrum).`;
+            const center = (bx: THREE.Box3) => bx.getCenter(new THREE.Vector3());
+            const explicit = alignmentFromResponse(response as IfcAnalyseResponse);
+            let done = false;
+            if (explicit) {
+              // Exact: thermal -> IFC-wereld (M) -> lokaal in het geladen model (C^-1) -> scene.
+              const coord = await frag.getCoordinationMatrix();
+              const gm = sceneGroupMatrix(explicit.matrixWorldFromThermal, coord);
+              const moved = sw.clone().applyMatrix4(gm);
+              const rest = center(moved).distanceTo(center(mb));
+              if (rest <= EXACT_MAX_RESIDUAL_M) {
+                alignMatrix.current = gm;
+                applyGroupMatrix(gm);
+                surfacesBox.current = moved;
+                fitBox(moved, false);
+                note = `Uitlijning: exact (engine), restverschil ${rest.toFixed(1)} m (bbox-centrum).`;
+                done = true;
+              }
+            }
+            if (!done) {
+              const modelBox = worldBoxToProject(mb.min.toArray(), mb.max.toArray());
+              const surf = worldBoxToProject(sw.min.toArray(), sw.max.toArray());
+              const al = alignByBboxMin(modelBox, surf);
+              const d = toWorld(al.offset);
+              frag.object.position.add(new THREE.Vector3(d[0], d[1], d[2]));
+              frag.object.updateMatrixWorld(true);
+              await fragments.core.update(true);
+              const rest = residualAfterAlignment(modelBox, surf, al.offset);
+              note = `Uitlijning: automatisch op omhullende${explicit ? " (exacte uitlijning klopte niet)" : ""}, restverschil ${rest.toFixed(1)} m (bbox-centrum).`;
+            }
           }
         } catch {
           note = "Uitlijning niet gecontroleerd.";

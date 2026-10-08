@@ -17,6 +17,16 @@ export const IFC_MAX_MB_LABEL = "100 MB";
 export type QcSeverity = "blocking" | "warning" | "info";
 export type QcVerdict = "ok" | "waarschuwing" | "blokkerend";
 
+export interface GeometryOrigin {
+  frame: string;
+  offset_m: [number, number, number];
+  unit_scale_to_m?: number;
+  rotation_applied?: boolean;
+  map_conversion_applied?: boolean;
+  /** 4x4 rij-major: ifc_wereld_m = M @ [x, y, z, 1] (thermal Z-up meters). */
+  matrix_world_from_thermal: number[][];
+}
+
 export interface QcFinding {
   severity: QcSeverity;
   /** Stabiele code (bv. `L-GEEN-OPBOUW`); zie `lib/qcCodeTexts.ts` voor gewone taal. */
@@ -101,6 +111,8 @@ export interface IfcAnalyseResponse {
   /** Volledig QC-rapport (~0,9 MB bij een groot model). */
   report?: unknown;
   /** Losse vlakken-IFC voor de viewer (tot ~3 MB), of null. */
+  /** Positie van thermal t.o.v. de IFC-wereld (optioneel, additief). */
+  geometry_origin?: GeometryOrigin | null;
   surfaces_ifc?: { filename: string; bytes: number; base64: string } | null;
 }
 
