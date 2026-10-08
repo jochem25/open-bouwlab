@@ -33,6 +33,8 @@ pub struct AppState {
     pub ifc_tool_path: String,
     /// Basis-URL van de private IFC-analyse-sidecar (None = uitgeschakeld).
     pub ifc_analyse_url: Option<String>,
+    /// Optioneel Bearer-token voor de IFC-analyse-sidecar. Nooit loggen.
+    pub ifc_analyse_token: Option<String>,
     /// Timeout per request naar de IFC-analyse-sidecar.
     pub ifc_analyse_timeout: Duration,
     /// Multi-tenant cloud storage registry.
@@ -63,6 +65,7 @@ impl AppState {
             report_default_cover_dir: None,
             ifc_tool_path: ifc_tool_path.unwrap_or_else(|| DEFAULT_IFC_TOOL_PATH.to_string()),
             ifc_analyse_url: None,
+            ifc_analyse_token: None,
             ifc_analyse_timeout: DEFAULT_IFC_ANALYSE_TIMEOUT,
             tenants: Arc::new(tenants),
             default_tenant,

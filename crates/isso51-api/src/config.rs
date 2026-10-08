@@ -39,6 +39,9 @@ pub struct Config {
     /// Basis-URL van de private IFC-analyse-sidecar (env `IFC_ANALYSE_URL`,
     /// leeg = niet beschikbaar).
     pub ifc_analyse_url: Option<String>,
+    /// Optioneel Bearer-token voor de sidecar (env `IFC_ANALYSE_TOKEN`).
+    /// Nooit loggen.
+    pub ifc_analyse_token: Option<String>,
     /// Timeout per analyse-request (env `IFC_ANALYSE_TIMEOUT_S`, default 300).
     pub ifc_analyse_timeout: Duration,
     /// Path to tenants.json for multi-tenant cloud storage.
@@ -88,6 +91,10 @@ impl Config {
                 .ok()
                 .filter(|s| !s.is_empty()),
             ifc_analyse_url: env::var("IFC_ANALYSE_URL")
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
+            ifc_analyse_token: env::var("IFC_ANALYSE_TOKEN")
                 .ok()
                 .map(|s| s.trim().to_string())
                 .filter(|s| !s.is_empty()),

@@ -39,6 +39,12 @@ const MAX_SOURCE_FILENAME_CHARS: usize = 255;
 /// Maximale lengte (tekens) van een doorgegeven sidecar-foutmelding.
 const MAX_DETAIL_CHARS: usize = 500;
 
+/// Standaard `Retry-After` (seconden) als de sidecar bij BEZET geen header meestuurt.
+const DEFAULT_RETRY_AFTER_S: u64 = 30;
+
+/// Sidecar-foutcode bij een lopende analyse (HTTP 503).
+const SIDECAR_BUSY_CODE: &str = "BEZET";
+
 /// Fallback-bestandsnaam als de client er geen meestuurt.
 const DEFAULT_CLIENT_FILENAME: &str = "upload.ifc";
 
@@ -127,6 +133,7 @@ pub async fn analyse_ifc(
         &sanitize_source_filename(&filename),
         &safe_name,
         data,
+        state.ifc_analyse_token.as_deref(),
     )
     .await
 }
@@ -179,7 +186,21 @@ fn truncate_chars(s: &str, max: usize) -> String {
 ///
 /// Losgekoppeld van de extractors zodat het zonder auth te testen is.
 /// `source_filename` wordt in het resultaat gezet (overschrijft sidecar-veld);
-/// `upload_name` is de veilige bestandsnaam richting sidecar.
+/// `upload_name` is de veilige bestandsnaam richting sidecar. Is `token`
+/// gezet, dan gaat het als `Authorization: Bearer` mee (nooit gelogd).
+///
+/// Er worden bewust GEEN extra multipart-velden meegestuurd (`profile`,
+/// `surfaces_ifc`, `exported_at`): de sidecar hanteert dan zijn eigen
+/// defaults (profiel `kba`, geen vlakken-IFC).
+///
+/// Timeout: de caller geeft de waarde uit `IFC_ANALYSE_TIMEOUT_S` (default
+/// 300 s). Ter referentie: model 2786 duurt ca. 46 s lokaal; de harde grens
+/// van de sidecar zelf is 600 s.
+///
+/// Foutmapping sidecar naar API: 400/422 naar 422 `analyse_failed`; 413 naar
+/// 413 `file_too_large`; 503 `BEZET` naar 503 `analyse_busy` (+ `Retry-After`);
+/// 504 naar 504 `analyse_timeout`; 401, 500 en overige statussen naar 502
+/// `analyse_error`. `stderr` van de sidecar gaat nooit naar de client.
 async fn forward_to_sidecar(
     client: &reqwest::Client,
     base_url: &str,
@@ -187,6 +208,7 @@ async fn forward_to_sidecar(
     source_filename: &str,
     upload_name: &str,
     data: bytes::Bytes,
+    token: Option<&str>,
 ) -> Response {
     let url = format!("{}{SIDECAR_ANALYSE_PATH}", base_url.trim_end_matches('/'));
     let size = data.len();
@@ -196,20 +218,25 @@ async fn forward_to_sidecar(
 
     tracing::info!(size_bytes = size, "IFC-analyse: doorgifte naar sidecar");
 
+    let mut request = client.post(&url).multipart(form).timeout(timeout);
+    if let Some(token) = token {
+        request = request.bearer_auth(token);
+    }
+
     let result = async {
-        let resp = client
-            .post(&url)
-            .multipart(form)
-            .timeout(timeout)
-            .send()
-            .await?;
+        let resp = request.send().await?;
         let status = resp.status();
+        let retry_after = resp
+            .headers()
+            .get(reqwest::header::RETRY_AFTER)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u64>().ok());
         let body = resp.bytes().await?;
-        Ok::<_, reqwest::Error>((status, body))
+        Ok::<_, reqwest::Error>((status, retry_after, body))
     }
     .await;
 
-    let (status, body) = match result {
+    let (status, retry_after, body) = match result {
         Ok(r) => r,
         Err(e) if e.is_timeout() => {
             tracing::error!("IFC-analyse: sidecar timeout na {timeout:?}");
@@ -223,9 +250,11 @@ async fn forward_to_sidecar(
             );
         }
         Err(e) => {
+            let is_connect = e.is_connect();
+            let melding = e.without_url().to_string();
             tracing::error!(
-                is_connect = e.is_connect(),
-                "IFC-analyse: sidecar niet bereikbaar: {e}"
+                is_connect,
+                "IFC-analyse: sidecar niet bereikbaar: {melding}"
             );
             return unavailable();
         }
@@ -249,16 +278,56 @@ async fn forward_to_sidecar(
         };
     }
 
-    if status.is_client_error() {
-        let detail = json.as_ref().and_then(extract_detail).unwrap_or_else(|| {
-            truncate_chars(String::from_utf8_lossy(&body).trim(), MAX_DETAIL_CHARS)
-        });
-        tracing::warn!(%status, "IFC-analyse: sidecar wijst upload af");
-        return error_response(StatusCode::UNPROCESSABLE_ENTITY, "analyse_failed", detail);
-    }
+    // Detail uit het sidecar-foutobject, anders de body-tekst; altijd ingekort.
+    let detail = json
+        .as_ref()
+        .and_then(extract_detail)
+        .unwrap_or_else(|| truncate_chars(String::from_utf8_lossy(&body).trim(), MAX_DETAIL_CHARS));
+    let code = json
+        .as_ref()
+        .and_then(|v| v.get("error"))
+        .and_then(Value::as_str)
+        .unwrap_or("");
 
-    tracing::error!(%status, "IFC-analyse: sidecar-fout");
-    bad_gateway(&format!("Sidecar gaf status {}", status.as_u16()))
+    match status.as_u16() {
+        400 | 422 => {
+            tracing::warn!(%status, "IFC-analyse: sidecar wijst upload af");
+            error_response(StatusCode::UNPROCESSABLE_ENTITY, "analyse_failed", detail)
+        }
+        413 => {
+            tracing::warn!("IFC-analyse: sidecar vindt bestand te groot");
+            error_response(StatusCode::PAYLOAD_TOO_LARGE, "file_too_large", detail)
+        }
+        503 if code == SIDECAR_BUSY_CODE => {
+            tracing::warn!("IFC-analyse: sidecar bezet");
+            let mut resp = error_response(StatusCode::SERVICE_UNAVAILABLE, "analyse_busy", detail);
+            resp.headers_mut().insert(
+                axum::http::header::RETRY_AFTER,
+                retry_after_value(retry_after),
+            );
+            resp
+        }
+        504 => {
+            tracing::error!("IFC-analyse: sidecar meldt timeout");
+            error_response(StatusCode::GATEWAY_TIMEOUT, "analyse_timeout", detail)
+        }
+        other => {
+            // 500 bevat `exit_code` en `stderr`: alleen ingekort loggen, nooit doorgeven.
+            let stderr = json
+                .as_ref()
+                .and_then(|v| v.get("stderr"))
+                .and_then(Value::as_str)
+                .map(|s| truncate_chars(s, MAX_DETAIL_CHARS))
+                .unwrap_or_default();
+            tracing::error!(status = other, stderr = %stderr, "IFC-analyse: sidecar-fout");
+            bad_gateway(&detail)
+        }
+    }
+}
+
+/// `Retry-After`-waarde: die van de sidecar, anders [`DEFAULT_RETRY_AFTER_S`].
+fn retry_after_value(seconds: Option<u64>) -> axum::http::HeaderValue {
+    axum::http::HeaderValue::from(seconds.unwrap_or(DEFAULT_RETRY_AFTER_S))
 }
 
 /// Haal `detail` (anders `error`) als tekst uit een sidecar-foutobject.
@@ -295,6 +364,15 @@ mod tests {
     }
 
     async fn call(base: &str, timeout: Duration) -> (StatusCode, Value) {
+        let (status, _, body) = call_full(base, timeout, None).await;
+        (status, body)
+    }
+
+    async fn call_full(
+        base: &str,
+        timeout: Duration,
+        token: Option<&str>,
+    ) -> (StatusCode, axum::http::HeaderMap, Value) {
         let resp = forward_to_sidecar(
             &reqwest::Client::new(),
             base,
@@ -302,13 +380,178 @@ mod tests {
             "model.ifc",
             "upload.ifc",
             bytes::Bytes::from_static(b"ISO-10303-21;"),
+            token,
         )
         .await;
         let status = resp.status();
+        let headers = resp.headers().clone();
         let body = axum::body::to_bytes(resp.into_body(), usize::MAX)
             .await
             .unwrap();
-        (status, serde_json::from_slice(&body).unwrap_or(Value::Null))
+        (
+            status,
+            headers,
+            serde_json::from_slice(&body).unwrap_or(Value::Null),
+        )
+    }
+
+    /// Nep-sidecar die altijd met `status` en JSON-body antwoordt.
+    async fn sidecar_with(
+        status: StatusCode,
+        body: Value,
+        retry_after: Option<&'static str>,
+    ) -> String {
+        let app = Router::new().route(
+            "/analyse",
+            post(move || {
+                let body = body.clone();
+                async move {
+                    let mut resp = (status, Json(body)).into_response();
+                    if let Some(v) = retry_after {
+                        resp.headers_mut()
+                            .insert("retry-after", axum::http::HeaderValue::from_static(v));
+                    }
+                    resp
+                }
+            }),
+        );
+        spawn_sidecar(app).await
+    }
+
+    #[tokio::test]
+    async fn bezet_wordt_503_analyse_busy_met_retry_after() {
+        let base = sidecar_with(
+            StatusCode::SERVICE_UNAVAILABLE,
+            json!({"error": "BEZET", "detail": "Er loopt al een analyse"}),
+            Some("12"),
+        )
+        .await;
+        let (status, headers, body) = call_full(&base, TEST_TIMEOUT, None).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(body["error"], "analyse_busy");
+        assert_eq!(body["detail"], "Er loopt al een analyse");
+        assert_eq!(headers["retry-after"], "12");
+    }
+
+    #[tokio::test]
+    async fn bezet_zonder_retry_after_krijgt_default_30() {
+        let base = sidecar_with(
+            StatusCode::SERVICE_UNAVAILABLE,
+            json!({"error": "BEZET", "detail": "bezet"}),
+            None,
+        )
+        .await;
+        let (_, headers, _) = call_full(&base, TEST_TIMEOUT, None).await;
+        assert_eq!(headers["retry-after"], "30");
+    }
+
+    #[tokio::test]
+    async fn sidecar_413_wordt_413_file_too_large() {
+        let base = sidecar_with(
+            StatusCode::PAYLOAD_TOO_LARGE,
+            json!({"error": "TE_GROOT", "detail": "Boven 200 MB"}),
+            None,
+        )
+        .await;
+        let (status, body) = call(&base, TEST_TIMEOUT).await;
+        assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(body["error"], "file_too_large");
+        assert_eq!(body["detail"], "Boven 200 MB");
+    }
+
+    #[tokio::test]
+    async fn sidecar_504_wordt_504_analyse_timeout() {
+        let base = sidecar_with(
+            StatusCode::GATEWAY_TIMEOUT,
+            json!({"error": "TIME_OUT", "detail": "Boven 600 s"}),
+            None,
+        )
+        .await;
+        let (status, body) = call(&base, TEST_TIMEOUT).await;
+        assert_eq!(status, StatusCode::GATEWAY_TIMEOUT);
+        assert_eq!(body["error"], "analyse_timeout");
+    }
+
+    #[tokio::test]
+    async fn sidecar_422_ifc_onleesbaar_wordt_422() {
+        let base = sidecar_with(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            json!({"error": "IFC_ONLEESBAAR", "detail": "Kan IFC niet lezen"}),
+            None,
+        )
+        .await;
+        let (status, body) = call(&base, TEST_TIMEOUT).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(body["error"], "analyse_failed");
+        assert_eq!(body["detail"], "Kan IFC niet lezen");
+    }
+
+    #[tokio::test]
+    async fn sidecar_401_wordt_502() {
+        let base = sidecar_with(
+            StatusCode::UNAUTHORIZED,
+            json!({"error": "GEEN_TOEGANG", "detail": "Token ontbreekt"}),
+            None,
+        )
+        .await;
+        let (status, body) = call(&base, TEST_TIMEOUT).await;
+        assert_eq!(status, StatusCode::BAD_GATEWAY);
+        assert_eq!(body["error"], "analyse_error");
+    }
+
+    #[tokio::test]
+    async fn sidecar_500_lekt_geen_stderr_of_exit_code() {
+        let base = sidecar_with(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            json!({
+                "error": "ENGINE_FOUT",
+                "detail": "Engine stopte",
+                "exit_code": 3,
+                "stderr": "Traceback GEHEIM-PAD C:\\intern"
+            }),
+            None,
+        )
+        .await;
+        let resp = forward_to_sidecar(
+            &reqwest::Client::new(),
+            &base,
+            TEST_TIMEOUT,
+            "m.ifc",
+            "upload.ifc",
+            bytes::Bytes::from_static(b"x"),
+            None,
+        )
+        .await;
+        assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
+        let raw = axum::body::to_bytes(resp.into_body(), usize::MAX)
+            .await
+            .unwrap();
+        let tekst = String::from_utf8_lossy(&raw);
+        assert!(tekst.contains("analyse_error"));
+        assert!(tekst.contains("Engine stopte"));
+        assert!(!tekst.contains("GEHEIM"));
+        assert!(!tekst.contains("stderr"));
+        assert!(!tekst.contains("exit_code"));
+    }
+
+    #[tokio::test]
+    async fn token_wordt_als_bearer_meegestuurd() {
+        let app = Router::new().route(
+            "/analyse",
+            post(|headers: axum::http::HeaderMap| async move {
+                let auth = headers
+                    .get("authorization")
+                    .and_then(|v| v.to_str().ok())
+                    .unwrap_or("")
+                    .to_string();
+                Json(json!({"auth": auth}))
+            }),
+        );
+        let base = spawn_sidecar(app).await;
+        let (_, _, met) = call_full(&base, TEST_TIMEOUT, Some("geheim123")).await;
+        assert_eq!(met["auth"], "Bearer geheim123");
+        let (_, _, zonder) = call_full(&base, TEST_TIMEOUT, None).await;
+        assert_eq!(zonder["auth"], "");
     }
 
     #[tokio::test]

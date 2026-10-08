@@ -134,6 +134,7 @@ async fn main() {
         None => tracing::info!("Geen REPORT_DEFAULT_COVER_DIR — rapporten zonder coverfoto gaan ongewijzigd door"),
     }
     app_state.ifc_analyse_url = config.ifc_analyse_url.clone();
+    app_state.ifc_analyse_token = config.ifc_analyse_token.clone();
     app_state.ifc_analyse_timeout = config.ifc_analyse_timeout;
 
     // --- Routes ---
