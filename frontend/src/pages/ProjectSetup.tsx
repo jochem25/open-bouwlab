@@ -9,6 +9,7 @@ import { Button } from "../components/ui/Button";
 import { PageHeader } from "../components/layout/PageHeader";
 import { useAuth } from "../hooks/useAuth";
 import { useProjectStore } from "../store/projectStore";
+import { IfcImportOriginNote } from "../components/ifcImport/IfcImportOriginNote";
 import { ConflictError } from "../lib/backend";
 import {
   saveExistingServerProject,
@@ -111,6 +112,7 @@ export function ProjectSetup() {
   );
 
   const { t } = useTranslation();
+  const ifcOrigin = useProjectStore((s) => s.ifcImport);
 
   return (
     <div>
@@ -142,6 +144,7 @@ export function ProjectSetup() {
       />
 
       <div className="space-y-6 p-6">
+        {ifcOrigin && <IfcImportOriginNote origin={ifcOrigin} />}
         <AlgemeenTab />
         <ZonesCard />
       </div>

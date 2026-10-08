@@ -15,6 +15,7 @@ import type {
 } from "../types";
 import type { Isso53ProjectResult } from "../types/isso53Result";
 import type { EnergyInput } from "../types/beng";
+import type { IfcImportOrigin } from "../types/ifcImport";
 import type { BengGeometry } from "../types/bengGeometry";
 import type { Uniec3CertifiedResults } from "../types/uniec";
 import { isIsso53Heating } from "../lib/normSwitch";
@@ -179,6 +180,13 @@ interface ProjectStore {
    */
   uniecReference: Uniec3CertifiedResults | null;
   /**
+   * Herkomst van de laatste IFC-import (tab "IFC-import"). Gepersisteerd
+   * (localStorage) maar reist NIET mee in de server-/`.ifcenergy`-envelope
+   * (zelfde levensloop als {@link ProjectStore.uniecReference}); `null` bij
+   * projectwissel/-reset.
+   */
+  ifcImport: IfcImportOrigin | null;
+  /**
    * Calculation result (null if not yet calculated). Houdt een ISSO 51
    * (`ProjectResult`) of ISSO 53 (`Isso53ProjectResult`) resultaat —
    * consumers discrimineren op `norm`, niet op het result-shape zelf.
@@ -233,6 +241,8 @@ interface ProjectStore {
    * vergelijkings-paneel. Zet `isDirty`.
    */
   setUniecReference: (reference: Uniec3CertifiedResults | null) => void;
+  /** Zet de herkomst van een IFC-import (metadata, raakt `isDirty` niet). */
+  setIfcImport: (origin: IfcImportOrigin | null) => void;
   /**
    * Zet de actieve norm. Wordt aangeroepen door de Backstage NormChoiceModal
    * bij nieuw-project en (in fase 4) door de wissel-flow.
@@ -480,6 +490,7 @@ export const useProjectStore = create<ProjectStore>()(
       energy: null,
       bengGeometry: null,
       uniecReference: null,
+      ifcImport: null,
       result: null,
       error: null,
       isCalculating: false,
@@ -534,6 +545,8 @@ export const useProjectStore = create<ProjectStore>()(
 
       setUniecReference: (uniecReference) =>
         set({ uniecReference, isDirty: true }),
+
+      setIfcImport: (ifcImport) => set({ ifcImport }),
 
       setNorm: (norm) => set({ norm, isDirty: true }),
 
@@ -784,6 +797,7 @@ export const useProjectStore = create<ProjectStore>()(
             energy: null,
             bengGeometry: null,
             uniecReference: null,
+            ifcImport: null,
             isDirty: true,
             result: null,
             error: null,
@@ -839,6 +853,7 @@ export const useProjectStore = create<ProjectStore>()(
           energy: null,
           bengGeometry: null,
           uniecReference: null,
+          ifcImport: null,
           activeProjectId: id,
           result,
           isDirty: false,
@@ -891,6 +906,7 @@ export const useProjectStore = create<ProjectStore>()(
           energy: null,
           bengGeometry: null,
           uniecReference: null,
+          ifcImport: null,
           result: null,
           error: null,
           isCalculating: false,
@@ -1241,6 +1257,7 @@ export function partializeProjectStore(state: ProjectStore) {
     energy: state.energy,
     bengGeometry: state.bengGeometry,
     uniecReference: state.uniecReference,
+    ifcImport: state.ifcImport,
     result: state.result,
     isDirty: state.isDirty,
     activeProjectId: state.activeProjectId,
@@ -1293,6 +1310,7 @@ export function mergePersistedProjectStore(
     // Silent migration voor projecten van vóór de Uniec 3-import (F8).
     uniecReference:
       (persisted as Partial<ProjectStore>)?.uniecReference ?? null,
+    ifcImport: (persisted as Partial<ProjectStore>)?.ifcImport ?? null,
     // Silent migration voor projecten van vóór de ventilatiebalans-module.
     ventilation: (() => {
       const v = (persisted as Partial<ProjectStore>)?.ventilation;

@@ -24,7 +24,7 @@ import { Modeller } from "./pages/Modeller";
 import { ProjectConstructions } from "./pages/ProjectConstructions";
 import { Rapport } from "./pages/Rapport";
 import { Ifc } from "./pages/Ifc";
-import { IfcReconstruction } from "./pages/IfcReconstruction";
+import { IfcImport } from "./pages/IfcImport";
 import { Help } from "./pages/Help";
 import { ConstructieStaal } from "./pages/ConstructieStaal";
 import { ConstructieBeton } from "./pages/ConstructieBeton";
@@ -72,8 +72,9 @@ export function App() {
             <Route path="/warmteverlies/instellingen" element={<WarmteverliesInstellingen />} />
             <Route path="/results" element={<Results />} />
             <Route path="/modeller" element={<Modeller />} />
+            <Route path="/ifc-import" element={<IfcImport />} />
             <Route path="/ifc" element={<Ifc />} />
-            <Route path="/ifc-reconstructie" element={<IfcReconstruction />} />
+            <Route path="/ifc-reconstructie" element={<Navigate to="/ifc-import" replace />} />
             <Route path="/rapport" element={<Rapport />} />
             <Route path="/import/thermal" element={<ThermalImportWizard />} />
             <Route path="/help" element={<Help />} />

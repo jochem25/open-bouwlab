@@ -72,6 +72,7 @@
     "constructions": "Constructions",
     "modeller": "Modeller",
     "ifc": "IFC",
+    "ifcImport": "IFC import",
     "ifcReconstruction": "IFC reconstruction (beta)",
     "results": "Results",
     "library": "Library",

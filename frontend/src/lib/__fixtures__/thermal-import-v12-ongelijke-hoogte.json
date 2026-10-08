@@ -1,0 +1,752 @@
+{
+  "version": "1.2",
+  "source": "ifc",
+  "exported_at": "2026-10-06T09:27:04+00:00",
+  "project_name": "v12_ongelijke_hoogte [maatregime=isso51-vertrek]",
+  "rooms": [
+    {
+      "id": "room-0000000000000000000008",
+      "name": "hoog",
+      "type": "heated",
+      "area_m2": 12.0,
+      "height_m": 2.6,
+      "volume_m3": 31.2,
+      "level": "begane grond",
+      "boundary_polygon": [
+        [
+          3.846,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.115
+        ],
+        [
+          0.0,
+          3.0
+        ],
+        [
+          0.154,
+          3.0
+        ],
+        [
+          4.0,
+          3.0
+        ],
+        [
+          4.0,
+          2.885
+        ],
+        [
+          4.0,
+          0.0
+        ]
+      ]
+    },
+    {
+      "id": "room-000000000000000000000A",
+      "name": "laag",
+      "type": "heated",
+      "area_m2": 12.0,
+      "height_m": 2.4,
+      "volume_m3": 28.8,
+      "level": "begane grond",
+      "boundary_polygon": [
+        [
+          8.033,
+          0.0
+        ],
+        [
+          4.2,
+          0.0
+        ],
+        [
+          4.2,
+          0.125
+        ],
+        [
+          4.2,
+          3.0
+        ],
+        [
+          4.367,
+          3.0
+        ],
+        [
+          8.2,
+          3.0
+        ],
+        [
+          8.2,
+          2.875
+        ],
+        [
+          8.2,
+          0.0
+        ]
+      ]
+    },
+    {
+      "id": "room-outside",
+      "name": "outside",
+      "type": "outside"
+    }
+  ],
+  "constructions": [
+    {
+      "id": "c-a310d26865d76134",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-000000000000000000000A",
+      "orientation": "wall",
+      "gross_area_m2": 3.9,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          0.0,
+          0.0
+        ],
+        [
+          4.0,
+          0.0,
+          1.3
+        ],
+        [
+          4.0,
+          3.0,
+          1.3
+        ],
+        [
+          4.0,
+          3.0,
+          0.0
+        ]
+      ],
+      "compass": "E",
+      "pair_id": "p-fdbf874147395102",
+      "revit_element_id": 1202
+    },
+    {
+      "id": "c-02bacdbd4b1961e4",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-000000000000000000000A",
+      "orientation": "wall",
+      "gross_area_m2": 1.56,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          0.0,
+          1.3
+        ],
+        [
+          4.0,
+          0.0,
+          1.82
+        ],
+        [
+          4.0,
+          3.0,
+          1.82
+        ],
+        [
+          4.0,
+          3.0,
+          1.3
+        ]
+      ],
+      "compass": "E",
+      "pair_id": "p-fdbf874147395102",
+      "revit_element_id": 1202
+    },
+    {
+      "id": "c-6ab5651529a4eb82",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-000000000000000000000A",
+      "orientation": "wall",
+      "gross_area_m2": 1.56,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          0.0,
+          1.82
+        ],
+        [
+          4.0,
+          0.0,
+          2.34
+        ],
+        [
+          4.0,
+          3.0,
+          2.34
+        ],
+        [
+          4.0,
+          3.0,
+          1.82
+        ]
+      ],
+      "compass": "E",
+      "pair_id": "p-fdbf874147395102",
+      "revit_element_id": 1202
+    },
+    {
+      "id": "c-53ae51399158737e",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 0.78,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          0.0,
+          2.34
+        ],
+        [
+          4.0,
+          0.0,
+          2.6
+        ],
+        [
+          4.0,
+          3.0,
+          2.6
+        ],
+        [
+          4.0,
+          3.0,
+          2.34
+        ]
+      ],
+      "compass": "E",
+      "revit_element_id": 1202
+    },
+    {
+      "id": "c-7f5e2bcd9cffdd44",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-outside",
+      "orientation": "floor",
+      "gross_area_m2": 12.0,
+      "layers": [
+        {
+          "material": "beton",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          0.0,
+          0.0
+        ],
+        [
+          4.0,
+          3.0,
+          0.0
+        ],
+        [
+          0.0,
+          3.0,
+          -0.0
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "revit_element_id": 1231
+    },
+    {
+      "id": "c-b1e9f63e03b5f5c1",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 7.8,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          0.0,
+          3.0,
+          0.0
+        ],
+        [
+          0.0,
+          3.0,
+          2.6
+        ],
+        [
+          -0.0,
+          0.0,
+          2.6
+        ],
+        [
+          0.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "compass": "W",
+      "revit_element_id": 1213
+    },
+    {
+      "id": "c-6d12722b8847f879",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 10.4,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          2.6
+        ],
+        [
+          4.0,
+          0.0,
+          2.6
+        ],
+        [
+          4.0,
+          0.0,
+          0.0
+        ]
+      ],
+      "compass": "S",
+      "revit_element_id": 1211
+    },
+    {
+      "id": "c-a2c5c310c55fde38",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 10.4,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          3.0,
+          0.0
+        ],
+        [
+          4.0,
+          3.0,
+          2.6
+        ],
+        [
+          0.0,
+          3.0,
+          2.6
+        ],
+        [
+          0.0,
+          3.0,
+          0.0
+        ]
+      ],
+      "compass": "N",
+      "revit_element_id": 1212
+    },
+    {
+      "id": "c-265de35179052055",
+      "room_a": "room-0000000000000000000008",
+      "room_b": "room-outside",
+      "orientation": "roof",
+      "gross_area_m2": 12.0,
+      "layers": [
+        {
+          "material": "n7_isolatie_PIR",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.0,
+          0.0,
+          2.6
+        ],
+        [
+          0.0,
+          0.0,
+          2.6
+        ],
+        [
+          0.0,
+          3.0,
+          2.6
+        ],
+        [
+          4.0,
+          3.0,
+          2.6
+        ]
+      ],
+      "revit_element_id": 1232
+    },
+    {
+      "id": "c-58d027b674de520b",
+      "room_a": "room-000000000000000000000A",
+      "room_b": "room-0000000000000000000008",
+      "orientation": "wall",
+      "gross_area_m2": 7.2,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.2,
+          3.0,
+          0.0
+        ],
+        [
+          4.2,
+          3.0,
+          2.4
+        ],
+        [
+          4.2,
+          -0.0,
+          2.4
+        ],
+        [
+          4.2,
+          0.0,
+          -0.0
+        ]
+      ],
+      "compass": "W",
+      "pair_id": "p-fdbf874147395102",
+      "revit_element_id": 1202
+    },
+    {
+      "id": "c-8ec084da8b41071e",
+      "room_a": "room-000000000000000000000A",
+      "room_b": "room-outside",
+      "orientation": "floor",
+      "gross_area_m2": 12.0,
+      "layers": [
+        {
+          "material": "beton",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          8.2,
+          0.0,
+          0.0
+        ],
+        [
+          8.2,
+          3.0,
+          0.0
+        ],
+        [
+          4.2,
+          3.0,
+          0.0
+        ],
+        [
+          4.2,
+          0.0,
+          0.0
+        ]
+      ],
+      "revit_element_id": 1231
+    },
+    {
+      "id": "c-ba60547a803bece7",
+      "room_a": "room-000000000000000000000A",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 9.6,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          4.2,
+          0.0,
+          0.0
+        ],
+        [
+          4.2,
+          0.0,
+          2.4
+        ],
+        [
+          8.2,
+          0.0,
+          2.4
+        ],
+        [
+          8.2,
+          0.0,
+          0.0
+        ]
+      ],
+      "compass": "S",
+      "revit_element_id": 1221
+    },
+    {
+      "id": "c-041ed125ef6e3af6",
+      "room_a": "room-000000000000000000000A",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 9.6,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          8.2,
+          3.0,
+          0.0
+        ],
+        [
+          8.2,
+          3.0,
+          2.4
+        ],
+        [
+          4.2,
+          3.0,
+          2.4
+        ],
+        [
+          4.2,
+          3.0,
+          0.0
+        ]
+      ],
+      "compass": "N",
+      "revit_element_id": 1222
+    },
+    {
+      "id": "c-66bd907f9ef474a5",
+      "room_a": "room-000000000000000000000A",
+      "room_b": "room-outside",
+      "orientation": "wall",
+      "gross_area_m2": 7.2,
+      "layers": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          8.2,
+          0.0,
+          0.0
+        ],
+        [
+          8.2,
+          0.0,
+          2.4
+        ],
+        [
+          8.2,
+          3.0,
+          2.4
+        ],
+        [
+          8.2,
+          3.0,
+          0.0
+        ]
+      ],
+      "compass": "E",
+      "revit_element_id": 1223
+    },
+    {
+      "id": "c-bed2475d75a1566a",
+      "room_a": "room-000000000000000000000A",
+      "room_b": "room-outside",
+      "orientation": "roof",
+      "gross_area_m2": 12.0,
+      "layers": [
+        {
+          "material": "n7_isolatie_PIR",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "vertices": [
+        [
+          8.2,
+          0.0,
+          2.4
+        ],
+        [
+          4.2,
+          0.0,
+          2.4
+        ],
+        [
+          4.2,
+          3.0,
+          2.4
+        ],
+        [
+          8.2,
+          3.0,
+          2.4
+        ]
+      ],
+      "revit_element_id": 1233
+    }
+  ],
+  "openings": [
+    {
+      "id": "o-000000000000000000000E",
+      "construction_id": "c-58d027b674de520b",
+      "type": "door",
+      "width_mm": 800.0,
+      "height_mm": 2100.0,
+      "sill_height_mm": 0.0,
+      "revit_element_id": 1202,
+      "vertices": [
+        [
+          4.2,
+          1.9,
+          2.1
+        ],
+        [
+          4.2,
+          1.9,
+          0.0
+        ],
+        [
+          4.2,
+          1.1,
+          0.0
+        ],
+        [
+          4.2,
+          1.1,
+          2.1
+        ]
+      ]
+    },
+    {
+      "id": "o-000000000000000000000E-60a693",
+      "construction_id": "c-a310d26865d76134",
+      "type": "door",
+      "width_mm": 800.0,
+      "height_mm": 2100.0,
+      "sill_height_mm": 0.0,
+      "revit_element_id": 1202,
+      "vertices": [
+        [
+          4.2,
+          1.9,
+          2.1
+        ],
+        [
+          4.2,
+          1.9,
+          0.0
+        ],
+        [
+          4.2,
+          1.1,
+          0.0
+        ],
+        [
+          4.2,
+          1.1,
+          2.1
+        ]
+      ]
+    }
+  ],
+  "open_connections": [],
+  "true_north_deg": 0.0
+}

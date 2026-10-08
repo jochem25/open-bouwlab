@@ -262,7 +262,7 @@ const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
     items: [
       { to: "/rooms", labelKey: "sidebar.rooms", Icon: IconGrid },
       { to: "/ifc", labelKey: "sidebar.ifc", Icon: IconIfc },
-      { to: "/ifc-reconstructie", labelKey: "sidebar.ifcReconstruction", Icon: IconIfcReconstruction },
+      { to: "/ifc-import", labelKey: "sidebar.ifcImport", Icon: IconIfcReconstruction },
       { to: "/warmteverlies/instellingen", labelKey: "sidebar.warmteverliesInstellingen", Icon: IconLayers },
       { to: "/results", labelKey: "sidebar.results", Icon: IconBarChart },
     ],
