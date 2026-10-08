@@ -58,7 +58,7 @@ export function IfcImport() {
   }, []);
 
   const handleImport = useCallback(
-    (filtered: FilteredImport, approvedCount: number) => {
+    (filtered: FilteredImport, approvedIds: string[]) => {
       if (!loaded) return;
       const { importFile, importResult } = filtered;
       const applied = applyThermalImport(
@@ -81,9 +81,11 @@ export function IfcImport() {
         engine_name: loaded.response.engine.name,
         engine_version: loaded.response.engine.version,
         imported_at: new Date().toISOString(),
-        rooms_count: approvedCount,
+        rooms_count: approvedIds.length,
+        approved_room_ids: approvedIds,
+        analyse: loaded.response,
       });
-      addToast(`${approvedCount} ruimten overgenomen uit ${loaded.response.source_filename}`, "success");
+      addToast(`${approvedIds.length} ruimten overgenomen uit ${loaded.response.source_filename}`, "success");
       navigate("/rooms");
     },
     [

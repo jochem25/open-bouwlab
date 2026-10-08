@@ -139,6 +139,7 @@ export function AppShell({ children }: AppShellProps) {
               isso53Rooms: imported.isso53?.rooms,
               sharedExtra: imported.sharedExtra,
               ventilation: imported.ventilation,
+              ifcImport: imported.ifcImport,
             });
             // setProject reset currentLocalPath naar null; daarna pas
             // het echte pad zetten zodat Bestand → Opslaan stil terug-

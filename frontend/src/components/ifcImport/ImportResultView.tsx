@@ -41,7 +41,7 @@ interface Props {
   importResult: ThermalImportResult;
   /** Aantal ruimten dat het project nu al heeft (bepaalt "Vervangen"). */
   existingRoomCount: number;
-  onImport: (filtered: FilteredImport, approvedCount: number) => void;
+  onImport: (filtered: FilteredImport, approvedIds: string[]) => void;
 }
 
 export function ImportResultView({ response, importResult, existingRoomCount, onImport }: Props) {
@@ -93,7 +93,7 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
 
   const handleImportClick = () => {
     if (needsConfirm) setConfirming(true);
-    else onImport(filtered, approved.size);
+    else onImport(filtered, [...approved]);
   };
 
   return (
@@ -228,7 +228,7 @@ export function ImportResultView({ response, importResult, existingRoomCount, on
         onCancel={() => setConfirming(false)}
         onConfirm={() => {
           setConfirming(false);
-          onImport(filtered, approved.size);
+          onImport(filtered, [...approved]);
         }}
       />
     </div>

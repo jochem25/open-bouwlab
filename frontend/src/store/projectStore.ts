@@ -180,10 +180,9 @@ interface ProjectStore {
    */
   uniecReference: Uniec3CertifiedResults | null;
   /**
-   * Herkomst van de laatste IFC-import (tab "IFC-import"). Gepersisteerd
-   * (localStorage) maar reist NIET mee in de server-/`.ifcenergy`-envelope
-   * (zelfde levensloop als {@link ProjectStore.uniecReference}); `null` bij
-   * projectwissel/-reset.
+   * Herkomst van de laatste IFC-import (tab "IFC-import"). Reist mee in de
+   * server-/`.ifcenergy`-envelope. In localStorage wordt alleen de herkomst
+   * gepersisteerd, zonder `analyse` (grootte); `null` bij projectwissel/-reset.
    */
   ifcImport: IfcImportOrigin | null;
   /**
@@ -341,6 +340,8 @@ interface ProjectStore {
        * leeg (huidig gedrag voor bestanden zonder ventilatie-data).
        */
       ventilation?: VentilationState;
+      /** IFC-import-herkomst (+ analyse) uit de envelope. Afwezig -> `null`. */
+      ifcImport?: IfcImportOrigin;
     },
   ) => void;
   /** Set the active server-side project ID. */
@@ -388,6 +389,7 @@ interface ProjectStore {
       isso53Rooms?: Record<string, Isso53RoomState>;
       sharedExtra?: SharedExtra;
       ventilation?: VentilationState;
+      ifcImport?: IfcImportOrigin;
     },
   ) => void;
   /** Update the server timestamp after a successful save. */
@@ -797,7 +799,7 @@ export const useProjectStore = create<ProjectStore>()(
             energy: null,
             bengGeometry: null,
             uniecReference: null,
-            ifcImport: null,
+            ifcImport: opts?.ifcImport ?? null,
             isDirty: true,
             result: null,
             error: null,
@@ -853,7 +855,7 @@ export const useProjectStore = create<ProjectStore>()(
           energy: null,
           bengGeometry: null,
           uniecReference: null,
-          ifcImport: null,
+          ifcImport: opts?.ifcImport ?? null,
           activeProjectId: id,
           result,
           isDirty: false,
@@ -1257,7 +1259,10 @@ export function partializeProjectStore(state: ProjectStore) {
     energy: state.energy,
     bengGeometry: state.bengGeometry,
     uniecReference: state.uniecReference,
-    ifcImport: state.ifcImport,
+    // `analyse` (complete thermal.json, enkele MB) blijft buiten localStorage.
+    ifcImport: state.ifcImport
+      ? (({ analyse: _analyse, ...origin }) => origin)(state.ifcImport)
+      : null,
     result: state.result,
     isDirty: state.isDirty,
     activeProjectId: state.activeProjectId,

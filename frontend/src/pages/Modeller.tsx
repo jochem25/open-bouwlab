@@ -557,6 +557,7 @@ export function Modeller() {
             isso53Rooms: imported.isso53?.rooms,
             sharedExtra: imported.sharedExtra,
             ventilation: imported.ventilation,
+            ifcImport: imported.ifcImport,
           });
           if (imported.result) {
             useProjectStore.getState().setResult(imported.result);

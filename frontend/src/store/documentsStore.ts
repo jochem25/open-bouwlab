@@ -239,6 +239,9 @@ function loadSnapshot(snap: DocumentSnapshot): void {
       snap.project.isso53Building ?? { ...DEFAULT_ISSO53_BUILDING },
     isso53Rooms: snap.project.isso53Rooms ?? {},
     ventilation: snap.project.ventilation ?? { terminals: [], rooms: {} },
+    // IFC-import-herkomst zit niet in tab-snapshots (grootte): niet naar de
+    // volgende tab laten lekken.
+    ifcImport: null,
     // Per-tab server-binding herstellen i.p.v. kaal resetten: de auto-save
     // van deze tab moet naar zíjn serverproject schrijven. Een stale
     // debounce-timer van de vórige tab valt nu in de race-guard van

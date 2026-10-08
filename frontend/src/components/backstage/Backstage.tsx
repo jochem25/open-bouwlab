@@ -279,6 +279,7 @@ export default function Backstage({
           isso53Rooms: imported.isso53?.rooms,
           sharedExtra: imported.sharedExtra,
           ventilation: imported.ventilation,
+          ifcImport: imported.ifcImport,
         });
         useProjectStore.getState().setCurrentLocalPath(selected);
         if (imported.result) {
@@ -332,6 +333,7 @@ export default function Backstage({
           isso53Rooms: imported.isso53?.rooms,
           sharedExtra: imported.sharedExtra,
           ventilation: imported.ventilation,
+          ifcImport: imported.ifcImport,
         });
         if (imported.result) {
           useProjectStore.getState().setResult(imported.result);
@@ -384,6 +386,7 @@ export default function Backstage({
             isso53Rooms: imported.isso53?.rooms,
             sharedExtra: imported.sharedExtra,
             ventilation: imported.ventilation,
+            ifcImport: imported.ifcImport,
           });
           useProjectStore.getState().setCurrentLocalPath(entry.path);
           if (imported.result) {
