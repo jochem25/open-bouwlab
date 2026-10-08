@@ -16,7 +16,8 @@ import {
   DISMISS_KEY,
   IfcImportChecklistPanel,
 } from "../components/ifcImport/IfcImportChecklistPanel";
-import { applyRoomFunctions } from "../lib/roomFunctionFromModel";
+import { computeMaterialMatches } from "../lib/ifcImportChecklist";
+import { applyRoomFunctions, computeFunctionSources } from "../lib/roomFunctionFromModel";
 import { ImportResultView } from "../components/ifcImport/ImportResultView";
 import { UploadPanel } from "../components/ifcImport/UploadPanel";
 import { IfcImportOriginNote } from "../components/ifcImport/IfcImportOriginNote";
@@ -91,6 +92,13 @@ export function IfcImport() {
         imported_at: new Date().toISOString(),
         rooms_count: approvedIds.length,
         approved_room_ids: approvedIds,
+        room_function_sources: computeFunctionSources(
+          project,
+          importFile.rooms,
+          loaded.response.rooms_extra,
+          approvedIds,
+        ),
+        material_matches: computeMaterialMatches(loaded.response.thermal, approvedIds),
         defaults: {
           heating_system: project.rooms[0]?.heating_system ?? "",
           ventilation_system: project.ventilation.system_type,

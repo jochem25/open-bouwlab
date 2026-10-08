@@ -95,6 +95,26 @@ export function modelTermFor(
   return roomsExtra?.find((r) => r.room_id === roomId)?.function ?? null;
 }
 
+/** Bron van de functie per goedgekeurde verwarmde ruimte, op het moment van overname. */
+export function computeFunctionSources(
+  project: Project,
+  thermalRooms: ThermalRoom[],
+  roomsExtra: RoomExtra[] | undefined,
+  approvedIds: string[],
+): Record<string, FunctionSource> {
+  const heated = new Set(thermalRooms.filter((r) => r.type === "heated").map((r) => r.id));
+  const approved = new Set(approvedIds);
+  const out: Record<string, FunctionSource> = {};
+  for (const room of project.rooms) {
+    if (!approved.has(room.id) || !heated.has(room.id)) continue;
+    out[room.id] = resolveRoomFunction(
+      room.name,
+      modelTermFor(room.id, thermalRooms, roomsExtra),
+    ).source;
+  }
+  return out;
+}
+
 /**
  * Zet de functie van verwarmde project-ruimten: model, dan naam, dan default.
  * Onverwarmde ruimten houden hun functie. `custom_temperature` blijft

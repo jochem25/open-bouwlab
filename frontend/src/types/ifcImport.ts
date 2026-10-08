@@ -1,5 +1,14 @@
 import type { IfcAnalyseStored } from "../lib/ifcAnalyse";
 
+export type RoomFunctionSource = "model" | "naam" | "default";
+
+/** Op naam gekoppeld materiaal (keyword/heuristiek), bewaard voor de checklist. */
+export interface IfcMaterialMatch {
+  ifc_name: string;
+  material_id: string;
+  confidence: "keyword" | "heuristic";
+}
+
 export interface IfcImportDefaults {
   heating_system: string;
   ventilation_system: string;
@@ -29,6 +38,15 @@ export interface IfcImportOrigin {
   rooms_count: number;
   /** Thermal-room-id's van de goedgekeurde (overgenomen) ruimten. */
   approved_room_ids: string[];
+  /**
+   * Waar de functie van elke overgenomen verwarmde ruimte vandaan komt, op het
+   * moment van overname. Klein, dus ook in localStorage: de checklist blijft zo
+   * na herladen kloppen zonder `analyse`. Ontbreekt bij oudere projecten
+   * (de checklist valt dan terug op herleiden uit `analyse`).
+   */
+  room_function_sources?: Record<string, RoomFunctionSource>;
+  /** Idem voor de op naam gekoppelde materialen (keyword/heuristiek). */
+  material_matches?: IfcMaterialMatch[];
   /**
    * Projectwaarden op het moment van overname die de import zelf als default
    * invult (niet uit de IFC komen). De checklist toont ze zolang ze

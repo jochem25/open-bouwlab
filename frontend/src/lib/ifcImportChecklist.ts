@@ -8,7 +8,7 @@
  */
 import type { ProjectConstruction } from "../components/modeller/types";
 import type { Project } from "../types";
-import type { IfcImportOrigin } from "../types/ifcImport";
+import type { IfcImportOrigin, IfcMaterialMatch } from "../types/ifcImport";
 import {
   BUILDING_TYPE_LABELS,
   HEATING_SYSTEM_LABELS,
@@ -19,6 +19,8 @@ import {
 import { matchIfcMaterial } from "./ifcMaterialMatcher";
 import { getMaterialById } from "./materialsDatabase";
 import { modelTermFor, resolveRoomFunction } from "./roomFunctionFromModel";
+import { roomFunctionFromName } from "./roomFunctionFromName";
+import type { ThermalConstruction } from "./thermalImport";
 
 export type ChecklistSeverity = "ontbreekt" | "default";
 
@@ -75,28 +77,56 @@ function unknownMaterialLayers(
     .sort((a, b) => b.area - a.area);
 }
 
-/** Materialen die via keyword/heuristiek zijn gekoppeld: "IFC-naam -> materiaal (λ)". */
-function linkedMaterialLines(origin: IfcImportOrigin, approved: Set<string>): string[] {
-  const thermal = origin.analyse?.thermal;
+/**
+ * Materialen in de goedgekeurde ruimten die via keyword/heuristiek aan de
+ * database zijn gekoppeld (niet exact, niet onbekend). Bedoeld om bij de
+ * overname te bewaren (`ifcImport.material_matches`).
+ */
+export function computeMaterialMatches(
+  thermal: { constructions: ThermalConstruction[] } | undefined,
+  approvedIds: string[],
+): IfcMaterialMatch[] {
   if (!thermal) return [];
+  const approved = new Set(approvedIds);
   const names = new Set<string>();
   for (const c of thermal.constructions) {
     if (!approved.has(c.room_a)) continue;
     for (const l of c.layers ?? []) {
-      if (!(typeof l.lambda === "number" && l.lambda > 0) && l.type !== "air_gap") names.add(l.material);
+      if (!(typeof l.lambda === "number" && l.lambda > 0) && l.type !== "air_gap") {
+        names.add(l.material);
+      }
     }
   }
-  const lines: string[] = [];
+  const out: IfcMaterialMatch[] = [];
   for (const name of [...names].sort()) {
     const m = matchIfcMaterial(name);
-    if (!m.material || m.confidence === "exact" || m.confidence === "none") continue;
+    if (!m.material || (m.confidence !== "keyword" && m.confidence !== "heuristic")) continue;
+    out.push({ ifc_name: name, material_id: m.material.id, confidence: m.confidence });
+  }
+  return out;
+}
+
+/** "IFC-naam -> materiaal (λ)" per koppeling; onbekende material_id's vallen weg. */
+function materialMatchLines(matches: IfcMaterialMatch[]): string[] {
+  const lines: string[] = [];
+  for (const mm of matches) {
+    const material = getMaterialById(mm.material_id);
+    if (!material) continue;
     const value =
-      m.material.rdFixed !== null
-        ? `Rd ${m.material.rdFixed.toLocaleString("nl-NL")}`
-        : `λ ${m.material.lambda?.toLocaleString("nl-NL")}`;
-    lines.push(`${name} -> ${m.material.name} (${value})`);
+      material.rdFixed !== null
+        ? `Rd ${material.rdFixed.toLocaleString("nl-NL")}`
+        : `λ ${material.lambda?.toLocaleString("nl-NL")}`;
+    lines.push(`${mm.ifc_name} -> ${material.name} (${value})`);
   }
   return lines;
+}
+
+function linkedMaterialLines(origin: IfcImportOrigin): string[] {
+  // Bewaarde koppelingen (blijven na herladen); anders herleiden uit `analyse` (oude projecten).
+  const matches =
+    origin.material_matches ??
+    computeMaterialMatches(origin.analyse?.thermal, origin.approved_room_ids);
+  return materialMatchLines(matches);
 }
 
 export interface MissingU {
@@ -213,7 +243,7 @@ export function buildIfcImportChecklist(
       tekst: `λ onbekend, laag telt als R = 0 — U te hoog: ${list}.`,
     });
   }
-  const linked = linkedMaterialLines(origin, approved);
+  const linked = linkedMaterialLines(origin);
   if (linked.length > 0) {
     items.push({
       id: "materiaal-gekoppeld",
@@ -255,12 +285,26 @@ export function buildIfcImportChecklist(
     // Onverwarmde ruimten krijgen bij import vast "storage"; geen schatting.
     const type = thermalRooms.find((r) => r.id === room.id)?.type;
     if (type !== undefined && type !== "heated") continue;
-    const resolved = resolveRoomFunction(room.name, modelTermFor(room.id, thermalRooms, roomsExtra));
-    if (resolved.source === "default") {
+    // Bewaarde bron (blijft na herladen); anders herleiden uit `analyse` (oude projecten).
+    const stored = origin.room_function_sources;
+    if (stored && !(room.id in stored)) continue; // onverwarmd of niet geclassificeerd
+    const source =
+      stored?.[room.id] ??
+      resolveRoomFunction(room.name, modelTermFor(room.id, thermalRooms, roomsExtra)).source;
+    if (source === "default") {
       if (room.function === "living_room" && room.custom_temperature == null) unrecognized += 1;
-    } else if (room.function === resolved.function) {
-      if (resolved.source === "model") fromModel += 1;
-      else fromName += 1;
+    } else if (source === "naam") {
+      // Opgelost zodra de functie niet meer de naam-schatting is.
+      if (room.function === roomFunctionFromName(room.name).function) fromName += 1;
+    } else if (stored) {
+      // Uit het model: zonder analyse is de oorspronkelijke waarde niet te herleiden;
+      // het item blijft staan tot het paneel wordt weggeklikt.
+      fromModel += 1;
+    } else if (
+      room.function ===
+      resolveRoomFunction(room.name, modelTermFor(room.id, thermalRooms, roomsExtra)).function
+    ) {
+      fromModel += 1;
     }
   }
   const livingTemp = ROOM_FUNCTION_TEMPERATURES["living_room"] ?? 22;
