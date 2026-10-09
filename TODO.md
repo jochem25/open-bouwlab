@@ -554,10 +554,10 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 
 ## Organisaties (branch feat/opslag-organisatie, 09-10-2026)
 - [x] Nextcloud eruit, organisatiebestand (`ORGANISATIES_CONFIG`), org-groep -> organisatie, huisstijl gevalideerd naar Reports API, UI-keuze, builders zonder vaste bedrijfsnaam. Zie `docs/2026-10-09-organisaties.md`
-- [ ] Bearer (ak-*): vorm van `groups` in Authentik `users/me` meten met een testtoken (code accepteert objecten met `name` en strings)
+- [x] Bearer (ak-*): vorm van `groups` in Authentik `users/me` - gemeten in de Authentik-bron (2026.2.1): lijst objecten `{name, pk}`, inclusief geerfde groepen; parser + lege lijst getest
+- [ ] Serverconfig opruimen na deploy: `NEXTCLOUD_*`, `NC_SERVICE_PASS_3BM`, `TENANTS_CONFIG`, `DEFAULT_TENANT`, `CORS_ORIGINS` worden niet meer gelezen. `REPORTS_API_KEY` wordt nog gelezen als fallback zonder `REPORTS_API_SERVICE_TOKEN`; code-pad verwijderen zodra de Caddy-bypass weg is
 - [ ] openaec-reports: expliciete `brand` van de Open Bouwlab-service toestaan zodra een organisatie een tweede huisstijl krijgt (nu: brand moet gelijk zijn aan tenant). Eigenaar openaec-reports
 - [ ] Wens: constructie-berekeningen (staal/beton/hout) opslaan; nu alleen berekenen + rapport
-- [ ] About-tekst Backstage noemt nog "3BM Bouwkunde Cooperatie" als copyrighthouder; LICENSE zegt "Jochem Kolthof and the Open Bouwlab contributors" - besluit Jochem
 
 ## Cloud integratie — VERVALLEN (09-10-2026)
 - [x] Nextcloud-opslag verwijderd (besluit 08-10): `handlers/cloud.rs`, `/api/v1/cloud/*`, `openaec-cloud`-dependency, `tenants.json`, `TENANTS_CONFIG`/`DEFAULT_TENANT`. Er was nooit cloud-UI; er verdwijnen geen knoppen. Projecten: eigen database + download/upload `.ifcenergy`.

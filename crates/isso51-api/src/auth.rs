@@ -800,6 +800,7 @@ mod tests {
         assert_eq!(groepsnamen(&objecten), vec!["org-kba", "openbouwlab-constructie"]);
         assert_eq!(groepsnamen(&serde_json::json!(["org-kba"])), vec!["org-kba"]);
         assert!(groepsnamen(&serde_json::json!(null)).is_empty());
+        assert!(groepsnamen(&serde_json::json!([])).is_empty());
     }
 
     #[tokio::test]
