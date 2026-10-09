@@ -1,8 +1,15 @@
 //! Report generation proxy handler.
 //!
 //! Forwards report JSON to the OpenAEC Reports API via Authentik service-token
-//! (``svc-warmteverlies``) met ``X-Original-Tenant`` header voor on-behalf-of
-//! user-tenant context.
+//! (``svc-warmteverlies``).
+//!
+//! Organisatie en huisstijl (zie `crate::organisatie`):
+//! - Zonder organisatie geen rapport: 403 `geen_organisatie` (of
+//!   `meerdere_organisaties` / `onbekende_organisatie`). Geen stille fallback.
+//! - `brand` in de body is de gekozen huisstijl. Leeg = de standaardhuisstijl
+//!   van de organisatie; buiten de toegestane lijst = 403
+//!   `huisstijl_niet_toegestaan`. De proxy zet de gevalideerde `brand` altijd
+//!   in de body en stuurt `X-Original-Tenant: <organisatie-id>`.
 //!
 //! Auth vereisten:
 //! - Caller moet via forward_auth (AuthClaims) authenticated zijn
@@ -10,17 +17,17 @@
 //! - Fallback: legacy X-API-Key als service-token niet beschikbaar is
 //!
 //! Standaard-coverfoto: bevat het rapport geen `cover.image`, dan vult de
-//! proxy die aan uit `REPORT_DEFAULT_COVER_DIR/<tenant>.{jpg,png}`. Zo werkt
-//! een sjabloon met een verplichte foto (KBA) ook zonder upload, zonder dat
-//! het bedrijfsbeeld in deze publieke repo staat. Geen bestand voor de
-//! tenant: rapport gaat ongewijzigd door en een afkeuring van de Reports API
-//! komt met de oorspronkelijke tekst bij de gebruiker.
+//! proxy die aan uit `REPORT_DEFAULT_COVER_DIR/<organisatie-id>.{jpg,png}`.
+//! Zo werkt een sjabloon met een verplichte foto (KBA) ook zonder upload,
+//! zonder dat het bedrijfsbeeld in deze publieke repo staat. Geen bestand voor
+//! de organisatie: rapport gaat ongewijzigd door en een afkeuring van de
+//! Reports API komt met de oorspronkelijke tekst bij de gebruiker.
 
 use std::path::Path;
 use std::time::Duration;
 
 use base64::Engine;
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 use axum::extract::State;
 use axum::http::header;
@@ -28,15 +35,17 @@ use axum::response::{IntoResponse, Response};
 
 use crate::auth::{AuthClaims, OidcClaims};
 use crate::error::ApiError;
+use crate::organisatie::Organisatie;
 use crate::state::AppState;
 
 /// POST /report/generate — proxy report generation to OpenAEC Reports API.
 ///
 /// Auth chain:
-/// 1. `AuthClaims` extractor (forward_auth) valideert de caller en levert user-tenant.
+/// 1. `AuthClaims` extractor (forward_auth) valideert de caller; de
+///    organisatie volgt uit zijn `org-*`-groep.
 /// 2. Upstream call gebruikt `REPORTS_API_SERVICE_TOKEN` (Authentik ak-*) als
-///    primary auth methode. De user-tenant wordt doorgegeven als
-///    `X-Original-Tenant` header zodat reports de juiste tenant-templates kiest.
+///    primary auth methode, met `X-Original-Tenant: <organisatie-id>` en de
+///    gevalideerde `brand` in de body.
 /// 3. Fallback voor transitie: als service-token niet geconfigureerd is maar
 ///    `REPORTS_API_KEY` wel, stuur die als `X-API-Key` (legacy Caddy bypass).
 pub async fn generate_report(
@@ -47,20 +56,82 @@ pub async fn generate_report(
     proxy_report(&state, &claims, body).await
 }
 
+/// Organisatie van de gebruiker; zonder (geldige) organisatie een 403.
+fn organisatie_voor_rapport<'a>(
+    state: &'a AppState,
+    claims: &OidcClaims,
+) -> Result<&'a Organisatie, ApiError> {
+    match state.organisaties.van_claims(claims) {
+        Ok(Some(org)) => Ok(org),
+        Ok(None) => Err(ApiError::Organisatie {
+            code: "geen_organisatie",
+            detail: "Je account is niet aan een organisatie gekoppeld; vraag de beheerder".to_string(),
+        }),
+        Err(fout) => Err(ApiError::Organisatie {
+            code: fout.code(),
+            detail: fout.detail(),
+        }),
+    }
+}
+
+/// Bepaal de huisstijl uit `brand` in het rapport en zet hem gevalideerd terug.
+///
+/// Ontbreekt `brand` (of is hij leeg/null), dan de standaard van de organisatie.
+/// Een huisstijl buiten de toegestane lijst is een 403, geen fallback.
+fn zet_huisstijl(rapport: &mut Map<String, Value>, org: &Organisatie) -> Result<String, ApiError> {
+    let gekozen = match rapport.get("brand") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(s)) if s.trim().is_empty() => None,
+        Some(Value::String(s)) => Some(s.trim().to_string()),
+        Some(_) => {
+            return Err(ApiError::BadRequest("'brand' moet een tekst zijn".to_string()));
+        }
+    };
+    let huisstijl = match gekozen {
+        None => org.standaard_huisstijl.clone(),
+        Some(h) if org.mag_huisstijl(&h) => h,
+        Some(h) => {
+            return Err(ApiError::Organisatie {
+                code: "huisstijl_niet_toegestaan",
+                detail: format!(
+                    "Huisstijl '{h}' is niet toegestaan voor {}; kies uit: {}",
+                    org.naam,
+                    org.huisstijlen.join(", ")
+                ),
+            });
+        }
+    };
+    rapport.insert("brand".to_string(), Value::String(huisstijl.clone()));
+    Ok(huisstijl)
+}
+
 /// Stuur rapport-JSON door naar de Reports API en geef de PDF terug.
 ///
 /// Gedeeld door `/report/generate` en de constructiemodule; het gedrag
-/// (service-token, tenant-header, foutmapping) is identiek.
+/// (organisatie, huisstijl, service-token, foutmapping) is identiek.
 pub(crate) async fn proxy_report(
     state: &AppState,
     claims: &OidcClaims,
     body: String,
 ) -> Result<Response, ApiError> {
+    let org = organisatie_voor_rapport(state, claims)?;
+
     let base_url = state.reports_api_url.as_deref().ok_or_else(|| {
         ApiError::ServiceUnavailable(
             "Rapportgeneratie is niet geconfigureerd (REPORTS_API_URL ontbreekt)".to_string(),
         )
     })?;
+
+    let mut rapport = match serde_json::from_str::<Value>(&body) {
+        Ok(Value::Object(map)) => map,
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Rapport moet een JSON-object zijn".to_string(),
+            ));
+        }
+    };
+    drop(body);
+    let huisstijl = zet_huisstijl(&mut rapport, org)?;
 
     let url = format!("{}/api/generate/v2", base_url.trim_end_matches('/'));
 
@@ -70,41 +141,26 @@ pub(crate) async fn proxy_report(
         .header(header::CONTENT_TYPE.as_str(), "application/json")
         .timeout(Duration::from_secs(30));
 
-    // Tijdelijk (stap 2): organisatie-id als tenant; stap 3 maakt dit hard.
-    let tenant = state
-        .organisaties
-        .van_claims(claims)
-        .ok()
-        .flatten()
-        .map(|o| o.id.clone());
-
     // Primair: Authentik service-token (Bearer ak-*) + X-Original-Tenant
     if let Some(token) = state.reports_api_service_token.as_deref() {
-        req = req.header(
-            header::AUTHORIZATION.as_str(),
-            format!("Bearer {token}"),
-        );
-        if let Some(tenant) = tenant.as_deref() {
-            req = req.header("X-Original-Tenant", tenant);
-        } else {
-            tracing::warn!(
-                user = %claims.sub,
-                "geen tenant-claim: rapport gebruikt de tenant van het service-account"
-            );
-        }
+        req = req
+            .header(header::AUTHORIZATION.as_str(), format!("Bearer {token}"))
+            .header("X-Original-Tenant", org.id.as_str());
     } else if let Some(api_key) = state.reports_api_key.as_deref() {
         // Legacy fallback: X-API-Key (Caddy bypass) — wordt verwijderd
         // zodra service-token overal werkt.
         req = req.header("X-API-Key", api_key);
     }
+    tracing::info!(user = %claims.sub, organisatie = %org.id, huisstijl = %huisstijl, "rapport naar Reports API");
 
+    let org_id = org.id.clone();
     let dir = state.report_default_cover_dir.clone();
     let body = tokio::task::spawn_blocking(move || {
-        vul_standaard_cover(body, tenant.as_deref(), dir.as_deref())
+        vul_standaard_cover(&mut rapport, &org_id, dir.as_deref());
+        Value::Object(rapport).to_string()
     })
     .await
     .map_err(|e| ApiError::Internal(format!("standaard-coverfoto: {e}")))?;
-
     let upstream = req.body(body).send().await.map_err(|e| {
         tracing::error!("Reports API request failed: {e}");
         ApiError::ReportService(format!("Rapport service niet bereikbaar: {e}"))
@@ -149,37 +205,30 @@ pub(crate) async fn proxy_report(
 /// Maximale grootte van een standaard-coverfoto (bytes, ongecodeerd).
 const MAX_COVER_BYTES: u64 = 5 * 1024 * 1024;
 
-/// Vul `cover.image` aan met de standaardfoto van de tenant als die ontbreekt.
+/// Vul `cover.image` aan met de standaardfoto van de organisatie als die ontbreekt.
 ///
-/// Laat de body ongewijzigd als er al een afbeelding is, als er geen tenant of
-/// map is, als het bestand ontbreekt of als de body geen JSON-object is (dan
-/// keurt de Reports API hem zelf af).
-pub(crate) fn vul_standaard_cover(body: String, tenant: Option<&str>, dir: Option<&Path>) -> String {
-    let (Some(tenant), Some(dir)) = (tenant, dir) else {
-        return body;
+/// Laat het rapport ongewijzigd als er al een afbeelding is, als er geen map
+/// is of als het bestand ontbreekt.
+pub(crate) fn vul_standaard_cover(rapport: &mut Map<String, Value>, org_id: &str, dir: Option<&Path>) {
+    let Some(dir) = dir else {
+        return;
     };
-    if !is_veilige_slug(tenant) {
-        tracing::warn!(tenant, "tenant-naam ongeschikt als bestandsnaam: geen standaard-coverfoto");
-        return body;
+    if !crate::organisatie::is_slug(org_id) {
+        tracing::warn!(org_id, "organisatie-id ongeschikt als bestandsnaam: geen standaard-coverfoto");
+        return;
     }
-    let Ok(mut json) = serde_json::from_str::<Value>(&body) else {
-        return body;
-    };
-    let Some(root) = json.as_object_mut() else {
-        return body;
-    };
-    let heeft_foto = root
+    let heeft_foto = rapport
         .get("cover")
         .and_then(|c| c.get("image"))
         .is_some_and(|i| !i.is_null());
     if heeft_foto {
-        return body;
+        return;
     }
-    let Some(afbeelding) = lees_standaard_cover(dir, tenant) else {
-        tracing::info!(tenant, "geen standaard-coverfoto voor tenant");
-        return body;
+    let Some(afbeelding) = lees_standaard_cover(dir, org_id) else {
+        tracing::info!(org_id, "geen standaard-coverfoto voor organisatie");
+        return;
     };
-    let cover = root
+    let cover = rapport
         .entry("cover")
         .or_insert_with(|| Value::Object(Default::default()));
     if !cover.is_object() {
@@ -189,13 +238,12 @@ pub(crate) fn vul_standaard_cover(body: String, tenant: Option<&str>, dir: Optio
     if let Some(c) = cover.as_object_mut() {
         c.insert("image".to_string(), afbeelding);
     }
-    json.to_string()
 }
 
-/// Lees `<dir>/<tenant>.jpg` of `.png` als base64-afbeelding voor de Reports API.
-fn lees_standaard_cover(dir: &Path, tenant: &str) -> Option<Value> {
+/// Lees `<dir>/<org_id>.jpg` of `.png` als base64-afbeelding voor de Reports API.
+fn lees_standaard_cover(dir: &Path, org_id: &str) -> Option<Value> {
     for (ext, media_type) in [("jpg", "image/jpeg"), ("jpeg", "image/jpeg"), ("png", "image/png")] {
-        let pad = dir.join(format!("{tenant}.{ext}"));
+        let pad = dir.join(format!("{org_id}.{ext}"));
         let Ok(meta) = std::fs::metadata(&pad) else {
             continue;
         };
@@ -208,7 +256,7 @@ fn lees_standaard_cover(dir: &Path, tenant: &str) -> Option<Value> {
                 return Some(serde_json::json!({
                     "data": base64::engine::general_purpose::STANDARD.encode(bytes),
                     "media_type": media_type,
-                    "filename": format!("standaard-{tenant}.{ext}"),
+                    "filename": format!("standaard-{org_id}.{ext}"),
                 }));
             }
             Err(e) => {
@@ -218,14 +266,6 @@ fn lees_standaard_cover(dir: &Path, tenant: &str) -> Option<Value> {
         }
     }
     None
-}
-
-/// Alleen `[a-z0-9_-]`: de tenant wordt een bestandsnaam.
-fn is_veilige_slug(s: &str) -> bool {
-    !s.is_empty()
-        && s.len() <= 64
-        && s.bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
 }
 
 /// Haal de leesbare tekst uit een foutbody van de Reports API.
@@ -280,7 +320,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::{Arc, Mutex};
 
-    use axum::http::StatusCode;
+    use axum::http::{HeaderMap, StatusCode};
 
     /// Verse map met een standaardfoto `kba.jpg` (inhoud is willekeurig).
     fn cover_map(naam: &str) -> PathBuf {
@@ -290,19 +330,26 @@ mod tests {
         dir
     }
 
+    fn object(json: &str) -> Map<String, Value> {
+        match serde_json::from_str::<Value>(json).expect("json") {
+            Value::Object(m) => m,
+            _ => panic!("geen object"),
+        }
+    }
+
     fn cover_image(body: &str) -> Value {
         serde_json::from_str::<Value>(body).expect("json")["cover"]["image"].clone()
     }
 
     #[test]
-    fn zonder_upload_vult_standaardfoto_van_tenant_aan() {
+    fn zonder_upload_vult_standaardfoto_van_organisatie_aan() {
         let dir = cover_map("zonder");
-        let body = r#"{"template":"standaard_rapport","cover":{"subtitle":"x"}}"#.to_string();
-        let uit = vul_standaard_cover(body, Some("kba"), Some(&dir));
-        let image = cover_image(&uit);
+        let mut r = object(r#"{"template":"standaard_rapport","cover":{"subtitle":"x"}}"#);
+        vul_standaard_cover(&mut r, "kba", Some(&dir));
+        let image = &r["cover"]["image"];
         assert_eq!(image["media_type"], "image/jpeg");
         assert_eq!(image["data"], base64::engine::general_purpose::STANDARD.encode(b"jpeg-bytes"));
-        assert_eq!(serde_json::from_str::<Value>(&uit).expect("json")["cover"]["subtitle"], "x");
+        assert_eq!(r["cover"]["subtitle"], "x");
 
         // Ook zonder cover-object, met `cover: null` en met `image: null`.
         for body in [
@@ -310,29 +357,30 @@ mod tests {
             r#"{"template":"t","cover":null}"#,
             r#"{"template":"t","cover":{"image":null}}"#,
         ] {
-            let uit = vul_standaard_cover(body.to_string(), Some("kba"), Some(&dir));
-            assert_eq!(cover_image(&uit)["media_type"], "image/jpeg", "{body}");
+            let mut r = object(body);
+            vul_standaard_cover(&mut r, "kba", Some(&dir));
+            assert_eq!(r["cover"]["image"]["media_type"], "image/jpeg", "{body}");
         }
     }
 
     #[test]
-    fn met_upload_blijft_body_ongewijzigd() {
+    fn met_upload_blijft_rapport_ongewijzigd() {
         let dir = cover_map("met");
-        let body = r#"{"cover":{"image":{"data":"QUJD","media_type":"image/png"}}}"#.to_string();
-        assert_eq!(vul_standaard_cover(body.clone(), Some("kba"), Some(&dir)), body);
+        let origineel = object(r#"{"cover":{"image":{"data":"QUJD","media_type":"image/png"}}}"#);
+        let mut r = origineel.clone();
+        vul_standaard_cover(&mut r, "kba", Some(&dir));
+        assert_eq!(r, origineel);
     }
 
     #[test]
-    fn geen_standaard_voor_tenant_of_geen_map_laat_body_ongewijzigd() {
+    fn geen_standaard_voor_organisatie_of_geen_map_laat_rapport_ongewijzigd() {
         let dir = cover_map("geen");
-        let body = r#"{"cover":{}}"#.to_string();
-        assert_eq!(vul_standaard_cover(body.clone(), Some("ander"), Some(&dir)), body);
-        assert_eq!(vul_standaard_cover(body.clone(), None, Some(&dir)), body);
-        assert_eq!(vul_standaard_cover(body.clone(), Some("kba"), None), body);
-        // Tenant wordt een bestandsnaam: padtekens worden geweigerd.
-        assert_eq!(vul_standaard_cover(body.clone(), Some("../kba"), Some(&dir)), body);
-        // Geen JSON: ongewijzigd, de Reports API keurt hem af.
-        assert_eq!(vul_standaard_cover("geen json".to_string(), Some("kba"), Some(&dir)), "geen json");
+        let origineel = object(r#"{"cover":{}}"#);
+        for (org, map) in [("ander", Some(dir.as_path())), ("kba", None), ("../kba", Some(dir.as_path()))] {
+            let mut r = origineel.clone();
+            vul_standaard_cover(&mut r, org, map);
+            assert_eq!(r, origineel, "{org}");
+        }
     }
 
     #[test]
@@ -354,16 +402,27 @@ mod tests {
         assert!(lang.ends_with("...") && lang.chars().count() == MAX_DETAIL_TEKENS + 3);
     }
 
-    /// Nep-Reports API: bewaart de ontvangen body en antwoordt met `status` + `antwoord`.
-    async fn nep_reports_api(status: StatusCode, antwoord: &'static str) -> (String, Arc<Mutex<String>>) {
-        let ontvangen = Arc::new(Mutex::new(String::new()));
+    /// Wat de nep-Reports API ontving: body en headers.
+    #[derive(Default)]
+    struct Ontvangen {
+        body: String,
+        headers: HeaderMap,
+        aantal: usize,
+    }
+
+    /// Nep-Reports API: bewaart body en headers, antwoordt met `status` + `antwoord`.
+    async fn nep_reports_api(status: StatusCode, antwoord: &'static str) -> (String, Arc<Mutex<Ontvangen>>) {
+        let ontvangen = Arc::new(Mutex::new(Ontvangen::default()));
         let opslag = ontvangen.clone();
         let app = axum::Router::new().route(
             "/api/generate/v2",
-            axum::routing::post(move |body: String| {
+            axum::routing::post(move |headers: HeaderMap, body: String| {
                 let opslag = opslag.clone();
                 async move {
-                    *opslag.lock().expect("lock") = body;
+                    let mut o = opslag.lock().expect("lock");
+                    o.body = body;
+                    o.headers = headers;
+                    o.aantal += 1;
                     (status, [(header::CONTENT_TYPE, "application/json")], antwoord)
                 }
             }),
@@ -382,22 +441,116 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        let mut state = AppState::new(
-            db,
-            Some(url),
-            None,
-            Some("ak-test".to_string()),
-        );
+        let mut state = AppState::new(db, Some(url), None, Some("ak-test".to_string()));
         state.report_default_cover_dir = dir;
-        state.organisaties = std::sync::Arc::new(crate::organisatie::test_organisaties());
+        state.organisaties = Arc::new(crate::organisatie::test_organisaties());
         state
     }
 
-    fn kba() -> OidcClaims {
+    fn met_groepen(groepen: &[&str]) -> OidcClaims {
         OidcClaims {
             sub: "tester".to_string(),
-            groups: vec!["org-kba".to_string()],
+            groups: groepen.iter().map(|g| (*g).to_string()).collect(),
             ..Default::default()
+        }
+    }
+
+    fn kba() -> OidcClaims {
+        met_groepen(&["org-kba"])
+    }
+
+    async fn fout_json(fout: ApiError) -> (StatusCode, Value) {
+        let resp = fout.into_response();
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.expect("body");
+        (status, serde_json::from_slice(&bytes).expect("json"))
+    }
+
+    #[tokio::test]
+    async fn rapport_met_organisatie_kba_krijgt_standaardhuisstijl_en_tenantheader() {
+        let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+        let resp = proxy_report(&state(url, None).await, &kba(), r#"{"project":"p"}"#.to_string())
+            .await
+            .expect("pdf");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let o = ontvangen.lock().expect("lock");
+        let body: Value = serde_json::from_str(&o.body).expect("json");
+        assert_eq!(body["brand"], "kba");
+        assert_eq!(body["project"], "p");
+        assert_eq!(o.headers["x-original-tenant"], "kba");
+        assert_eq!(o.headers["authorization"], "Bearer ak-test");
+    }
+
+    #[tokio::test]
+    async fn gekozen_toegestane_huisstijl_gaat_door() {
+        let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+        proxy_report(
+            &state(url, None).await,
+            &kba(),
+            r#"{"project":"p","brand":"openaec_foundation"}"#.to_string(),
+        )
+        .await
+        .expect("pdf");
+        let o = ontvangen.lock().expect("lock");
+        let body: Value = serde_json::from_str(&o.body).expect("json");
+        assert_eq!(body["brand"], "openaec_foundation");
+        assert_eq!(o.headers["x-original-tenant"], "kba");
+    }
+
+    #[tokio::test]
+    async fn lege_of_null_brand_is_standaard() {
+        for body in [r#"{"brand":""}"#, r#"{"brand":null}"#, r#"{"brand":"  "}"#] {
+            let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+            proxy_report(&state(url, None).await, &kba(), body.to_string())
+                .await
+                .expect("pdf");
+            let o = ontvangen.lock().expect("lock");
+            assert_eq!(serde_json::from_str::<Value>(&o.body).expect("json")["brand"], "kba", "{body}");
+        }
+    }
+
+    #[tokio::test]
+    async fn niet_toegestane_huisstijl_is_403_zonder_upstream_call() {
+        let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+        let fout = proxy_report(&state(url, None).await, &kba(), r#"{"brand":"3bm"}"#.to_string())
+            .await
+            .expect_err("403");
+        let (status, json) = fout_json(fout).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(json["error"], "huisstijl_niet_toegestaan");
+        let detail = json["detail"].as_str().expect("detail");
+        assert!(detail.contains("'3bm'") && detail.contains("kba, openaec_foundation"), "{detail}");
+        assert_eq!(ontvangen.lock().expect("lock").aantal, 0);
+    }
+
+    #[tokio::test]
+    async fn zonder_geldige_organisatie_geen_rapport() {
+        let gevallen: [(&[&str], &str); 3] = [
+            (&["openbouwlab-constructie"], "geen_organisatie"),
+            (&["org-kba", "org-andere"], "meerdere_organisaties"),
+            (&["org-onbekend"], "onbekende_organisatie"),
+        ];
+        for (groepen, code) in gevallen {
+            let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+            let fout = proxy_report(&state(url, None).await, &met_groepen(groepen), "{}".to_string())
+                .await
+                .expect_err("403");
+            let (status, json) = fout_json(fout).await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{code}");
+            assert_eq!(json["error"], code);
+            assert!(!json["detail"].as_str().unwrap_or("").is_empty());
+            assert_eq!(ontvangen.lock().expect("lock").aantal, 0, "{code}");
+        }
+    }
+
+    #[tokio::test]
+    async fn geen_json_object_of_brand_geen_tekst_is_400() {
+        for body in ["geen json", "[1,2]", r#"{"brand":3}"#] {
+            let (url, _) = nep_reports_api(StatusCode::OK, "%PDF").await;
+            let fout = proxy_report(&state(url, None).await, &kba(), body.to_string())
+                .await
+                .expect_err("400");
+            assert_eq!(fout.into_response().status(), StatusCode::BAD_REQUEST, "{body}");
         }
     }
 
@@ -411,10 +564,8 @@ mod tests {
         let fout = proxy_report(&state(url, None).await, &kba(), r#"{"cover":{}}"#.to_string())
             .await
             .expect_err("422");
-        let resp = fout.into_response();
-        assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
-        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.expect("body");
-        let json: Value = serde_json::from_slice(&bytes).expect("json");
+        let (status, json) = fout_json(fout).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
         assert_eq!(json["error"], "report_rejected");
         assert_eq!(
             json["detail"],
@@ -450,7 +601,7 @@ mod tests {
         proxy_report(&state(url, Some(dir)).await, &kba(), r#"{"cover":{}}"#.to_string())
             .await
             .expect("pdf");
-        let body = ontvangen.lock().expect("lock").clone();
+        let body = ontvangen.lock().expect("lock").body.clone();
         assert_eq!(cover_image(&body)["media_type"], "image/jpeg");
     }
 }

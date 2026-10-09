@@ -17,6 +17,7 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Herkomst van de IFC-import reist mee in het projectbestand** (`ifcImport`: bestandsnaam, engine en versie, datum, goedgekeurde ruimten en de volledige engine-uitvoer voor latere ventilatie/BENG-import)
 
 - **Organisaties** (`ORGANISATIES_CONFIG`, voorbeeld `organisaties.example.json`) — een bron voor organisatie, naam, toegestane huisstijlen, standaardhuisstijl en CORS-origins. Lidmaatschap via de Authentik-groep `org-<id>` (`X-Authentik-Groups` of `groups` uit `users/me` bij Bearer). Meer dan een `org-*`-groep of een onbekende groep is een fout, geen gok. Ongeldig bestand = API start niet
+- **Rapporten per organisatie en huisstijl** (`/report/generate` en `/constructie/rapport`) — `brand` in het rapport (constructie: `huisstijl`) is de gekozen huisstijl; leeg = standaard van de organisatie. De proxy zet de gevalideerde `brand` en `X-Original-Tenant: <organisatie-id>`. Fouten (403): `geen_organisatie`, `meerdere_organisaties`, `onbekende_organisatie`, `huisstijl_niet_toegestaan`; geen stille fallback. Een rapport dat geen JSON-object is geeft 400. Standaard-coverfoto: `REPORT_DEFAULT_COVER_DIR/<organisatie-id>.jpg`
 - **`GET /api/v1/me`** — nieuwe velden `organisatie` (`id`, `naam`, `huisstijlen`, `standaard_huisstijl`) en `organisatie_fout` (`code`, `detail`)
 
 ### 🐛 Bug fixes

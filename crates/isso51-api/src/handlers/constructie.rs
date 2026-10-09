@@ -101,6 +101,10 @@ struct RapportAanvraag {
     invoer: Value,
     #[serde(default)]
     project: Option<ProjectMeta>,
+    /// Gekozen huisstijl; leeg = standaard van de organisatie. De rapport-proxy
+    /// controleert hem tegen de toegestane lijst.
+    #[serde(default)]
+    huisstijl: Option<String>,
 }
 
 /// Routes van de constructiemodule (relatief aan het API-prefix).
@@ -227,6 +231,9 @@ fn bouw_rapport(body: &str, claims: &OidcClaims) -> Result<Value, ApiError> {
     if let Some(image) = cover_image {
         json["cover"]["image"] = image;
     }
+    if let Some(huisstijl) = aanvraag.huisstijl.filter(|h| !h.trim().is_empty()) {
+        json["brand"] = Value::String(huisstijl);
+    }
     Ok(json)
 }
 
@@ -276,12 +283,8 @@ mod tests {
             .connect("sqlite::memory:")
             .await
             .expect("in-memory sqlite");
-        let state = AppState::new(
-            db,
-            None,
-            None,
-            None,
-        );
+        let mut state = AppState::new(db, None, None, None);
+        state.organisaties = std::sync::Arc::new(crate::organisatie::test_organisaties());
         constructie_routes().with_state(state)
     }
 
@@ -430,7 +433,19 @@ mod tests {
     #[tokio::test]
     async fn rapport_bereikt_proxy_en_zonder_url_503() {
         let body = format!(r#"{{"materiaal":"staal","invoer":{S1}}}"#);
+        let groepen = format!("{DEFAULT_CONSTRUCTIE_GROUP},org-kba");
         let (status, _) = antwoord(
+            app().await,
+            verzoek("POST", "/constructie/rapport", Some(&groepen), &body),
+        )
+        .await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+    }
+
+    #[tokio::test]
+    async fn rapport_zonder_organisatie_is_403() {
+        let body = format!(r#"{{"materiaal":"staal","invoer":{S1}}}"#);
+        let (status, json) = antwoord(
             app().await,
             verzoek(
                 "POST",
@@ -440,7 +455,17 @@ mod tests {
             ),
         )
         .await;
-        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        assert_eq!(json["error"], "geen_organisatie");
+    }
+
+    #[test]
+    fn rapport_geeft_gekozen_huisstijl_door_als_brand() {
+        let claims = OidcClaims::default();
+        let met = format!(r#"{{"materiaal":"staal","invoer":{S1},"huisstijl":"openaec_foundation"}}"#);
+        assert_eq!(bouw_rapport(&met, &claims).expect("json")["brand"], "openaec_foundation");
+        let zonder = format!(r#"{{"materiaal":"staal","invoer":{S1}}}"#);
+        assert!(bouw_rapport(&zonder, &claims).expect("json").get("brand").is_none());
     }
 
     #[test]
