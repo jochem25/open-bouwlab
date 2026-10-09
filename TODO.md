@@ -552,6 +552,13 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [x] **Envelope-pariteit server-save (10-06)** — server-save/-load gebruikt dezelfde volledige envelope als file-save (geometrie + alle sidecars), backward-compat legacy kaal project_data, race-guard projectwissel, persistente save-statusindicator, body-limit 20 MB. Fixt: geometrie-verlies op server + per-pc divergentie. 180/180 + cargo 28 groen.
 - [ ] **Onderlegger (underlay.dataUrl) niet in envelope [besluit]** — bewust uitgesloten (1-10+ MB base64); wordt ook bij file-open niet hersteld. Later: aparte upload/opslag overwegen.
 
+## Organisaties (branch feat/opslag-organisatie, 09-10-2026)
+- [x] Nextcloud eruit, organisatiebestand (`ORGANISATIES_CONFIG`), org-groep -> organisatie, huisstijl gevalideerd naar Reports API, UI-keuze, builders zonder vaste bedrijfsnaam. Zie `docs/2026-10-09-organisaties.md`
+- [ ] Bearer (ak-*): vorm van `groups` in Authentik `users/me` meten met een testtoken (code accepteert objecten met `name` en strings)
+- [ ] openaec-reports: expliciete `brand` van de Open Bouwlab-service toestaan zodra een organisatie een tweede huisstijl krijgt (nu: brand moet gelijk zijn aan tenant). Eigenaar openaec-reports
+- [ ] Wens: constructie-berekeningen (staal/beton/hout) opslaan; nu alleen berekenen + rapport
+- [ ] About-tekst Backstage noemt nog "3BM Bouwkunde Cooperatie" als copyrighthouder; LICENSE zegt "Jochem Kolthof and the Open Bouwlab contributors" - besluit Jochem
+
 ## Cloud integratie — VERVALLEN (09-10-2026)
 - [x] Nextcloud-opslag verwijderd (besluit 08-10): `handlers/cloud.rs`, `/api/v1/cloud/*`, `openaec-cloud`-dependency, `tenants.json`, `TENANTS_CONFIG`/`DEFAULT_TENANT`. Er was nooit cloud-UI; er verdwijnen geen knoppen. Projecten: eigen database + download/upload `.ifcenergy`.
 

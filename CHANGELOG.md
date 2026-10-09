@@ -20,6 +20,7 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Rapporten per organisatie en huisstijl** (`/report/generate` en `/constructie/rapport`) — `brand` in het rapport (constructie: `huisstijl`) is de gekozen huisstijl; leeg = standaard van de organisatie. De proxy zet de gevalideerde `brand` en `X-Original-Tenant: <organisatie-id>`. Fouten (403): `geen_organisatie`, `meerdere_organisaties`, `onbekende_organisatie`, `huisstijl_niet_toegestaan`; geen stille fallback. Een rapport dat geen JSON-object is geeft 400. Standaard-coverfoto: `REPORT_DEFAULT_COVER_DIR/<organisatie-id>.jpg`
 - **Huisstijlkeuze in rapporten** — keuzelijst op de Rapport-pagina en bij het constructierapport, alleen zichtbaar bij meer dan een toegestane huisstijl; geldt voor alle rapporten in de sessie. Zonder organisatie een melding dat rapporten niet beschikbaar zijn
 - **Organisatienaam als auteur/adviseur** in alle rapporten (warmteverlies, ISSO 53, Rc, U_w, ventilatie) in plaats van een vaste bedrijfsnaam; desktop zonder login: leeg
+- **Documentatie organisaties** — `docs/2026-10-09-organisaties.md`: model, configuratiebestand, rapportstroom en een organisatie toevoegen
 - **`GET /api/v1/me`** — nieuwe velden `organisatie` (`id`, `naam`, `huisstijlen`, `standaard_huisstijl`) en `organisatie_fout` (`code`, `detail`)
 
 ### 🐛 Bug fixes

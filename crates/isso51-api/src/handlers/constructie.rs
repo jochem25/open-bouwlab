@@ -43,7 +43,7 @@ struct ProjectMeta {
     naam: Option<String>,
     opsteller: Option<String>,
     /// Optionele coverfoto (png/jpeg, base64). Zonder foto vult de rapport-proxy
-    /// de standaardfoto van de tenant aan.
+    /// de standaardfoto van de organisatie aan.
     coverfoto: Option<Coverfoto>,
 }
 
