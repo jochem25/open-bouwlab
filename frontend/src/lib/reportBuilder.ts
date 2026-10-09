@@ -3,6 +3,7 @@
  *
  * Output conform report.schema.json (OpenAEC Reports API).
  */
+import { organisatieNaam } from "../store/organisatieStore";
 import type {
   ConstructionElement,
   Project,
@@ -141,7 +142,7 @@ export async function buildReportData(
     project: projectName,
     project_number: project.info.project_number ?? "",
     client: project.info.client ?? "",
-    author: project.info.engineer ?? "3BM Bouwkunde",
+    author: project.info.engineer || organisatieNaam(),
     date: project.info.date ?? today,
     version: "1.0",
     status: "CONCEPT",
@@ -211,7 +212,7 @@ export async function buildReportData(
     colofon: {
       enabled: toggles.colofon,
       opdrachtgever_naam: project.info.client ?? "",
-      adviseur_bedrijf: "3BM Bouwkunde",
+      adviseur_bedrijf: organisatieNaam(),
       adviseur_naam: project.info.engineer ?? "",
       normen: "ISSO 51:2023 — Warmteverliesberekening voor woningen en woongebouwen",
       datum: project.info.date ?? today,

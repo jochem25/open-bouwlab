@@ -12,6 +12,7 @@
  */
 import { useCallback, useRef, useState } from "react";
 
+import { HuisstijlKeuze } from "../components/rapport/HuisstijlKeuze";
 import RapportOpmaakDialog from "../components/rapport/RapportOpmaakDialog";
 import { useReportStore, type ReportSections } from "../store/reportStore";
 import { useProjectStore } from "../store/projectStore";
@@ -222,6 +223,10 @@ export function Rapport() {
                 </div>
               </div>
             </div>
+          </section>
+
+          <section className="mb-4">
+            <HuisstijlKeuze />
           </section>
 
           {/* Voorbladafbeelding */}

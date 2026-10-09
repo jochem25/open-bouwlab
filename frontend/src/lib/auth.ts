@@ -8,6 +8,21 @@
 import { API_PREFIX } from "./constants";
 import { useProjectStore } from "../store/projectStore";
 
+/** Organisatie van de gebruiker (uit de Authentik-groep `org-<id>`). */
+export interface AuthOrganisatie {
+  id: string;
+  naam: string;
+  /** Huisstijlen die de organisatie in rapporten mag gebruiken. */
+  huisstijlen: string[];
+  standaard_huisstijl: string;
+}
+
+/** Waarom een `org-*`-groep niet tot een organisatie leidde. */
+export interface AuthOrganisatieFout {
+  code: string;
+  detail: string;
+}
+
 /** User profile returned by `GET /api/v1/me`. */
 export interface AuthProfile {
   id: string;
@@ -18,6 +33,9 @@ export interface AuthProfile {
   last_login_at: string;
   /** Geactiveerde modules (bijv. "constructie"); ontbreekt bij oudere backends. */
   entitlements?: string[];
+  /** Organisatie; `null` zonder (geldige) organisatie, ontbreekt bij oudere backends. */
+  organisatie?: AuthOrganisatie | null;
+  organisatie_fout?: AuthOrganisatieFout | null;
 }
 
 /**

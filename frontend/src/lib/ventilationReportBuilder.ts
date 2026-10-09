@@ -18,6 +18,7 @@
  * de UI (`components/ventilation/shared.tsx`).
  */
 
+import { organisatieNaam } from "../store/organisatieStore";
 import type { ProjectInfo, Room } from "../types/project";
 import {
   DEFAULT_OCCUPANCY_DM3S_PER_PERSON,
@@ -89,7 +90,7 @@ export function buildVentilationReportData(
     format: "A4",
     orientation: "portrait",
     project: title,
-    author: "3BM Bouwkunde",
+    author: organisatieNaam(),
     date: input.info.date || today,
     version: "1.0",
     status: "CONCEPT",
@@ -100,7 +101,7 @@ export function buildVentilationReportData(
 
     colofon: {
       enabled: true,
-      adviseur_bedrijf: "3BM Bouwkunde",
+      adviseur_bedrijf: organisatieNaam(),
       normen:
         "Bbl art. 4.122 (ventilatiedebieten per gebruiksfunctie, " +
         "BBL afd. 3.6), NEN 1087:2001 §5.1.3.2 " +

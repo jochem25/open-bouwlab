@@ -956,5 +956,10 @@
     "hout": {
       "titel": "Timber - beam / joist floor"
     }
+  },
+  "huisstijl": {
+    "label": "Report house style",
+    "standaard": "{{naam}} (default)",
+    "geenOrganisatie": "Your account is not linked to an organisation; reports are unavailable. Ask the administrator."
   }
 }

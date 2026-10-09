@@ -956,5 +956,10 @@
     "hout": {
       "titel": "Hout - houten balk(laag)"
     }
+  },
+  "huisstijl": {
+    "label": "Huisstijl rapport",
+    "standaard": "{{naam}} (standaard)",
+    "geenOrganisatie": "Je account is niet aan een organisatie gekoppeld; rapporten zijn niet beschikbaar. Vraag de beheerder."
   }
 }

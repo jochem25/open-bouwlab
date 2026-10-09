@@ -2,6 +2,7 @@
  * API-client voor de constructiemodule (voordimensionering staal, beton en hout).
  * Rekenkern draait server-side; fetch met credentials (Authentik-cookie).
  */
+import { gekozenHuisstijl } from "../store/organisatieStore";
 import { API_PREFIX } from "./constants";
 import type {
   ConstructieInvoer,
@@ -61,7 +62,7 @@ export async function genereerConstructieRapport(
   invoer: ConstructieInvoer,
   project?: RapportProject,
 ): Promise<Blob> {
-  const res = await post("rapport", { materiaal, invoer, project });
+  const res = await post("rapport", { materiaal, invoer, project, huisstijl: gekozenHuisstijl() });
   if (!res.ok) throw await leesFout(res);
   return res.blob();
 }
