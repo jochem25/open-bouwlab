@@ -555,7 +555,8 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 ## Organisaties (branch feat/opslag-organisatie, 09-10-2026)
 - [x] Nextcloud eruit, organisatiebestand (`ORGANISATIES_CONFIG`), org-groep -> organisatie, huisstijl gevalideerd naar Reports API, UI-keuze, builders zonder vaste bedrijfsnaam. Zie `docs/2026-10-09-organisaties.md`
 - [x] Bearer (ak-*): vorm van `groups` in Authentik `users/me` - gemeten in de Authentik-bron (2026.2.1): lijst objecten `{name, pk}`, inclusief geerfde groepen; parser + lege lijst getest
-- [ ] Serverconfig opruimen na deploy: `NEXTCLOUD_*`, `NC_SERVICE_PASS_3BM`, `TENANTS_CONFIG`, `DEFAULT_TENANT`, `CORS_ORIGINS` worden niet meer gelezen. `REPORTS_API_KEY` wordt nog gelezen als fallback zonder `REPORTS_API_SERVICE_TOKEN`; code-pad verwijderen zodra de Caddy-bypass weg is
+- [x] Serverconfig opgeruimd na deploy 0.2.0-build.25 (09-10-2026): oude env-variabelen en tenants.json-mount weg van de server
+- [ ] `REPORTS_API_KEY`-fallbackpad (X-API-Key als `REPORTS_API_SERVICE_TOKEN` ontbreekt) verwijderen uit `config.rs`, `state.rs`, `handlers/report.rs`, `.env.example` en `frontend/vite.config.ts`; env staat al niet meer op de server
 - [ ] openaec-reports: expliciete `brand` van de Open Bouwlab-service toestaan zodra een organisatie een tweede huisstijl krijgt (nu: brand moet gelijk zijn aan tenant). Eigenaar openaec-reports
 - [ ] Wens: constructie-berekeningen (staal/beton/hout) opslaan; nu alleen berekenen + rapport
 
