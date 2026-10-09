@@ -352,7 +352,7 @@ fn build_report_data(project: &Project, result: &ProjectResult) -> schema::Repor
             .info
             .engineer
             .clone()
-            .unwrap_or_else(|| "3BM Bouwkunde".into()),
+            .unwrap_or_default(),
         date: project.info.date.clone().or(Some(today)),
         version: "1.0".into(),
         status: ReportStatus::CONCEPT,

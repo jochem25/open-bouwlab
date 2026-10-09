@@ -14,7 +14,6 @@ SESSION_STATUS.md
 TODO.md
 .env
 isso51.db
-tenants.json
 examples/
 tests/
 # node-builder stage COPYs this subdirectory explicitly (Dockerfile:68,

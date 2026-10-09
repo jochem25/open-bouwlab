@@ -9,6 +9,7 @@
  * raam-U-waarde U_w volgens NEN-EN-ISO 10077-1.
  */
 
+import { organisatieNaam } from "../store/organisatieStore";
 import { SPACER_LABELS_NL } from "./spacerTable";
 import type { UwInput, UwResult, UwSources } from "./uwCalculation";
 
@@ -38,7 +39,7 @@ export async function buildUwReportData(
     format: "A4",
     orientation: "portrait",
     project: title,
-    author: "3BM Bouwkunde",
+    author: organisatieNaam(),
     date: today,
     version: "1.0",
     status: "CONCEPT",
@@ -49,7 +50,7 @@ export async function buildUwReportData(
 
     colofon: {
       enabled: true,
-      adviseur_bedrijf: "3BM Bouwkunde",
+      adviseur_bedrijf: organisatieNaam(),
       normen: "NEN-EN-ISO 10077-1 (samengestelde raam-U-waarde U_w)",
       datum: today,
       status_colofon: "CONCEPT",

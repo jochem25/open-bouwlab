@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { formatGetal, formatUc } from "../../lib/constructieFormat";
 import type { Materiaal, Resultaat } from "../../types/constructie";
 import type { CoverImage } from "../../types/project";
+import { HuisstijlKeuze } from "../rapport/HuisstijlKeuze";
 import { Button } from "../ui/Button";
 import { Card } from "../ui/Card";
 import { AdviesKaart } from "./AdviesKaart";
@@ -134,6 +135,7 @@ export function Uitkomst({
         </Card>
       )}
 
+      <HuisstijlKeuze />
       <CoverfotoKiezer waarde={coverfoto} onChange={onCoverfoto} />
       <div className="flex items-center gap-3">
         <Button type="button" variant="secondary" onClick={onRapport} disabled={rapportBezig}>

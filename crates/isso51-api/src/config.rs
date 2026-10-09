@@ -13,7 +13,6 @@ pub const API_PREFIX: &str = "/api/v1";
 pub struct Config {
     pub port: u16,
     pub database_url: String,
-    pub cors_origins: Vec<String>,
     /// Directory containing static frontend files (SPA). When set, the server
     /// serves these files as a fallback for non-API routes.
     pub static_dir: Option<String>,
@@ -28,7 +27,7 @@ pub struct Config {
     /// calls naar de Reports API. Wordt als `Authorization: Bearer <token>`
     /// gestuurd. Vervangt de legacy shared-secret X-API-Key bypass.
     pub reports_api_service_token: Option<String>,
-    /// Map met standaard-coverfoto's per tenant (`<tenant>.jpg` of `<tenant>.png`).
+    /// Map met standaard-coverfoto's per organisatie (`<id>.jpg` of `<id>.png`).
     ///
     /// Env `REPORT_DEFAULT_COVER_DIR`. Bevat een rapport geen `cover.image`, dan
     /// vult de rapport-proxy die aan uit dit bestand. Staat bewust buiten de
@@ -42,10 +41,6 @@ pub struct Config {
     pub ifc_analyse_token: Option<String>,
     /// Timeout per analyse-request (env `IFC_ANALYSE_TIMEOUT_S`, default 300).
     pub ifc_analyse_timeout: Duration,
-    /// Path to tenants.json for multi-tenant cloud storage.
-    pub tenants_config: Option<String>,
-    /// Default tenant slug (used when no tenant header in request).
-    pub default_tenant: Option<String>,
     /// Entitlement-gating voor de constructiemodule.
     ///
     /// Env `CONSTRUCTIE_ENTITLEMENT_GROUP`: Authentik-groep die toegang geeft
@@ -53,6 +48,9 @@ pub struct Config {
     /// Env `CONSTRUCTIE_ENABLED`: `false`/`0`/`no`/`off` zet de module voor
     /// iedereen uit (default aan). Zie `crate::entitlements`.
     pub entitlements: crate::entitlements::Config,
+    /// Pad naar het organisatiebestand (env `ORGANISATIES_CONFIG`). Niet gezet
+    /// = geen organisaties (rapporten geven dan 403 `geen_organisatie`).
+    pub organisaties_config: Option<String>,
 }
 
 impl Config {
@@ -65,13 +63,6 @@ impl Config {
                 .unwrap_or(3001),
             database_url: env::var("DATABASE_URL")
                 .unwrap_or_else(|_| "sqlite://isso51.db?mode=rwc".to_string()),
-            cors_origins: env::var("CORS_ORIGINS")
-                .unwrap_or_else(|_| {
-                    "http://localhost:5173,http://localhost:1420".to_string()
-                })
-                .split(',')
-                .map(|s| s.trim().to_string())
-                .collect(),
             static_dir: env::var("STATIC_DIR").ok().filter(|s| !s.is_empty()),
             reports_api_url: env::var("REPORTS_API_URL")
                 .ok()
@@ -99,13 +90,11 @@ impl Config {
                     .and_then(|v| v.trim().parse().ok())
                     .unwrap_or(DEFAULT_IFC_ANALYSE_TIMEOUT_S),
             ),
-            tenants_config: env::var("TENANTS_CONFIG")
-                .ok()
-                .filter(|s| !s.is_empty()),
-            default_tenant: env::var("DEFAULT_TENANT")
-                .ok()
-                .filter(|s| !s.is_empty()),
             entitlements: crate::entitlements::Config::from_env(),
+            organisaties_config: env::var(crate::organisatie::ENV_ORGANISATIES_CONFIG)
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty()),
         }
     }
 }

@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import { AppShell } from "./components/layout/AppShell";
@@ -30,6 +31,7 @@ import { ConstructieStaal } from "./pages/ConstructieStaal";
 import { ConstructieBeton } from "./pages/ConstructieBeton";
 import { ConstructieHout } from "./pages/ConstructieHout";
 import { ThermalImportWizard } from "./components/import/ThermalImportWizard";
+import { useOrganisatieStore } from "./store/organisatieStore";
 
 /**
  * Application root.
@@ -43,6 +45,12 @@ import { ThermalImportWizard } from "./components/import/ThermalImportWizard";
  * `tauri::invoke` backend.
  */
 export function App() {
+  // Organisatie (naam, huisstijlen) vooraf laden: de rapportbuilders lezen hem.
+  const laadOrganisatie = useOrganisatieStore((s) => s.laad);
+  useEffect(() => {
+    void laadOrganisatie();
+  }, [laadOrganisatie]);
+
   return (
     <AppErrorBoundary>
       <BrowserRouter>

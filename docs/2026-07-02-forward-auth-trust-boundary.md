@@ -141,3 +141,13 @@ X-API-Key-header in het request, dan is alleen `Bearer ak-*` geldig (validatie b
 Authentik); al het andere geeft 401 en gaat nooit naar het header-pad. Unit-tests dekken
 de vier gevallen (Bearer zonder ak-, X-API-Key, alleen forward_auth-headers, ak-pad).
 De Caddy-kant (headers ook op de bypass-paden strippen) wordt apart geregeld.
+
+## Bijwerking 2026-10-09 - tenant-header vervallen, organisatie via groepen
+
+`HEADER_TENANT` (`X-Authentik-Meta-Tenant`) en `apply_tenant_override` bestaan niet meer.
+De organisatie (en daarmee de toegestane rapporthuisstijlen) volgt nu uit de `org-*`-groep
+in `X-Authentik-Groups` (zie `docs/2026-10-09-organisaties.md`). Het spoofingrisico hierboven
+geldt dus onverminderd voor groepen: een vervalste `X-Authentik-Groups` geeft entitlements
+en een andere organisatie/huisstijl. De garanties (Caddy >= 2.11 met `copy_headers`-fix,
+geen extern gepubliceerde poort, Authorization/X-API-Key nooit naar het header-pad) blijven
+daarom vereist.

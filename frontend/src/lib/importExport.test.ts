@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  exportIfcEnergy,
   exportProject,
   importProject,
   openProjectFile,
@@ -644,5 +645,41 @@ describe("validateProject — building.zones guard", () => {
     expect(validated.building.zones).toEqual([
       { id: "zone-a", name: "Begane grond" },
     ]);
+  });
+});
+
+describe(".ifcenergy download/upload — byte-gelijk", () => {
+  it("opslaan -> openen -> opslaan geeft exact hetzelfde bestand", async () => {
+    // IFCX-document- en node-id's zijn per opslag nieuw (crypto.randomUUID,
+    // bewust). Deterministisch gemaakt zodat de rest byte voor byte vergeleken
+    // wordt: per opslag dezelfde reeks id's.
+    let teller = 0;
+    const uuidSpy = vi
+      .spyOn(crypto, "randomUUID")
+      .mockImplementation(() => `00000000-0000-4000-8000-${String(++teller).padStart(12, "0")}`);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-09T10:00:00Z"));
+    try {
+      const project = makeIsso51Project();
+      useProjectStore.setState({ norm: "isso51" });
+
+      await exportIfcEnergy(project, makeResult());
+      const eerste = lastBlobContent;
+      expect(eerste.length).toBeGreaterThan(0);
+
+      const geopend = openProjectFile(eerste) as ImportResult & { format?: string };
+      expect(geopend.format).toBe("ifcenergy");
+      useProjectStore.getState().setProject(geopend.project, {
+        sharedExtra: geopend.sharedExtra,
+        ventilation: geopend.ventilation,
+      });
+
+      teller = 0;
+      await exportIfcEnergy(geopend.project, geopend.result);
+      expect(lastBlobContent).toBe(eerste);
+    } finally {
+      vi.useRealTimers();
+      uuidSpy.mockRestore();
+    }
   });
 });

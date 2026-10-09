@@ -8,6 +8,7 @@
  * webview-inits die later mounten de juiste branch krijgen.
  */
 
+import { gekozenHuisstijl } from "../store/organisatieStore";
 import { getBearerToken } from "./authHeader";
 import { generateReportTauri } from "./reportClient.tauri";
 
@@ -58,10 +59,15 @@ async function generateReportHttp(
     );
   }
 
+  // Gekozen huisstijl als `brand`; zonder keuze kiest de backend de
+  // standaard van de organisatie (en weigert een huisstijl buiten de lijst).
+  const huisstijl = gekozenHuisstijl();
+  const body = huisstijl ? { ...reportData, brand: huisstijl } : reportData;
+
   const res = await fetch(REPORTS_URL, {
     method: "POST",
     headers,
-    body: JSON.stringify(reportData),
+    body: JSON.stringify(body),
   });
 
   if (import.meta.env.DEV) {

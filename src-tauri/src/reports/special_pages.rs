@@ -336,7 +336,7 @@ mod tests {
         let c = Colofon {
             enabled: true,
             opdrachtgever_naam: Some("X".into()),
-            adviseur_bedrijf: Some("3BM".into()),
+            adviseur_bedrijf: Some("Testbureau".into()),
             adviseur_naam: Some("Y".into()),
             normen: Some("ISSO 51".into()),
             datum: Some("2026-05-09".into()),
@@ -359,7 +359,7 @@ mod tests {
             project: "Project X",
             subtitle: Some("Warmteverlies"),
             client: Some("Klant"),
-            adviseur: Some("3BM"),
+            adviseur: Some("Testbureau"),
             author: Some("Auteur"),
             date: Some("2026-05-11"),
             kenmerk: Some("3017"),

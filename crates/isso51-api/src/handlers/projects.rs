@@ -491,8 +491,6 @@ mod optimistic_locking_tests {
             None,
             None,
             None,
-            openaec_cloud::TenantsRegistry::default(),
-            None,
         )
     }
 
@@ -727,3 +725,92 @@ mod tests {
     }
 }
 
+
+#[cfg(test)]
+mod opslag_tests {
+    //! Opslaan en openen via de eigen database, over HTTP, zonder organisatie.
+    use super::*;
+    use axum::body::Body;
+    use axum::http::Request;
+    use axum::routing::get;
+    use serde_json::Value;
+    use axum::Router;
+    use tower::ServiceExt;
+
+    async fn app() -> Router {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory sqlite");
+        crate::run_migrations(&db).await;
+        let state = AppState::new(db, None, None, None);
+        Router::new()
+            .route("/projects", get(list_projects).post(create_project))
+            .route("/projects/{id}", get(get_project).delete(delete_project))
+            .with_state(state)
+    }
+
+    async fn verzoek(app: &Router, methode: &str, pad: &str, user: &str, body: Option<Value>) -> (StatusCode, Value) {
+        let mut b = Request::builder()
+            .method(methode)
+            .uri(pad)
+            .header("X-Authentik-Username", user);
+        let body = match body {
+            Some(json) => {
+                b = b.header("content-type", "application/json");
+                Body::from(json.to_string())
+            }
+            None => Body::empty(),
+        };
+        let resp = app.clone().oneshot(b.body(body).expect("request")).await.expect("response");
+        let status = resp.status();
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.expect("body");
+        (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    }
+
+    #[tokio::test]
+    async fn opslaan_en_openen_geeft_dezelfde_projectdata() {
+        let app = app().await;
+        // Volledige opslag-envelope, zoals de frontend hem stuurt.
+        let data = serde_json::json!({
+            "version": "1.0.0",
+            "schema": "isso51-project-v1",
+            "project": {"info": {"name": "Proef"}, "rooms": [{"id": "r1", "name": "Woonkamer"}]},
+            "result": null,
+            "modeller": {"rooms": [], "windows": [], "doors": []}
+        });
+        // Gebruiker zonder organisatiegroep: opslaan werkt gewoon.
+        let (status, json) = verzoek(
+            &app,
+            "POST",
+            "/projects",
+            "gebruiker-a",
+            Some(serde_json::json!({"name": "Proef", "project_data": data})),
+        )
+        .await;
+        assert_eq!(status, StatusCode::CREATED);
+        let id = json["id"].as_str().expect("id").to_string();
+
+        let (status, json) = verzoek(&app, "GET", &format!("/projects/{id}"), "gebruiker-a", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(json["project_data"], data);
+        assert_eq!(json["name"], "Proef");
+
+        let (status, lijst) = verzoek(&app, "GET", "/projects", "gebruiker-a", None).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(lijst.as_array().map(Vec::len), Some(1));
+
+        // Projecten blijven per gebruiker.
+        let (status, _) = verzoek(&app, "GET", &format!("/projects/{id}"), "gebruiker-b", None).await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+        let (_, lijst_b) = verzoek(&app, "GET", "/projects", "gebruiker-b", None).await;
+        assert_eq!(lijst_b.as_array().map(Vec::len), Some(0));
+
+        // Verwijderen = archiveren; daarna niet meer te openen.
+        let (status, _) = verzoek(&app, "DELETE", &format!("/projects/{id}"), "gebruiker-a", None).await;
+        assert_eq!(status, StatusCode::OK);
+        let (status, _) = verzoek(&app, "GET", &format!("/projects/{id}"), "gebruiker-a", None).await;
+        assert_eq!(status, StatusCode::NOT_FOUND);
+    }
+}

@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+import { useOrganisatieStore } from "../store/organisatieStore";
 
 import type { ProjectInfo } from "../types/project";
 import {
@@ -399,5 +400,24 @@ describe("buildVentilationReportData — ventilatie-units (optionele sectie)", (
     expect(calc.reference).toBe("eis 35 dm³/s");
     const verdict = section.content.find((b) => b.type === "paragraph")!;
     expect(String(verdict.text)).toContain("Voldoet");
+  });
+});
+
+describe("buildVentilationReportData — organisatie", () => {
+  afterEach(() => useOrganisatieStore.setState({ organisatie: null }));
+
+  it("auteur en adviseur komen uit de organisatie, niet uit een vaste naam", () => {
+    useOrganisatieStore.setState({
+      organisatie: { id: "kba", naam: "Testbureau", huisstijlen: ["kba"], standaard_huisstijl: "kba" },
+    });
+    const data = buildFixture();
+    expect(data.author).toBe("Testbureau");
+    expect((data.colofon as Record<string, unknown>).adviseur_bedrijf).toBe("Testbureau");
+  });
+
+  it("zonder organisatie leeg (desktop/lokaal)", () => {
+    const data = buildFixture();
+    expect(data.author).toBe("");
+    expect((data.colofon as Record<string, unknown>).adviseur_bedrijf).toBe("");
   });
 });

@@ -33,11 +33,6 @@ Base path: `/api/v1`. Productie: `https://warmteverlies.open-aec.com/api/v1`
 | `PUT` | `/projects/{id}` | Project bijwerken (optimistic lock via `expected_updated_at`) |
 | `DELETE` | `/projects/{id}` | Project soft-delete |
 | `POST` | `/projects/{id}/calculate` | Server-side berekenen + opslaan |
-| `GET` | `/cloud/status` | Nextcloud cloud-storage beschikbaarheid |
-| `GET` | `/cloud/projects` | Projecten uit Nextcloud |
-| `GET` | `/cloud/projects/{project}/models` | IFC bestanden in Nextcloud |
-| `GET` | `/cloud/projects/{project}/calculations` | Berekeningen in Nextcloud |
-| `POST` | `/cloud/projects/{project}/save` | Berekening opslaan + manifest update |
 | `POST` | `/report` | PDF rapport genereren via remote service |
 
 ## Voorbeelden
@@ -117,7 +112,6 @@ Belangrijkste bestanden:
 - [`main.rs`](../crates/isso51-api/src/main.rs) — server bootstrap, route-registratie
 - [`handlers/calculation.rs`](../crates/isso51-api/src/handlers/calculation.rs) — `/calculate`, `/health`, `/schemas`
 - [`handlers/projects.rs`](../crates/isso51-api/src/handlers/projects.rs) — projecten CRUD
-- [`handlers/cloud.rs`](../crates/isso51-api/src/handlers/cloud.rs) — Nextcloud cloud-routes
 - [`handlers/ifc_import.rs`](../crates/isso51-api/src/handlers/ifc_import.rs) — `.ifc` upload
 - [`handlers/report.rs`](../crates/isso51-api/src/handlers/report.rs) — PDF-proxy naar openaec-reports
 - [`auth.rs`](../crates/isso51-api/src/auth.rs) — Authentik forward-auth middleware

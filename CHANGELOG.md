@@ -16,13 +16,24 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Overnemen vervangt alleen de vertrekken**; projectgegevens, klimaat, instellingen en serverkoppeling blijven behouden
 - **Herkomst van de IFC-import reist mee in het projectbestand** (`ifcImport`: bestandsnaam, engine en versie, datum, goedgekeurde ruimten en de volledige engine-uitvoer voor latere ventilatie/BENG-import)
 
+- **Organisaties** (`ORGANISATIES_CONFIG`, voorbeeld `organisaties.example.json`) — een bron voor organisatie, naam, toegestane huisstijlen, standaardhuisstijl en CORS-origins. Lidmaatschap via de Authentik-groep `org-<id>` (`X-Authentik-Groups` of `groups` uit `users/me` bij Bearer). Meer dan een `org-*`-groep of een onbekende groep is een fout, geen gok. Ongeldig bestand = API start niet
+- **Rapporten per organisatie en huisstijl** (`/report/generate` en `/constructie/rapport`) — `brand` in het rapport (constructie: `huisstijl`) is de gekozen huisstijl; leeg = standaard van de organisatie. De proxy zet de gevalideerde `brand` en `X-Original-Tenant: <organisatie-id>`. Fouten (403): `geen_organisatie`, `meerdere_organisaties`, `onbekende_organisatie`, `huisstijl_niet_toegestaan`; geen stille fallback. Een rapport dat geen JSON-object is geeft 400. Standaard-coverfoto: `REPORT_DEFAULT_COVER_DIR/<organisatie-id>.jpg`
+- **Huisstijlkeuze in rapporten** — keuzelijst op de Rapport-pagina en bij het constructierapport, alleen zichtbaar bij meer dan een toegestane huisstijl; geldt voor alle rapporten in de sessie. Zonder organisatie een melding dat rapporten niet beschikbaar zijn
+- **Organisatienaam als auteur/adviseur** in alle rapporten (warmteverlies, ISSO 53, Rc, U_w, ventilatie) in plaats van een vaste bedrijfsnaam; desktop zonder login: leeg
+- **Documentatie organisaties** — `docs/2026-10-09-organisaties.md`: model, configuratiebestand, rapportstroom en een organisatie toevoegen
+- **`GET /api/v1/me`** — nieuwe velden `organisatie` (`id`, `naam`, `huisstijlen`, `standaard_huisstijl`) en `organisatie_fout` (`code`, `detail`)
+
 ### 🐛 Bug fixes
+
+- **Bearer-tokens (ak-*) kregen geen groepen** — de groepen uit `users/me` werden niet gelezen, waardoor ook de constructie-entitlement via Bearer nooit werkte
 
 - **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard
 - **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (2786-proef: 45,0 → 24,3 kW na matcher-fix)
 
 ### 🗑️ Verwijderd
 
+- **Tenant-claim en tenantlijsten** — `X-Authentik-Meta-Tenant`, `attributes.tenant`, inkomende `X-Original-Tenant` met `TENANT_OVERRIDE_ACCOUNTS`, `CORS_ORIGINS` en de `tenant.yaml`-lezer (`OPENAEC_TENANTS_ROOT`). Vervangen door het organisatiebestand
+- **Nextcloud-opslag (online opslag)** — `/api/v1/cloud/*`, de `openaec-cloud`-dependency, `tenants.json` en de env-variabelen `TENANTS_CONFIG`, `DEFAULT_TENANT`, `NC_SERVICE_PASS_*`. Er was geen cloud-UI, dus er verdwijnen geen knoppen. Projecten blijven in de eigen database (per gebruiker) en zijn als `.ifcenergy` te downloaden en te openen
 - **Oude IFC-importpaden** — het tabblad IFC-import is de enige ingang. Weg: `POST /api/v1/ifc/import` en de Python `ifc-tool` (incl. Docker-installatie, `IFC_TOOL_PATH`), de Tauri-commando `import_ifc` met sidecar, de client-side web-ifc-import in de Modeller (wandtype-review inbegrepen) en de IFC-reconstructie (bèta). De ribbon-knop "IFC importeren" in de Modeller opent het tabblad IFC-import; `/ifc-reconstructie` stuurt door
 
 ### 🧹 Refactor

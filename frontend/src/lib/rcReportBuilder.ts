@@ -6,6 +6,7 @@
  * Glaser-analyse, jaarlijkse vochtbalans.
  */
 
+import { organisatieNaam } from "../store/organisatieStore";
 import type { MaterialType, VerticalPosition } from "../types";
 import {
   CATALOGUE_CATEGORY_LABELS,
@@ -62,7 +63,7 @@ export async function buildRcReportData(input: RcReportInput): Promise<Record<st
     format: "A4",
     orientation: "portrait",
     project: title,
-    author: "3BM Bouwkunde",
+    author: organisatieNaam(),
     date: today,
     version: "1.0",
     status: "CONCEPT",
@@ -73,7 +74,7 @@ export async function buildRcReportData(input: RcReportInput): Promise<Record<st
 
     colofon: {
       enabled: true,
-      adviseur_bedrijf: "3BM Bouwkunde",
+      adviseur_bedrijf: organisatieNaam(),
       normen:
         "NEN-EN-ISO 6946 (Rc/U-waarde), NEN-EN-ISO 13788 (Glaser/vochtbalans)",
       datum: today,

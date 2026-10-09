@@ -118,9 +118,9 @@ Standaard secties (allemaal afzonderlijk uit te schakelen):
 - **Windows installer** (NSIS, per-user, NL wizard) via GitHub Actions
 - **Linux AppImage** via GitHub Actions
 - **`.ifcenergy` file-association** op Windows — dubbelklik in Verkenner opent app met het bestand geladen
-- **REST API** (`crates/isso51-api`) — public `/calculate`, `/calculate/ifcx`, `/schemas/*`; authenticated `/projects/*`, `/cloud/*`, `/report` (Authentik forward-auth)
+- **REST API** (`crates/isso51-api`) — public `/calculate`, `/calculate/ifcx`, `/schemas/*`; authenticated `/projects/*`, `/report` (Authentik forward-auth)
 - **MCP server** (`mcp-server/`) — Model Context Protocol server voor Claude Desktop / Claude Code. Tools: `calculate` · `calculate_file` · `generate_pdf` · `parse_ifcenergy` · `get_schema` · `list_constructions`. Resources: `project://current` · `result://current`
-- **Cloud opslag** via Nextcloud (multi-tenant, group-folder mounts) — voor server-deployments
+- **Server-opslag** van projecten in de eigen database (per gebruiker); lokaal bewaren via download/upload van het `.ifcenergy`-projectbestand
 
 ---
 

@@ -861,7 +861,7 @@ function AboutPanel() {
       </div>
       <div className="bs-about-footer">
         <p className="bs-about-copyright">
-          &copy; 2025 3BM Bouwkunde Cooperatie. Licensed under MIT.
+          &copy; 2026 Jochem Kolthof
         </p>
       </div>
     </div>

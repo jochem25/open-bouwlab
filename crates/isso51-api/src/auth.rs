@@ -2,7 +2,7 @@
 //!
 //! Trust model for browser traffic: Caddy + Authentik proxy outpost
 //! authenticate the request _before_ it reaches this service and inject
-//! `X-Authentik-*` headers with the user's identity and tenant claims.
+//! `X-Authentik-*` headers with the user's identity and groups.
 //! The upstream containers are only reachable via the internal Docker
 //! network, so we trust these headers.
 //!
@@ -13,19 +13,10 @@
 //! endpoint met een 5-minuten fingerprint-cache — zie
 //! [`validate_authentik_token`].
 //!
-//! Optionele header `X-Original-Tenant` wordt **alleen** gehonoreerd voor
-//! backend-to-backend impersonation wanneer de geauthenticeerde principal
-//! (Bearer service-account) expliciet op de allowlist staat in de env-var
-//! [`ENV_TENANT_OVERRIDE_ACCOUNTS`] (comma-separated `sub`-waarden, default
-//! leeg = niemand mag overriden). Een geweigerde override wordt genegeerd
-//! en gelogd via `tracing::warn`.
-//!
-//! Inventarisatie 2026-06-10: er zijn géén bekende machine-clients die
-//! `X-Original-Tenant` *inbound* naar deze API sturen. Het platform-patroon
-//! "service-account + X-Original-Tenant" bestaat hier alleen *outbound*
-//! (warmteverlies → reports-API, zie `handlers/report.rs`). Mocht er bij
-//! deploy tóch een flow blijken: infra zet `TENANT_OVERRIDE_ACCOUNTS` op de
-//! betreffende service-account-username(s).
+//! De organisatie van een gebruiker (en daarmee de rapporthuisstijl) volgt
+//! uit zijn `org-*`-groep, niet uit een tenant-attribuut; zie
+//! `crate::organisatie`. Een inkomende `X-Original-Tenant` of
+//! `X-Authentik-Meta-Tenant` wordt genegeerd (vervallen per 09-10-2026).
 //!
 //! Referenties:
 //! - `docs/2026-04-16-authentik-unified-sso-plan.md` §2.2 / §5.1
@@ -34,7 +25,7 @@
 //! - BCF peer-implementatie:
 //!   `crates/bcf-server/src/auth/authentik_token.rs`
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::env;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -62,8 +53,6 @@ pub const HEADER_NAME: &str = "X-Authentik-Name";
 pub const HEADER_UID: &str = "X-Authentik-Uid";
 /// Comma-separated group list.
 pub const HEADER_GROUPS: &str = "X-Authentik-Groups";
-/// Tenant slug (custom property mapping `openaec-tenant-headers`).
-pub const HEADER_TENANT: &str = "X-Authentik-Meta-Tenant";
 /// Company name (custom).
 pub const HEADER_COMPANY: &str = "X-Authentik-Meta-Company";
 /// Job title (custom).
@@ -73,19 +62,6 @@ pub const HEADER_PHONE: &str = "X-Authentik-Meta-Phone";
 /// Registration number (custom).
 pub const HEADER_REG_NUMBER: &str = "X-Authentik-Meta-RegNumber";
 
-/// Impersonation header for backend-to-backend calls — overrides the tenant
-/// claim **only** when the caller authenticated via a Bearer service token
-/// *and* its `sub` is listed in [`ENV_TENANT_OVERRIDE_ACCOUNTS`].
-pub const HEADER_ORIGINAL_TENANT: &str = "X-Original-Tenant";
-
-/// Env-var met comma-separated service-account usernames (`sub`) die
-/// `X-Original-Tenant` mogen gebruiken. Default (niet gezet / leeg):
-/// **niemand** — de header wordt dan genegeerd met een warn-log.
-///
-/// Infra: alleen zetten als er daadwerkelijk een inbound on-behalf-of flow
-/// bestaat (per 2026-06-10 niet het geval, zie module-doc).
-pub const ENV_TENANT_OVERRIDE_ACCOUNTS: &str = "TENANT_OVERRIDE_ACCOUNTS";
-
 // ---------------------------------------------------------------------------
 // Claims
 // ---------------------------------------------------------------------------
@@ -94,7 +70,7 @@ pub const ENV_TENANT_OVERRIDE_ACCOUNTS: &str = "TENANT_OVERRIDE_ACCOUNTS";
 /// forward_auth headers or an Authentik-validated service-token.
 ///
 /// Field names mirror the previous OIDC implementation so existing handlers
-/// (`projects.rs`, `user.rs`, `cloud.rs`, …) keep compiling unchanged.
+/// (`projects.rs`, `user.rs`, …) keep compiling unchanged.
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct OidcClaims {
     /// Subject identifier — primary key for the user record.
@@ -110,12 +86,9 @@ pub struct OidcClaims {
     /// Issuer label kept for backward compatibility with the `users` table
     /// (column `oidc_issuer`). Constant value `"authentik"` after migration.
     pub iss: Option<String>,
-    /// Group memberships (parsed from `X-Authentik-Groups`).
+    /// Group memberships (`X-Authentik-Groups` or Authentik `groups`).
+    /// Bepaalt entitlements en de organisatie (`org-*`).
     pub groups: Vec<String>,
-    /// Tenant slug from `X-Authentik-Meta-Tenant` / `attributes.tenant`,
-    /// optioneel overschreven door `X-Original-Tenant` (alleen voor
-    /// principals op de `TENANT_OVERRIDE_ACCOUNTS`-allowlist).
-    pub tenant: Option<String>,
     /// Company from `X-Authentik-Meta-Company`.
     pub company: Option<String>,
     /// Job title from `X-Authentik-Meta-JobTitle`.
@@ -218,7 +191,6 @@ fn claims_from_headers(headers: &HeaderMap) -> Result<OidcClaims, AuthError> {
         preferred_username: Some(username),
         iss: Some("authentik".to_string()),
         groups: parse_groups(headers),
-        tenant: header_string(headers, HEADER_TENANT),
         company: header_string(headers, HEADER_COMPANY),
         job_title: header_string(headers, HEADER_JOB_TITLE),
         phone: header_string(headers, HEADER_PHONE),
@@ -285,8 +257,8 @@ struct AuthentikUserInfo {
     email: Option<String>,
     /// Authentik user `pk` — UUID that maps to `OidcClaims::uid`.
     pk: Option<String>,
-    /// Tenant slug from `attributes.tenant`, if any.
-    tenant: Option<String>,
+    /// Group names from the `groups` field.
+    groups: Vec<String>,
 }
 
 /// Single cache entry: instant of insertion + (possibly negative) result.
@@ -460,27 +432,40 @@ async fn parse_users_me_payload(resp: reqwest::Response) -> Option<AuthentikUser
         })
         .filter(|s| !s.is_empty());
 
-    let tenant = user
-        .get("attributes")
-        .and_then(|v| v.get("tenant"))
-        .and_then(|v| v.as_str())
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty());
+    let groups = user.get("groups").map(groepsnamen).unwrap_or_default();
 
     Some(AuthentikUserInfo {
         username,
         display_name,
         email,
         pk,
-        tenant,
+        groups,
     })
 }
 
-/// Project an [`AuthentikUserInfo`] onto [`OidcClaims`].
+/// Groepsnamen uit het `groups`-veld van `users/me`.
 ///
-/// The `tenant` is taken straight from Authentik; the extractor may
-/// override it via `X-Original-Tenant`, but only for principals on the
-/// `TENANT_OVERRIDE_ACCOUNTS` allowlist (see [`apply_tenant_override`]).
+/// Authentik geeft een lijst objecten (`{"pk": .., "name": ..}`); een lijst
+/// strings wordt ook geaccepteerd. Lege namen vallen weg.
+fn groepsnamen(groups: &serde_json::Value) -> Vec<String> {
+    groups
+        .as_array()
+        .map(|lijst| {
+            lijst
+                .iter()
+                .filter_map(|g| match g {
+                    serde_json::Value::String(s) => Some(s.as_str()),
+                    other => other.get("name").and_then(|n| n.as_str()),
+                })
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Project an [`AuthentikUserInfo`] onto [`OidcClaims`].
 fn claims_from_authentik_user(info: &AuthentikUserInfo) -> OidcClaims {
     OidcClaims {
         sub: info.username.clone(),
@@ -488,69 +473,12 @@ fn claims_from_authentik_user(info: &AuthentikUserInfo) -> OidcClaims {
         name: info.display_name.clone(),
         preferred_username: Some(info.username.clone()),
         iss: Some("authentik".to_string()),
-        groups: Vec::new(),
-        tenant: info.tenant.clone(),
+        groups: info.groups.clone(),
         company: None,
         job_title: None,
         phone: None,
         registration_number: None,
         uid: info.pk.clone(),
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Tenant override allowlist (X-Original-Tenant)
-// ---------------------------------------------------------------------------
-
-/// Cached allowlist, loaded once from [`ENV_TENANT_OVERRIDE_ACCOUNTS`].
-static TENANT_OVERRIDE_ALLOWLIST: OnceLock<HashSet<String>> = OnceLock::new();
-
-fn tenant_override_allowlist() -> &'static HashSet<String> {
-    TENANT_OVERRIDE_ALLOWLIST.get_or_init(|| {
-        parse_override_allowlist(
-            env::var(ENV_TENANT_OVERRIDE_ACCOUNTS)
-                .ok()
-                .as_deref()
-                .unwrap_or(""),
-        )
-    })
-}
-
-/// Parse een comma-separated allowlist naar een set van usernames.
-/// Lege string (env-var niet gezet) → lege set → niemand mag overriden.
-fn parse_override_allowlist(raw: &str) -> HashSet<String> {
-    raw.split(',')
-        .map(str::trim)
-        .filter(|s| !s.is_empty())
-        .map(str::to_string)
-        .collect()
-}
-
-/// Pas de `X-Original-Tenant` override toe op de claims — maar alleen als
-/// de principal (`claims.sub`) op de allowlist staat. Geweigerde overrides
-/// worden genegeerd (claims blijven ongewijzigd) en gelogd via `warn`.
-fn apply_tenant_override(
-    claims: &mut OidcClaims,
-    headers: &HeaderMap,
-    allowlist: &HashSet<String>,
-) {
-    let Some(requested) = header_string(headers, HEADER_ORIGINAL_TENANT) else {
-        return;
-    };
-
-    if allowlist.contains(&claims.sub) {
-        tracing::info!(
-            principal = %claims.sub,
-            tenant = %requested,
-            "X-Original-Tenant override toegepast (principal op allowlist)"
-        );
-        claims.tenant = Some(requested);
-    } else {
-        tracing::warn!(
-            principal = %claims.sub,
-            requested_tenant = %requested,
-            "X-Original-Tenant geweigerd — principal staat niet in TENANT_OVERRIDE_ACCOUNTS; header genegeerd"
-        );
     }
 }
 
@@ -582,21 +510,9 @@ where
         // header-pad: Caddy heeft dan geen forward_auth gedaan en de
         // X-Authentik-* headers komen van de client.
         if let Some(token) = kies_credential_pad(&parts.headers)? {
-            let mut claims = validate_authentik_token(token)
+            let claims = validate_authentik_token(token)
                 .await
                 .ok_or(AuthError::InvalidBearerToken)?;
-
-            // X-Original-Tenant is een expliciete impersonation-hint voor
-            // backend-to-backend calls. Alleen gehonoreerd nadat Authentik
-            // het Bearer-token heeft geaccepteerd ÉN de principal op de
-            // TENANT_OVERRIDE_ACCOUNTS-allowlist staat (default leeg =
-            // niemand). Zie module-doc voor de inventarisatie-uitkomst.
-            apply_tenant_override(
-                &mut claims,
-                &parts.headers,
-                tenant_override_allowlist(),
-            );
-
             return Ok(AuthClaims(claims));
         }
 
@@ -644,8 +560,7 @@ mod tests {
             (HEADER_NAME, "Jochem K"),
             (HEADER_UID, "uuid-123"),
             (HEADER_GROUPS, "admins,builders"),
-            (HEADER_TENANT, "3bm"),
-            (HEADER_COMPANY, "3BM"),
+            (HEADER_COMPANY, "Bedrijf"),
             (HEADER_JOB_TITLE, "Engineer"),
             (HEADER_PHONE, "+31"),
             (HEADER_REG_NUMBER, "REG-1"),
@@ -657,7 +572,6 @@ mod tests {
         assert_eq!(claims.name.as_deref(), Some("Jochem K"));
         assert_eq!(claims.uid.as_deref(), Some("uuid-123"));
         assert_eq!(claims.groups, vec!["admins", "builders"]);
-        assert_eq!(claims.tenant.as_deref(), Some("3bm"));
         assert_eq!(claims.iss.as_deref(), Some("authentik"));
         assert_eq!(claims.preferred_username.as_deref(), Some("jochem"));
     }
@@ -730,8 +644,7 @@ mod tests {
         let mut builder = axum::http::Request::builder()
             .uri("/api/v1/me")
             .header(HEADER_USERNAME, "aanvaller")
-            .header(HEADER_GROUPS, "admins|openbouwlab-constructie")
-            .header(HEADER_TENANT, "andere-tenant");
+            .header(HEADER_GROUPS, "admins|openbouwlab-constructie");
         for (k, v) in extra {
             builder = builder.header(*k, *v);
         }
@@ -815,7 +728,7 @@ mod tests {
                         display_name: Some("Expired".into()),
                         email: None,
                         pk: None,
-                        tenant: None,
+                        groups: Vec::new(),
                     }),
                 },
             );
@@ -836,7 +749,7 @@ mod tests {
                 display_name: Some("Service User".into()),
                 email: Some("svc@service.openaec.local".into()),
                 pk: Some("abcd-1234".into()),
-                tenant: Some("3bm".into()),
+                groups: vec!["org-kba".into()],
             }),
         )
         .await;
@@ -845,7 +758,7 @@ mod tests {
         let hit = read_cache(positive_fp).await.expect("present");
         let info = hit.expect("positive");
         assert_eq!(info.username, "svc-user");
-        assert_eq!(info.tenant.as_deref(), Some("3bm"));
+        assert_eq!(info.groups, vec!["org-kba".to_string()]);
         assert_eq!(info.email.as_deref(), Some("svc@service.openaec.local"));
 
         let miss = read_cache(negative_fp).await.expect("present");
@@ -855,7 +768,7 @@ mod tests {
         cache().write().await.remove(negative_fp);
     }
 
-    // --- Claims projection + tenant override --------------------------------
+    // --- Claims projection ---------------------------------------------------
 
     #[test]
     fn claims_from_authentik_user_maps_fields() {
@@ -864,7 +777,7 @@ mod tests {
             display_name: Some("Warmteverlies Service".into()),
             email: Some("svc@service.openaec.local".into()),
             pk: Some("uuid-pk-7".into()),
-            tenant: Some("3bm".into()),
+            groups: vec!["org-kba".into(), "openbouwlab-constructie".into()],
         };
         let claims = claims_from_authentik_user(&info);
         assert_eq!(claims.sub, "svc-warmteverlies");
@@ -872,75 +785,22 @@ mod tests {
         assert_eq!(claims.email.as_deref(), Some("svc@service.openaec.local"));
         assert_eq!(claims.name.as_deref(), Some("Warmteverlies Service"));
         assert_eq!(claims.uid.as_deref(), Some("uuid-pk-7"));
-        assert_eq!(claims.tenant.as_deref(), Some("3bm"));
+        assert_eq!(claims.groups, vec!["org-kba", "openbouwlab-constructie"]);
         assert_eq!(claims.iss.as_deref(), Some("authentik"));
     }
 
-    fn svc_claims(tenant: &str) -> OidcClaims {
-        let info = AuthentikUserInfo {
-            username: "svc-extern".into(),
-            display_name: None,
-            email: None,
-            pk: None,
-            tenant: Some(tenant.into()),
-        };
-        claims_from_authentik_user(&info)
-    }
-
-    /// Override toegestaan: principal staat op de allowlist → header wint.
     #[test]
-    fn tenant_override_allowed_for_allowlisted_principal() {
-        let mut claims = svc_claims("3bm");
-        let headers = hdr(&[(HEADER_ORIGINAL_TENANT, "klant-a")]);
-        let allowlist = parse_override_allowlist("svc-extern,svc-other");
-
-        apply_tenant_override(&mut claims, &headers, &allowlist);
-        assert_eq!(claims.tenant.as_deref(), Some("klant-a"));
-    }
-
-    /// Override geweigerd: principal NIET op de allowlist → header genegeerd,
-    /// de Authentik tenant-claim blijft staan.
-    #[test]
-    fn tenant_override_denied_for_unlisted_principal() {
-        let mut claims = svc_claims("3bm");
-        let headers = hdr(&[(HEADER_ORIGINAL_TENANT, "klant-a")]);
-        let allowlist = parse_override_allowlist("svc-other");
-
-        apply_tenant_override(&mut claims, &headers, &allowlist);
-        assert_eq!(claims.tenant.as_deref(), Some("3bm"));
-    }
-
-    /// Default-dicht: lege allowlist (env-var niet gezet) → niemand mag
-    /// overriden, ook een geldig service-account niet.
-    #[test]
-    fn tenant_override_denied_with_empty_allowlist() {
-        let mut claims = svc_claims("3bm");
-        let headers = hdr(&[(HEADER_ORIGINAL_TENANT, "klant-a")]);
-        let allowlist = parse_override_allowlist("");
-
-        apply_tenant_override(&mut claims, &headers, &allowlist);
-        assert_eq!(claims.tenant.as_deref(), Some("3bm"));
-    }
-
-    /// Zonder header blijft de Authentik-waarde staan, ook mét allowlist.
-    #[test]
-    fn tenant_override_noop_without_header() {
-        let mut claims = svc_claims("3bm");
-        let headers = hdr(&[]);
-        let allowlist = parse_override_allowlist("svc-extern");
-
-        apply_tenant_override(&mut claims, &headers, &allowlist);
-        assert_eq!(claims.tenant.as_deref(), Some("3bm"));
-    }
-
-    #[test]
-    fn parse_override_allowlist_trims_and_skips_empty_entries() {
-        let set = parse_override_allowlist(" svc-a , ,svc-b,, ");
-        assert_eq!(set.len(), 2);
-        assert!(set.contains("svc-a"));
-        assert!(set.contains("svc-b"));
-        assert!(parse_override_allowlist("").is_empty());
-        assert!(parse_override_allowlist(" , ,").is_empty());
+    fn groepsnamen_uit_users_me() {
+        let objecten = serde_json::json!([
+            {"pk": "1", "name": "org-kba"},
+            {"pk": "2", "name": " openbouwlab-constructie "},
+            {"pk": "3", "name": ""},
+            {"pk": "4"}
+        ]);
+        assert_eq!(groepsnamen(&objecten), vec!["org-kba", "openbouwlab-constructie"]);
+        assert_eq!(groepsnamen(&serde_json::json!(["org-kba"])), vec!["org-kba"]);
+        assert!(groepsnamen(&serde_json::json!(null)).is_empty());
+        assert!(groepsnamen(&serde_json::json!([])).is_empty());
     }
 
     #[tokio::test]

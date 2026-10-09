@@ -41,6 +41,10 @@ pub enum ApiError {
     /// Module niet geactiveerd voor dit account (HTTP 403). De tekst is de
     /// letterlijke `error`-waarde in de response.
     ModuleNietGeactiveerd(String),
+    /// Organisatie of huisstijl staat het verzoek niet toe (HTTP 403).
+    /// `code`: `geen_organisatie`, `meerdere_organisaties`,
+    /// `onbekende_organisatie` of `huisstijl_niet_toegestaan`.
+    Organisatie { code: &'static str, detail: String },
 }
 
 impl From<constructie_core::ConstructieFout> for ApiError {
@@ -106,6 +110,7 @@ impl IntoResponse for ApiError {
                     }
                 }
             }
+            ApiError::Organisatie { code, detail } => (StatusCode::FORBIDDEN, code, detail),
             ApiError::ModuleNietGeactiveerd(msg) => {
                 let body = serde_json::json!({ "error": msg });
                 return (StatusCode::FORBIDDEN, axum::Json(body)).into_response();

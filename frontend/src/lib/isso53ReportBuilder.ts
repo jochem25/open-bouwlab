@@ -9,6 +9,7 @@
  * elke geldige BM Reports JSON. Per norm bouwt de frontend de JSON; het
  * Rust-PDF-renderpad blijft hetzelfde.
  */
+import { organisatieNaam } from "../store/organisatieStore";
 import i18next from "../i18n/config";
 import type { Project } from "../types";
 import type {
@@ -155,7 +156,7 @@ export async function buildIsso53Report(
     project: projectName,
     project_number: project.info.project_number ?? "",
     client: project.info.client ?? "",
-    author: project.info.engineer ?? "3BM Bouwkunde",
+    author: project.info.engineer || organisatieNaam(),
     date: project.info.date ?? today,
     version: "1.0",
     status: "CONCEPT",
@@ -227,7 +228,7 @@ export async function buildIsso53Report(
     colofon: {
       enabled: true,
       opdrachtgever_naam: project.info.client ?? "",
-      adviseur_bedrijf: "3BM Bouwkunde",
+      adviseur_bedrijf: organisatieNaam(),
       adviseur_naam: project.info.engineer ?? "",
       normen: i18next.t("isso53.report.normenLine", {
         defaultValue:
