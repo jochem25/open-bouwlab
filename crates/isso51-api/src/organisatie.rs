@@ -383,6 +383,18 @@ mod tests {
     }
 
     #[test]
+    fn laad_meldt_pad_bij_ontbrekend_of_ongeldig_bestand() {
+        let dir = std::env::temp_dir().join(format!("isso51-org-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("map");
+        let ontbreekt = dir.join("bestaat-niet.json");
+        assert!(Organisaties::laad(&ontbreekt).unwrap_err().contains("niet leesbaar"));
+        let ongeldig = dir.join("ongeldig.json");
+        std::fs::write(&ongeldig, r#"{"organisaties":{"kba":{"naam":"K"}}}"#).expect("schrijf");
+        let fout = Organisaties::laad(&ongeldig).unwrap_err();
+        assert!(fout.contains("ongeldig.json") && fout.contains("ongeldige JSON"), "{fout}");
+    }
+
+    #[test]
     fn slug_regels() {
         assert!(is_slug("kba"));
         assert!(is_slug("openaec_foundation"));

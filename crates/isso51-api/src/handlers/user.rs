@@ -109,3 +109,68 @@ struct UserRow {
     first_seen_at: String,
     last_login_at: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use axum::body::Body;
+    use axum::http::{Request, StatusCode};
+    use axum::routing::get;
+    use axum::Router;
+    use serde_json::Value;
+    use tower::ServiceExt;
+
+    use super::*;
+
+    async fn me(groepen: &str) -> Value {
+        let db = sqlx::sqlite::SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect("sqlite::memory:")
+            .await
+            .expect("in-memory sqlite");
+        crate::run_migrations(&db).await;
+        let mut state = AppState::new(db, None, None, None);
+        state.organisaties = Arc::new(crate::organisatie::test_organisaties());
+        let app = Router::new().route("/me", get(get_profile)).with_state(state);
+        let req = Request::builder()
+            .uri("/me")
+            .header("X-Authentik-Username", "tester")
+            .header("X-Authentik-Groups", groepen)
+            .body(Body::empty())
+            .expect("request");
+        let resp = app.oneshot(req).await.expect("response");
+        assert_eq!(resp.status(), StatusCode::OK);
+        let bytes = axum::body::to_bytes(resp.into_body(), 1 << 20).await.expect("body");
+        serde_json::from_slice(&bytes).expect("json")
+    }
+
+    #[tokio::test]
+    async fn me_geeft_organisatie_uit_org_groep() {
+        let json = me("openbouwlab-constructie|org-kba").await;
+        assert_eq!(json["organisatie"]["id"], "kba");
+        assert_eq!(json["organisatie"]["naam"], "Testbureau");
+        assert_eq!(json["organisatie"]["standaard_huisstijl"], "kba");
+        assert_eq!(
+            json["organisatie"]["huisstijlen"],
+            serde_json::json!(["kba", "openaec_foundation"])
+        );
+        assert!(json["organisatie_fout"].is_null());
+        // De groep (cors_origins, groep, abonnement) lekt niet naar de client.
+        assert!(json["organisatie"].get("groep").is_none());
+    }
+
+    #[tokio::test]
+    async fn me_zonder_of_met_foute_org_groep() {
+        let json = me("openbouwlab-constructie").await;
+        assert!(json["organisatie"].is_null());
+        assert!(json["organisatie_fout"].is_null());
+
+        let json = me("org-kba|org-andere").await;
+        assert!(json["organisatie"].is_null());
+        assert_eq!(json["organisatie_fout"]["code"], "meerdere_organisaties");
+
+        let json = me("org-onbekend").await;
+        assert_eq!(json["organisatie_fout"]["code"], "onbekende_organisatie");
+    }
+}
