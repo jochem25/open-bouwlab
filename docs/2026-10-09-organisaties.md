@@ -52,7 +52,11 @@ Voorbeeld: `organisaties.example.json` in de repo-root.
 | `cors_origins` | optioneel; `http(s)://`, kleine letters, geen `/` aan het eind, geen `*` |
 | `abonnement` | gereserveerd, nog zonder betekenis |
 
-Onbekende velden (typfouten) worden geweigerd. Een ongeldig of onleesbaar bestand laat de API
+Onbekende velden (typfouten) worden geweigerd. Een dubbele sleutel in de JSON wordt niet
+gedetecteerd (de laatste wint); let daarop bij handmatig bewerken.
+
+**Uitrol:** plaats het bestand op de host VOOR de container start. Ontbreekt het bij een
+bind-mount, dan maakt Docker er een map van en start de API niet. Een ongeldig of onleesbaar bestand laat de API
 **niet starten**. Niet gezet = geen organisaties (de API start, rapporten geven 403).
 
 CORS: de vereniging van alle `cors_origins`, plus `http://localhost:5173` en

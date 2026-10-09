@@ -102,6 +102,8 @@ fn zet_huisstijl(rapport: &mut Map<String, Value>, org: &Organisatie) -> Result<
         }
     };
     rapport.insert("brand".to_string(), Value::String(huisstijl.clone()));
+    // De tenant bepaalt de proxy (X-Original-Tenant), nooit de client.
+    rapport.remove("tenant");
     Ok(huisstijl)
 }
 
@@ -494,6 +496,18 @@ mod tests {
         let o = ontvangen.lock().expect("lock");
         let body: Value = serde_json::from_str(&o.body).expect("json");
         assert_eq!(body["brand"], "openaec_foundation");
+        assert_eq!(o.headers["x-original-tenant"], "kba");
+    }
+
+    #[tokio::test]
+    async fn tenant_uit_de_body_gaat_niet_mee() {
+        let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+        proxy_report(&state(url, None).await, &kba(), r#"{"tenant":"andere"}"#.to_string())
+            .await
+            .expect("pdf");
+        let o = ontvangen.lock().expect("lock");
+        let body: Value = serde_json::from_str(&o.body).expect("json");
+        assert!(body.get("tenant").is_none());
         assert_eq!(o.headers["x-original-tenant"], "kba");
     }
 
