@@ -2,7 +2,6 @@
 
 mod beng;
 mod calculation;
-mod cloud;
 mod constructie;
 mod cooling;
 mod ifc_analyse;
@@ -18,10 +17,6 @@ pub use uniec_import::import_uniec3_handler;
 pub use calculation::{calculate, calculate_v2, get_schema, health, list_schemas};
 pub use constructie::constructie_routes;
 pub use cooling::{simplified_cooling, tojuli_calculate};
-pub use cloud::{
-    cloud_list_calculations, cloud_list_models, cloud_list_projects, cloud_save_calculation,
-    cloud_status,
-};
 pub use ifc_analyse::analyse_ifc;
 pub use ifcx::calculate_ifcx_handler;
 pub use projects::{

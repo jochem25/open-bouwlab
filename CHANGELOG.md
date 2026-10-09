@@ -23,6 +23,7 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🗑️ Verwijderd
 
+- **Nextcloud-opslag (online opslag)** — `/api/v1/cloud/*`, de `openaec-cloud`-dependency, `tenants.json` en de env-variabelen `TENANTS_CONFIG`, `DEFAULT_TENANT`, `NC_SERVICE_PASS_*`. Er was geen cloud-UI, dus er verdwijnen geen knoppen. Projecten blijven in de eigen database (per gebruiker) en zijn als `.ifcenergy` te downloaden en te openen
 - **Oude IFC-importpaden** — het tabblad IFC-import is de enige ingang. Weg: `POST /api/v1/ifc/import` en de Python `ifc-tool` (incl. Docker-installatie, `IFC_TOOL_PATH`), de Tauri-commando `import_ifc` met sidecar, de client-side web-ifc-import in de Modeller (wandtype-review inbegrepen) en de IFC-reconstructie (bèta). De ribbon-knop "IFC importeren" in de Modeller opent het tabblad IFC-import; `/ifc-reconstructie` stuurt door
 
 ### 🧹 Refactor

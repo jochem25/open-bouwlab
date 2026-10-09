@@ -30,8 +30,6 @@ use tower_http::services::ServeDir;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
-use openaec_cloud::TenantsRegistry;
-
 use crate::config::Config;
 use crate::ratelimit::RateLimiter;
 use crate::state::AppState;
@@ -98,30 +96,11 @@ async fn main() {
     // (`X-Authentik-*` headers). No JWT/JWKS state to initialise here.
     tracing::info!("Auth mode: Authentik forward_auth headers");
 
-    // --- Multi-tenant cloud storage ---
-    let tenants = if let Some(ref path) = config.tenants_config {
-        TenantsRegistry::load(path).unwrap_or_default()
-    } else {
-        TenantsRegistry::load_from_env().unwrap_or_default()
-    };
-
-    if tenants.is_configured() {
-        tracing::info!(
-            tenants = ?tenants.slugs(),
-            "Cloud storage enabled for {} tenant(s)",
-            tenants.slugs().len()
-        );
-    } else {
-        tracing::info!("No tenants configured — cloud storage disabled");
-    }
-
     let app_state = AppState::new(
         db,
         config.reports_api_url.clone(),
         config.reports_api_key.clone(),
         config.reports_api_service_token.clone(),
-        tenants,
-        config.default_tenant.clone(),
     );
 
     let mut app_state = app_state;
@@ -212,23 +191,6 @@ async fn main() {
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
         .merge(constructie);
 
-    // Cloud storage routes (authenticated).
-    let cloud_routes = Router::new()
-        .route("/status", get(handlers::cloud_status))
-        .route("/projects", get(handlers::cloud_list_projects))
-        .route(
-            "/projects/{project}/models",
-            get(handlers::cloud_list_models),
-        )
-        .route(
-            "/projects/{project}/calculations",
-            get(handlers::cloud_list_calculations),
-        )
-        .route(
-            "/projects/{project}/save",
-            post(handlers::cloud_save_calculation),
-        );
-
     // IFC analyse with 100 MB body limit (default is 2 MB).
     let ifc_routes = Router::new()
         // TODO: hier komt later de module-gating (entitlement-middleware via
@@ -279,7 +241,6 @@ async fn main() {
             config::API_PREFIX,
             public
                 .merge(protected)
-                .nest("/cloud", cloud_routes)
                 .nest("/ifc", ifc_routes),
         )
         .with_state(app_state)

@@ -42,10 +42,6 @@ pub struct Config {
     pub ifc_analyse_token: Option<String>,
     /// Timeout per analyse-request (env `IFC_ANALYSE_TIMEOUT_S`, default 300).
     pub ifc_analyse_timeout: Duration,
-    /// Path to tenants.json for multi-tenant cloud storage.
-    pub tenants_config: Option<String>,
-    /// Default tenant slug (used when no tenant header in request).
-    pub default_tenant: Option<String>,
     /// Entitlement-gating voor de constructiemodule.
     ///
     /// Env `CONSTRUCTIE_ENTITLEMENT_GROUP`: Authentik-groep die toegang geeft
@@ -99,12 +95,6 @@ impl Config {
                     .and_then(|v| v.trim().parse().ok())
                     .unwrap_or(DEFAULT_IFC_ANALYSE_TIMEOUT_S),
             ),
-            tenants_config: env::var("TENANTS_CONFIG")
-                .ok()
-                .filter(|s| !s.is_empty()),
-            default_tenant: env::var("DEFAULT_TENANT")
-                .ok()
-                .filter(|s| !s.is_empty()),
             entitlements: crate::entitlements::Config::from_env(),
         }
     }

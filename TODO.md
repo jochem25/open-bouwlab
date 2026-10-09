@@ -552,17 +552,8 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [x] **Envelope-pariteit server-save (10-06)** — server-save/-load gebruikt dezelfde volledige envelope als file-save (geometrie + alle sidecars), backward-compat legacy kaal project_data, race-guard projectwissel, persistente save-statusindicator, body-limit 20 MB. Fixt: geometrie-verlies op server + per-pc divergentie. 180/180 + cargo 28 groen.
 - [ ] **Onderlegger (underlay.dataUrl) niet in envelope [besluit]** — bewust uitgesloten (1-10+ MB base64); wordt ook bij file-open niet hersteld. Later: aparte upload/opslag overwegen.
 
-## Cloud integratie — BACKEND KLAAR
-- [x] `openaec-cloud` dependency (gedeelde Nextcloud cloud crate)
-- [x] Multi-tenant config (`TENANTS_CONFIG`, `DEFAULT_TENANT` env vars)
-- [x] `GET /api/v1/cloud/status` — cloud storage beschikbaarheid
-- [x] `GET /api/v1/cloud/projects` — projecten uit Nextcloud
-- [x] `GET /api/v1/cloud/projects/{project}/models` — IFC bestanden
-- [x] `GET /api/v1/cloud/projects/{project}/calculations` — berekeningen
-- [x] `POST /api/v1/cloud/projects/{project}/save` — berekening opslaan + manifest update
-- [ ] Server-side deployment: volume mount + env vars in docker-compose
-- [ ] Frontend: cloud storage browser in de UI
-- [ ] Frontend: "Opslaan naar cloud" knop in Backstage/resultaten
+## Cloud integratie — VERVALLEN (09-10-2026)
+- [x] Nextcloud-opslag verwijderd (besluit 08-10): `handlers/cloud.rs`, `/api/v1/cloud/*`, `openaec-cloud`-dependency, `tenants.json`, `TENANTS_CONFIG`/`DEFAULT_TENANT`. Er was nooit cloud-UI; er verdwijnen geen knoppen. Projecten: eigen database + download/upload `.ifcenergy`.
 
 ## App features
 - [x] OIDC login/logout op productie

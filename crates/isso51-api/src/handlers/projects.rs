@@ -491,8 +491,6 @@ mod optimistic_locking_tests {
             None,
             None,
             None,
-            openaec_cloud::TenantsRegistry::default(),
-            None,
         )
     }
 

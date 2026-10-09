@@ -380,8 +380,6 @@ mod tests {
             Some(url),
             None,
             Some("ak-test".to_string()),
-            openaec_cloud::TenantsRegistry::default(),
-            None,
         );
         state.report_default_cover_dir = dir;
         state
