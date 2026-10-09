@@ -107,6 +107,46 @@ fn zet_huisstijl(rapport: &mut Map<String, Value>, org: &Organisatie) -> Result<
     Ok(huisstijl)
 }
 
+/// Vul de auteur in het colofon met de ingelogde gebruiker en zijn organisatie.
+///
+/// De Reports API vult lege `adviseur_*`-velden met het profiel van de
+/// geauthenticeerde gebruiker; via deze proxy is dat het service-account, dat
+/// dan als "Opgesteld door" in het rapport kwam. Daarom vult de proxy ze zelf:
+/// naam (weergavenaam, anders gebruikersnaam), bedrijf (organisatienaam) en
+/// e-mail. Een veld dat de frontend al invulde blijft staan.
+fn vul_auteur(rapport: &mut Map<String, Value>, claims: &OidcClaims, org: &Organisatie) {
+    let colofon = rapport
+        .entry("colofon")
+        .or_insert_with(|| Value::Object(Map::new()));
+    if !colofon.is_object() {
+        *colofon = Value::Object(Map::new());
+    }
+    let Some(colofon) = colofon.as_object_mut() else {
+        return;
+    };
+    let naam = claims
+        .name
+        .as_deref()
+        .map(str::trim)
+        .filter(|n| !n.is_empty())
+        .unwrap_or(claims.sub.as_str());
+    let email = claims.email.as_deref().map(str::trim).filter(|e| !e.is_empty());
+    for (veld, waarde) in [
+        ("adviseur_naam", Some(naam)),
+        ("adviseur_bedrijf", Some(org.naam.as_str())),
+        ("adviseur_email", email),
+    ] {
+        let leeg = match colofon.get(veld) {
+            None | Some(Value::Null) => true,
+            Some(Value::String(s)) => s.trim().is_empty(),
+            Some(_) => false,
+        };
+        if let (true, Some(w)) = (leeg, waarde.filter(|w| !w.is_empty())) {
+            colofon.insert(veld.to_string(), Value::String(w.to_string()));
+        }
+    }
+}
+
 /// Stuur rapport-JSON door naar de Reports API en geef de PDF terug.
 ///
 /// Gedeeld door `/report/generate` en de constructiemodule; het gedrag
@@ -134,6 +174,7 @@ pub(crate) async fn proxy_report(
     };
     drop(body);
     let huisstijl = zet_huisstijl(&mut rapport, org)?;
+    vul_auteur(&mut rapport, claims, org);
 
     let url = format!("{}/api/generate/v2", base_url.trim_end_matches('/'));
 
@@ -606,6 +647,70 @@ mod tests {
             .await
             .expect_err("500");
         assert_eq!(fout.into_response().status(), StatusCode::BAD_GATEWAY);
+    }
+
+    fn colofon_van(body: &str) -> Value {
+        serde_json::from_str::<Value>(body).expect("json")["colofon"].clone()
+    }
+
+    #[tokio::test]
+    async fn colofon_krijgt_gebruiker_en_organisatie_als_auteur() {
+        let gebruiker = OidcClaims {
+            name: Some("Ingrid Tester".to_string()),
+            email: Some("ingrid@example.org".to_string()),
+            ..kba()
+        };
+        // Ontbrekend colofon, leeg colofon, lege strings (frontend zonder engineer) en null.
+        for body in [
+            r#"{"project":"p"}"#,
+            r#"{"project":"p","colofon":null}"#,
+            r#"{"project":"p","colofon":"geen object"}"#,
+            r#"{"project":"p","colofon":{"enabled":false}}"#,
+            r#"{"project":"p","colofon":{"adviseur_naam":"","adviseur_bedrijf":" ","adviseur_email":null}}"#,
+        ] {
+            let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+            proxy_report(&state(url, None).await, &gebruiker, body.to_string())
+                .await
+                .expect("pdf");
+            let colofon = colofon_van(&ontvangen.lock().expect("lock").body);
+            assert_eq!(colofon["adviseur_naam"], "Ingrid Tester", "{body}");
+            assert_eq!(colofon["adviseur_bedrijf"], "Testbureau", "{body}");
+            assert_eq!(colofon["adviseur_email"], "ingrid@example.org", "{body}");
+            // Een uitgeschakeld colofon blijft uitgeschakeld.
+            let verwacht_enabled = if body.contains("enabled") { Value::Bool(false) } else { Value::Null };
+            assert_eq!(colofon["enabled"], verwacht_enabled, "{body}");
+        }
+    }
+
+    #[tokio::test]
+    async fn colofon_zonder_weergavenaam_krijgt_gebruikersnaam() {
+        let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+        let gebruiker = OidcClaims { name: Some("  ".to_string()), ..kba() };
+        proxy_report(&state(url, None).await, &gebruiker, r#"{"project":"p"}"#.to_string())
+            .await
+            .expect("pdf");
+        let colofon = colofon_van(&ontvangen.lock().expect("lock").body);
+        assert_eq!(colofon["adviseur_naam"], "tester");
+        assert!(colofon.get("adviseur_email").is_none());
+    }
+
+    #[tokio::test]
+    async fn colofon_van_de_frontend_blijft_staan() {
+        let (url, ontvangen) = nep_reports_api(StatusCode::OK, "%PDF").await;
+        let gebruiker = OidcClaims {
+            name: Some("Ingrid Tester".to_string()),
+            email: Some("ingrid@example.org".to_string()),
+            ..kba()
+        };
+        let body = r#"{"project":"p","colofon":{"adviseur_naam":"Ir. Ander","adviseur_bedrijf":"Eigen BV","adviseur_email":"ander@example.org","fase":"DO"}}"#;
+        proxy_report(&state(url, None).await, &gebruiker, body.to_string())
+            .await
+            .expect("pdf");
+        let colofon = colofon_van(&ontvangen.lock().expect("lock").body);
+        assert_eq!(colofon["adviseur_naam"], "Ir. Ander");
+        assert_eq!(colofon["adviseur_bedrijf"], "Eigen BV");
+        assert_eq!(colofon["adviseur_email"], "ander@example.org");
+        assert_eq!(colofon["fase"], "DO");
     }
 
     #[tokio::test]

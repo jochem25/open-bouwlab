@@ -25,6 +25,7 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🐛 Bug fixes
 
+- **"Opgesteld door" in het colofon toonde het service-account** van de rapportproxy — de Reports API vult lege `adviseur_*`-velden met het profiel van de aanroeper, en dat is via de proxy het service-account. De proxy (`/report/generate` en `/constructie/rapport`) vult nu zelf `colofon.adviseur_naam` (weergavenaam, anders gebruikersnaam), `adviseur_bedrijf` (organisatienaam) en `adviseur_email` (e-mail van de gebruiker), alleen als de frontend ze leeg liet
 - **Bearer-tokens (ak-*) kregen geen groepen** — de groepen uit `users/me` werden niet gelezen, waardoor ook de constructie-entitlement via Bearer nooit werkte
 
 - **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard

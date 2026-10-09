@@ -560,6 +560,12 @@ Zie `docs/ifc-herontwerp-verslag.md` sectie 10-11 voor het volledige implementat
 - [ ] openaec-reports: expliciete `brand` van de Open Bouwlab-service toestaan zodra een organisatie een tweede huisstijl krijgt (nu: brand moet gelijk zijn aan tenant). Eigenaar openaec-reports
 - [ ] Wens: constructie-berekeningen (staal/beton/hout) opslaan; nu alleen berekenen + rapport
 
+## Rapport-auteur (2026-10-09, branch `fix/rapport-auteur`)
+
+- [x] Proxy vult `colofon.adviseur_naam`/`_bedrijf`/`_email` met gebruiker en organisatie als de frontend ze leeg liet (geen service-account meer als "Opgesteld door")
+- [ ] Na deploy: rapport genereren en colofon controleren (planner)
+- [ ] openaec-reports: geen profielinjectie (`_inject_user_profile_defaults`) voor service-accounts; zonder dat vult de Reports API nog telefoon/functie/registratie en (bij een gebruiker zonder e-mail) het e-mailadres van het service-account. Eigenaar openaec-reports
+
 ## Cloud integratie — VERVALLEN (09-10-2026)
 - [x] Nextcloud-opslag verwijderd (besluit 08-10): `handlers/cloud.rs`, `/api/v1/cloud/*`, `openaec-cloud`-dependency, `tenants.json`, `TENANTS_CONFIG`/`DEFAULT_TENANT`. Er was nooit cloud-UI; er verdwijnen geen knoppen. Projecten: eigen database + download/upload `.ifcenergy`.
 
