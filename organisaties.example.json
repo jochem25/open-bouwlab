@@ -1,0 +1,12 @@
+{
+  "organisaties": {
+    "voorbeeld": {
+      "naam": "Voorbeeld Bouwadvies",
+      "groep": "org-voorbeeld",
+      "huisstijlen": ["voorbeeld"],
+      "standaard_huisstijl": "voorbeeld",
+      "cors_origins": [],
+      "abonnement": null
+    }
+  }
+}

@@ -11,11 +11,12 @@ mod cors;
 mod entitlements;
 mod error;
 mod handlers;
+mod organisatie;
 mod ratelimit;
 mod state;
 
-use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::Path;
+use std::sync::Arc;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -31,6 +32,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;
 
 use crate::config::Config;
+use crate::organisatie::Organisaties;
 use crate::ratelimit::RateLimiter;
 use crate::state::AppState;
 
@@ -103,12 +105,29 @@ async fn main() {
         config.reports_api_service_token.clone(),
     );
 
+    // --- Organisaties ---
+    // Een ongeldig of onleesbaar bestand stopt de start: geen halve config.
+    let organisaties = match config.organisaties_config.as_deref() {
+        Some(pad) => Organisaties::laad(Path::new(pad))
+            .unwrap_or_else(|e| panic!("Organisatieconfiguratie ongeldig: {e}")),
+        None => {
+            tracing::warn!("ORGANISATIES_CONFIG niet gezet");
+            Organisaties::default()
+        }
+    };
+    if organisaties.is_empty() {
+        tracing::warn!("Geen organisaties ingericht - rapporten geven 403 geen_organisatie");
+    } else {
+        tracing::info!(organisaties = ?organisaties.ids(), "{} organisatie(s) geladen", organisaties.len());
+    }
+
     let mut app_state = app_state;
+    app_state.organisaties = Arc::new(organisaties);
     app_state.entitlements = config.entitlements.clone();
     app_state.report_default_cover_dir =
         config.report_default_cover_dir.as_ref().map(std::path::PathBuf::from);
     match &app_state.report_default_cover_dir {
-        Some(dir) => tracing::info!(dir = %dir.display(), "Standaard-coverfoto's per tenant actief"),
+        Some(dir) => tracing::info!(dir = %dir.display(), "Standaard-coverfoto's per organisatie actief"),
         None => tracing::info!("Geen REPORT_DEFAULT_COVER_DIR — rapporten zonder coverfoto gaan ongewijzigd door"),
     }
     app_state.ifc_analyse_url = config.ifc_analyse_url.clone();
@@ -199,41 +218,15 @@ async fn main() {
         .layer(DefaultBodyLimit::max(100 * 1024 * 1024));
 
     // --- CORS ---
-    // Tenant-aware: scan <OPENAEC_TENANTS_ROOT>/<slug>/tenant.yaml voor
-    // allowed_origins. Bij ontbrekende config of lege set valt de layer
-    // terug op de statische `cors_origins` lijst uit env `CORS_ORIGINS`
-    // (backward-compat met pre-B-4 deployments). Zie `crate::cors`.
-    let tenants_root = std::env::var("OPENAEC_TENANTS_ROOT")
-        .ok()
-        .filter(|s| !s.is_empty())
-        .map(PathBuf::from);
+    // Een bron: de cors_origins van alle organisaties, plus de lokale
+    // dev-origins zolang OPENAEC_ENV niet "production" is. Zie `crate::cors`.
     let include_dev = std::env::var("OPENAEC_ENV")
         .unwrap_or_else(|_| "development".into())
         != "production";
-    let origins = match tenants_root.as_deref() {
-        Some(root) if root.exists() => {
-            tracing::info!(
-                tenants_root = %root.display(),
-                include_dev,
-                "CORS: laden tenant origins"
-            );
-            cors::load_tenant_origins(root, include_dev)
-        }
-        Some(root) => {
-            tracing::warn!(
-                tenants_root = %root.display(),
-                "OPENAEC_TENANTS_ROOT wijst naar niet-bestaande directory — fallback op CORS_ORIGINS env"
-            );
-            HashSet::new()
-        }
-        None => {
-            tracing::info!(
-                "OPENAEC_TENANTS_ROOT niet gezet — fallback op CORS_ORIGINS env lijst"
-            );
-            HashSet::new()
-        }
-    };
-    let cors = cors::build_cors_layer(origins, config.cors_origins.clone());
+    let cors = cors::build_cors_layer(cors::origins(
+        app_state.organisaties.cors_origins(),
+        include_dev,
+    ));
 
     // --- App ---
     let mut app = Router::new()

@@ -70,13 +70,21 @@ pub(crate) async fn proxy_report(
         .header(header::CONTENT_TYPE.as_str(), "application/json")
         .timeout(Duration::from_secs(30));
 
+    // Tijdelijk (stap 2): organisatie-id als tenant; stap 3 maakt dit hard.
+    let tenant = state
+        .organisaties
+        .van_claims(claims)
+        .ok()
+        .flatten()
+        .map(|o| o.id.clone());
+
     // Primair: Authentik service-token (Bearer ak-*) + X-Original-Tenant
     if let Some(token) = state.reports_api_service_token.as_deref() {
         req = req.header(
             header::AUTHORIZATION.as_str(),
             format!("Bearer {token}"),
         );
-        if let Some(tenant) = claims.tenant.as_deref() {
+        if let Some(tenant) = tenant.as_deref() {
             req = req.header("X-Original-Tenant", tenant);
         } else {
             tracing::warn!(
@@ -90,7 +98,6 @@ pub(crate) async fn proxy_report(
         req = req.header("X-API-Key", api_key);
     }
 
-    let tenant = claims.tenant.clone();
     let dir = state.report_default_cover_dir.clone();
     let body = tokio::task::spawn_blocking(move || {
         vul_standaard_cover(body, tenant.as_deref(), dir.as_deref())
@@ -382,13 +389,14 @@ mod tests {
             Some("ak-test".to_string()),
         );
         state.report_default_cover_dir = dir;
+        state.organisaties = std::sync::Arc::new(crate::organisatie::test_organisaties());
         state
     }
 
     fn kba() -> OidcClaims {
         OidcClaims {
             sub: "tester".to_string(),
-            tenant: Some("kba".to_string()),
+            groups: vec!["org-kba".to_string()],
             ..Default::default()
         }
     }

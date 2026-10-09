@@ -10,6 +10,7 @@ services:
     container_name: warmteverlies
     env_file: .env.production
     environment:
+      - ORGANISATIES_CONFIG=/etc/openaec/organisaties.json
       # Constructiemodule (defaults getoond; groep = Authentik-entitlement):
       # - CONSTRUCTIE_ENABLED=true
       # - CONSTRUCTIE_ENTITLEMENT_GROUP=openbouwlab-constructie
@@ -17,6 +18,7 @@ services:
       # - REPORT_DEFAULT_COVER_DIR=/etc/openaec/covers
     volumes:
       - warmteverlies-data:/data
+      - /etc/openaec/organisaties.json:/etc/openaec/organisaties.json:ro
     expose:
       - "3001"
     networks:

@@ -16,13 +16,19 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Overnemen vervangt alleen de vertrekken**; projectgegevens, klimaat, instellingen en serverkoppeling blijven behouden
 - **Herkomst van de IFC-import reist mee in het projectbestand** (`ifcImport`: bestandsnaam, engine en versie, datum, goedgekeurde ruimten en de volledige engine-uitvoer voor latere ventilatie/BENG-import)
 
+- **Organisaties** (`ORGANISATIES_CONFIG`, voorbeeld `organisaties.example.json`) — een bron voor organisatie, naam, toegestane huisstijlen, standaardhuisstijl en CORS-origins. Lidmaatschap via de Authentik-groep `org-<id>` (`X-Authentik-Groups` of `groups` uit `users/me` bij Bearer). Meer dan een `org-*`-groep of een onbekende groep is een fout, geen gok. Ongeldig bestand = API start niet
+- **`GET /api/v1/me`** — nieuwe velden `organisatie` (`id`, `naam`, `huisstijlen`, `standaard_huisstijl`) en `organisatie_fout` (`code`, `detail`)
+
 ### 🐛 Bug fixes
+
+- **Bearer-tokens (ak-*) kregen geen groepen** — de groepen uit `users/me` werden niet gelezen, waardoor ook de constructie-entitlement via Bearer nooit werkte
 
 - **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard
 - **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (2786-proef: 45,0 → 24,3 kW na matcher-fix)
 
 ### 🗑️ Verwijderd
 
+- **Tenant-claim en tenantlijsten** — `X-Authentik-Meta-Tenant`, `attributes.tenant`, inkomende `X-Original-Tenant` met `TENANT_OVERRIDE_ACCOUNTS`, `CORS_ORIGINS` en de `tenant.yaml`-lezer (`OPENAEC_TENANTS_ROOT`). Vervangen door het organisatiebestand
 - **Nextcloud-opslag (online opslag)** — `/api/v1/cloud/*`, de `openaec-cloud`-dependency, `tenants.json` en de env-variabelen `TENANTS_CONFIG`, `DEFAULT_TENANT`, `NC_SERVICE_PASS_*`. Er was geen cloud-UI, dus er verdwijnen geen knoppen. Projecten blijven in de eigen database (per gebruiker) en zijn als `.ifcenergy` te downloaden en te openen
 - **Oude IFC-importpaden** — het tabblad IFC-import is de enige ingang. Weg: `POST /api/v1/ifc/import` en de Python `ifc-tool` (incl. Docker-installatie, `IFC_TOOL_PATH`), de Tauri-commando `import_ifc` met sidecar, de client-side web-ifc-import in de Modeller (wandtype-review inbegrepen) en de IFC-reconstructie (bèta). De ribbon-knop "IFC importeren" in de Modeller opent het tabblad IFC-import; `/ifc-reconstructie` stuurt door
 

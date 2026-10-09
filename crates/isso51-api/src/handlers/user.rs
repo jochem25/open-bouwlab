@@ -6,6 +6,7 @@ use serde::Serialize;
 
 use crate::auth::AuthClaims;
 use crate::error::ApiError;
+use crate::organisatie::OrganisatieProfiel;
 use crate::state::AppState;
 
 /// User profile response.
@@ -20,6 +21,18 @@ pub struct UserProfile {
     /// Actieve module-entitlements (bv. `"constructie"`). Additief veld.
     #[serde(default)]
     pub entitlements: Vec<String>,
+    /// Organisatie uit de `org-*`-groep; `null` zonder (geldige) organisatie.
+    pub organisatie: Option<OrganisatieProfiel>,
+    /// Waarom er geen organisatie is bij een `org-*`-groep die niet klopt
+    /// (meerdere of onbekend); `null` als er niets mis is.
+    pub organisatie_fout: Option<OrganisatieFoutProfiel>,
+}
+
+/// Fout bij het afleiden van de organisatie, voor de UI.
+#[derive(Serialize)]
+pub struct OrganisatieFoutProfiel {
+    pub code: &'static str,
+    pub detail: String,
 }
 
 /// GET /me — Return the current user's profile, creating it if it doesn't exist.
@@ -62,6 +75,17 @@ pub async fn get_profile(
     .fetch_one(&state.db)
     .await?;
 
+    let (organisatie, organisatie_fout) = match state.organisaties.van_claims(&claims) {
+        Ok(org) => (org.map(OrganisatieProfiel::from), None),
+        Err(fout) => (
+            None,
+            Some(OrganisatieFoutProfiel {
+                code: fout.code(),
+                detail: fout.detail(),
+            }),
+        ),
+    };
+
     Ok(Json(UserProfile {
         id: row.id,
         email: row.email,
@@ -70,6 +94,8 @@ pub async fn get_profile(
         first_seen_at: row.first_seen_at,
         last_login_at: row.last_login_at,
         entitlements: crate::entitlements::entitlements_van(&claims, &state.entitlements),
+        organisatie,
+        organisatie_fout,
     }))
 }
 
