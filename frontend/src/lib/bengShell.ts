@@ -196,8 +196,10 @@ export function legendLabel(key: string): string {
 
 export interface LegendInput {
   info: BengVlakInfo | null;
-  /** Kleur uit het IFC als `#rrggbb`. */
+  /** Kleur uit het IFC als `#rrggbb` (grootste deel van het element). */
   color: string;
+  /** Kleuren van alle delen; een tweede kleur binnen een element (magenta belendingsdeel) komt in `extraColors`. */
+  partColors?: string[];
 }
 
 export interface LegendEntry {
@@ -209,6 +211,8 @@ export interface LegendEntry {
   a_t_m2: number;
   /** Alleen bij ramen: aantal kozijnmerken (elk merk een eigen kleur). */
   merken?: number;
+  /** Kleuren van delen binnen elementen van deze groep naast `color`, bv. het magenta belendingsdeel. */
+  extraColors?: string[];
 }
 
 function legendRank(key: string): number {
@@ -235,12 +239,22 @@ export function buildLegend(items: LegendInput[]): { entries: LegendEntry[]; mix
     if (key === "raam" && it.info?.window_def) merken.add(it.info.window_def);
     const e = map.get(key);
     const a = elementKind(it.info) === "vlak" ? (it.info?.A_T_m2 ?? 0) : 0;
+    let entry = e;
     if (e) {
       e.count += 1;
       e.a_t_m2 += a;
       if (key !== "raam" && e.color.toLowerCase() !== it.color.toLowerCase()) mixed.add(key);
     } else {
-      map.set(key, { key, label: legendLabel(key), color: it.color, count: 1, a_t_m2: a });
+      entry = { key, label: legendLabel(key), color: it.color, count: 1, a_t_m2: a };
+      map.set(key, entry);
+    }
+    if (key !== "raam") {
+      for (const c of it.partColors ?? []) {
+        const lc = c.toLowerCase();
+        if (lc === it.color.toLowerCase() || lc === entry!.color.toLowerCase()) continue;
+        entry!.extraColors ??= [];
+        if (!entry!.extraColors.includes(lc)) entry!.extraColors.push(lc);
+      }
     }
   }
   const raam = map.get("raam");

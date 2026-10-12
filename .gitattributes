@@ -1,3 +1,6 @@
 # Node-scripts met shebang moeten LF houden: met CRLF (core.autocrlf=true op
 # Windows) faalt vitest op de import ("Invalid or unexpected token").
 frontend/scripts/*.mjs text eol=lf
+
+# Contractfixtures van ifc-ruimtebalans byte-gelijk aan de levering (sha in de test).
+frontend/src/lib/__fixtures__/rb-* -text

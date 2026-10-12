@@ -390,39 +390,42 @@ export function IfcImportViewer3D({
         bengEntries.current = [];
         const box = new THREE.Box3();
         for (const el of els) {
-          if (el.indices.length === 0) continue;
-          const g = new THREE.BufferGeometry();
-          g.setAttribute("position", new THREE.BufferAttribute(el.positions, 3));
-          g.setIndex(new THREE.BufferAttribute(el.indices, 1));
-          g.computeVertexNormals();
-          g.computeBoundingBox();
-          const base = new THREE.Color(el.color);
-          const opaque = el.opacity >= 1;
-          const mat = new THREE.MeshStandardMaterial({
-            color: base,
-            side: THREE.DoubleSide,
-            transparent: !opaque,
-            opacity: el.opacity,
-            depthWrite: opaque,
-          });
-          const mesh = new THREE.Mesh(g, mat);
-          group.add(mesh);
-          group.add(
-            new THREE.LineSegments(
-              new THREE.EdgesGeometry(g, BENG_EDGE_ANGLE_DEG),
-              new THREE.LineBasicMaterial({
-                color: BENG_EDGE_COLOR,
-                transparent: !opaque,
-                opacity: opaque ? 1 : BENG_EDGE_OPACITY_TRANSPARENT,
-              }),
-            ),
-          );
-          // Belending en overige elementen tellen niet mee voor het camerakader.
-          if (el.info?.gevel_id && g.boundingBox) box.union(g.boundingBox);
-          bengEntries.current.push({ el, mesh, base });
+          // Een mesh per deel: kleur en doorzicht gelden per geplaatste geometrie.
+          for (const part of el.parts) {
+            if (part.indices.length === 0) continue;
+            const g = new THREE.BufferGeometry();
+            g.setAttribute("position", new THREE.BufferAttribute(part.positions, 3));
+            g.setIndex(new THREE.BufferAttribute(part.indices, 1));
+            g.computeVertexNormals();
+            g.computeBoundingBox();
+            const base = new THREE.Color(part.color);
+            const opaque = part.opacity >= 1;
+            const mat = new THREE.MeshStandardMaterial({
+              color: base,
+              side: THREE.DoubleSide,
+              transparent: !opaque,
+              opacity: part.opacity,
+              depthWrite: opaque,
+            });
+            const mesh = new THREE.Mesh(g, mat);
+            group.add(mesh);
+            group.add(
+              new THREE.LineSegments(
+                new THREE.EdgesGeometry(g, BENG_EDGE_ANGLE_DEG),
+                new THREE.LineBasicMaterial({
+                  color: BENG_EDGE_COLOR,
+                  transparent: !opaque,
+                  opacity: opaque ? 1 : BENG_EDGE_OPACITY_TRANSPARENT,
+                }),
+              ),
+            );
+            // Belending en overige elementen tellen niet mee voor het camerakader.
+            if (el.info?.gevel_id && g.boundingBox) box.union(g.boundingBox);
+            bengEntries.current.push({ el, mesh, base });
+          }
         }
         bengBox.current = box.isEmpty() ? null : box;
-        const legend = buildLegend(els.map((e) => ({ info: e.info, color: e.color })));
+        const legend = buildLegend(els.map((e) => ({ info: e.info, color: e.color, partColors: e.parts.map((p) => p.color) })));
         const check = bengDoc ? crossCheckGevelIds(els.map((e) => e.info), bengDoc) : null;
         const ms = performance.now() - t0;
         console.info(`[IfcImportViewer3D] BENG-schil: ${els.length} elementen in ${ms.toFixed(0)} ms`);

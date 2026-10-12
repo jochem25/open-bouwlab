@@ -71,7 +71,7 @@
     "rooms": "Rooms",
     "constructions": "Constructions",
     "modeller": "Modeller",
-    "ifc": "IFC",
+    "ifc": "IFC export",
     "ifcImport": "IFC import",
     "results": "Results",
     "library": "Library",

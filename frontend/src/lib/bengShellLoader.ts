@@ -7,10 +7,25 @@
  * ifc-ruimtebalans, 12-10-2026), vaak RD (>100 km). Daarom standaard
  * COORDINATE_TO_ORIGIN: precisie in float32; de BENG-weergave staat los van de
  * warmteverliesvlakken (schakelaar), een overlay is niet nodig.
+ *
+ * Kleur en doorzicht gelden per geplaatste geometrie, niet per element: een
+ * gevel_id kan stukken met verschillende kleur hebben (het belendingsdeel van
+ * een deels bedekte wand is magenta, kleurklasse belending_deels).
  */
 import { IfcAPI } from "web-ifc";
 
 import { vlakInfoFromPsets, type BengVlakInfo, type RawPropertySet } from "./bengShell";
+
+/** Stukken van een element met dezelfde kleur en hetzelfde doorzicht. */
+export interface BengShellPart {
+  /** xyz-tripels in wereldcoordinaten (m, Y-up). */
+  positions: Float32Array;
+  indices: Uint32Array;
+  /** Kleur uit het IFC, `#rrggbb`. */
+  color: string;
+  /** 1 = dekkend. */
+  opacity: number;
+}
 
 export interface BengShellElement {
   expressId: number;
@@ -20,10 +35,12 @@ export interface BengShellElement {
   /** xyz-tripels in wereldcoordinaten (m, Y-up). */
   positions: Float32Array;
   indices: Uint32Array;
-  /** Kleur uit het IFC, `#rrggbb`. */
+  /** Kleur van het grootste deel (meeste driehoeken), `#rrggbb`. */
   color: string;
-  /** 1 = dekkend. */
+  /** Doorzicht van het grootste deel; 1 = dekkend. */
   opacity: number;
+  /** Per kleur en doorzicht; de viewer tekent elk deel met zijn eigen materiaal. */
+  parts: BengShellPart[];
   info: BengVlakInfo | null;
 }
 
@@ -59,44 +76,70 @@ export async function loadBengShell(bytes: Uint8Array, opts: LoadOptions = {}): 
   const modelId = api.OpenModel(bytes, { COORDINATE_TO_ORIGIN: opts.coordinateToOrigin ?? true });
   if (modelId < 0) throw new Error("BENG-schilmodel is geen leesbaar IFC.");
   try {
-    const parts = new Map<
-      number,
-      { pos: number[]; idx: number[]; color: [number, number, number, number] }
-    >();
+    type Acc = { pos: number[]; idx: number[]; color: string; opacity: number };
+    // expressID -> (kleur|doorzicht) -> stukken
+    const parts = new Map<number, Map<string, Acc>>();
     api.StreamAllMeshes(modelId, (mesh) => {
       const geoms = mesh.geometries;
+      let byStyle = parts.get(mesh.expressID);
+      if (!byStyle) {
+        byStyle = new Map();
+        parts.set(mesh.expressID, byStyle);
+      }
       for (let i = 0; i < geoms.size(); i++) {
         const pg = geoms.get(i);
+        const color = `#${toHex(pg.color.x)}${toHex(pg.color.y)}${toHex(pg.color.z)}`;
+        const opacity = pg.color.w;
+        const styleKey = `${color}|${opacity}`;
+        let acc = byStyle.get(styleKey);
+        if (!acc) {
+          acc = { pos: [], idx: [], color, opacity };
+          byStyle.set(styleKey, acc);
+        }
         const g = api.GetGeometry(modelId, pg.geometryExpressID);
         const v = api.GetVertexArray(g.GetVertexData(), g.GetVertexDataSize());
         const ix = api.GetIndexArray(g.GetIndexData(), g.GetIndexDataSize());
-        let part = parts.get(mesh.expressID);
-        if (!part) {
-          part = { pos: [], idx: [], color: [pg.color.x, pg.color.y, pg.color.z, pg.color.w] };
-          parts.set(mesh.expressID, part);
-        }
-        const base = part.pos.length / 3;
+        const base = acc.pos.length / 3;
         for (let k = 0; k < v.length; k += FLOATS_PER_VERTEX) {
-          part.pos.push(...transform(pg.flatTransformation, v[k]!, v[k + 1]!, v[k + 2]!));
+          acc.pos.push(...transform(pg.flatTransformation, v[k]!, v[k + 1]!, v[k + 2]!));
         }
-        for (let k = 0; k < ix.length; k++) part.idx.push(base + ix[k]!);
+        for (let k = 0; k < ix.length; k++) acc.idx.push(base + ix[k]!);
         g.delete();
       }
     });
 
     const out: BengShellElement[] = [];
-    for (const [expressId, part] of parts) {
+    for (const [expressId, byStyle] of parts) {
+      if (byStyle.size === 0) continue;
       const psets = (await api.properties.getPropertySets(modelId, expressId, true)) as RawPropertySet[];
       const line = api.GetLine(modelId, expressId) as { Name?: { value?: unknown } | null };
-      const [r, g, b, a] = part.color;
+      const elParts: BengShellPart[] = [...byStyle.values()].map((a) => ({
+        positions: new Float32Array(a.pos),
+        indices: new Uint32Array(a.idx),
+        color: a.color,
+        opacity: a.opacity,
+      }));
+      const main = elParts.reduce((m, p) => (p.indices.length > m.indices.length ? p : m));
+      // Alle stukken samen, voor kader en tests.
+      const positions = new Float32Array(elParts.reduce((n, p) => n + p.positions.length, 0));
+      const indices = new Uint32Array(elParts.reduce((n, p) => n + p.indices.length, 0));
+      let po = 0;
+      let io = 0;
+      for (const p of elParts) {
+        positions.set(p.positions, po);
+        for (let k = 0; k < p.indices.length; k++) indices[io + k] = p.indices[k]! + po / 3;
+        po += p.positions.length;
+        io += p.indices.length;
+      }
       out.push({
         expressId,
         ifcType: api.GetNameFromTypeCode(api.GetLineType(modelId, expressId)),
         name: typeof line?.Name?.value === "string" ? line.Name.value : "",
-        positions: new Float32Array(part.pos),
-        indices: new Uint32Array(part.idx),
-        color: `#${toHex(r)}${toHex(g)}${toHex(b)}`,
-        opacity: a,
+        positions,
+        indices,
+        color: main.color,
+        opacity: main.opacity,
+        parts: elParts,
         info: vlakInfoFromPsets(psets ?? []),
       });
     }

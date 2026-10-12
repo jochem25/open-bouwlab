@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -19,7 +20,15 @@ import {
 import { loadBengShell } from "./bengShellLoader";
 
 const FIXTURE = fileURLToPath(new URL("./__fixtures__/beng-schil-synthetisch.ifc", import.meta.url));
-/** Echte uitvoer van ifc-ruimtebalans (synthetische tussenwoning, B1b 12-10-2026). */
+/**
+ * Echte uitvoer van ifc-ruimtebalans 248f561 (synthetische tussenwoning met
+ * deels bedekte oostgevel), byte-gelijk aan de levering
+ * `%KBA_SHARED%/uitvoer/ifc-ruimtebalans/2026-10-12-beng-model/tussenwoning/`.
+ */
+const RB_IFC_SHA256 = "21d6a0c57b950390a77f22554bd6f81c7c5c17cad0a363f0dc401a773832c913";
+const RB_DOC_SHA256 = "848aba913a449addcfb4f6aaacb80340d4f56a87430dd55f5c55ecf9f2a5d823";
+/** Kleurklasse belending_deels (docs/beng-model.md van ifc-ruimtebalans). */
+const MAGENTA_BELENDING_DEELS = "#e91e63";
 const RB_IFC = fileURLToPath(new URL("./__fixtures__/rb-tussenwoning_beng.ifc", import.meta.url));
 const RB_DOC = fileURLToPath(new URL("./__fixtures__/rb-tussenwoning.beng.json", import.meta.url));
 
@@ -236,6 +245,29 @@ describe("loadBengShell (web-ifc, synthetische tussenwoning)", () => {
 });
 
 describe("contract met ifc-ruimtebalans (hun tussenwoning-uitvoer)", () => {
+  it("fixtures zijn byte-gelijk aan de levering van 248f561", () => {
+    const sha = (p: string) => createHash("sha256").update(readFileSync(p)).digest("hex");
+    expect(sha(RB_IFC)).toBe(RB_IFC_SHA256);
+    expect(sha(RB_DOC)).toBe(RB_DOC_SHA256);
+    const doc = JSON.parse(readFileSync(RB_DOC, "utf-8")) as { source: string };
+    expect(doc.source).toBe("ifc-ruimtebalans@248f561f16ff5dc257d8d7a01b05c61e45919190");
+  });
+
+  it("kleur per geplaatste geometrie: het belendingsdeel van de deels bedekte wand is magenta", async () => {
+    const els = await loadBengShell(new Uint8Array(readFileSync(RB_IFC)));
+    const metMagenta = els.filter((e) => e.parts.some((p) => p.color === MAGENTA_BELENDING_DEELS));
+    expect(metMagenta.length).toBeGreaterThan(0);
+    for (const e of metMagenta) expect(e.info?.extra.bedekking).toBe("deels");
+    // Delen tellen op tot het hele element.
+    for (const e of els) {
+      expect(e.parts.reduce((n, p) => n + p.indices.length, 0)).toBe(e.indices.length);
+      expect(e.parts.reduce((n, p) => n + p.positions.length, 0)).toBe(e.positions.length);
+    }
+    const legend = buildLegend(els.map((e) => ({ info: e.info, color: e.color, partColors: e.parts.map((p) => p.color) })));
+    const kleuren = legend.entries.flatMap((e) => [e.color, ...(e.extraColors ?? [])]);
+    expect(kleuren).toContain(MAGENTA_BELENDING_DEELS);
+  });
+
   it("vlakken, raam en belendingen; gevel_id's en som A_T kloppen met beng.json", async () => {
     const els = await loadBengShell(new Uint8Array(readFileSync(RB_IFC)));
     const doc = JSON.parse(readFileSync(RB_DOC, "utf-8")) as {

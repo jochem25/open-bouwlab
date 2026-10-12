@@ -64,6 +64,14 @@ export function BengLegend({ entries, mixedColors }: { entries: LegendEntry[]; m
       {entries.map((e) => (
         <div key={e.key} className="flex items-center gap-1.5" data-key={e.key}>
           <span className="h-2 w-3 rounded-sm" style={{ backgroundColor: e.color }} />
+          {e.extraColors?.map((c) => (
+            <span
+              key={c}
+              className="-ml-1 h-2 w-3 rounded-sm"
+              style={{ backgroundColor: c }}
+              title="Deel van een element in een andere kleur (bv. magenta: belendingsdeel van een deels bedekte wand)"
+            />
+          ))}
           <span>{e.label}</span>
           <span className="text-on-surface-muted">
             ({e.count}

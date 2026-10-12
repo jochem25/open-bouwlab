@@ -37,6 +37,9 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🐛 Bug fixes
 
+- **Zonwinst met helling (BENG, NTA 8800 tabel 17.2)** — een raam of opaak vlak met een azimuth en een helling anders dan 90° kreeg `I_sol` van de verticale gevel. Nu tabel 17.2, lineair geïnterpoleerd over de hellingshoek (§17.2): een dak van 2° naar het zuiden rekent als (bijna) horizontaal, niet als zuidgevel. Gemeten op de ankers: Aalten BENG1 97,58 → 98,69 kWh/m² (certified 103,69), Gouda 64,31 → 64,52. De tabel staat nu in `nta8800-tables::climate::tilted` (PV gebruikt hem via het oude pad)
+- **BENG-schil: kleur per geplaatste geometrie** — de lader nam de kleur van de eerste geometrie per element; het magenta belendingsdeel van een deels bedekte wand (kleurklasse `belending_deels`) verdween in het grijs. Nu een mesh per kleur en doorzicht; de legenda toont extra deelkleuren
+- **Navigatie: "IFC" heet nu "IFC-export"** — het item onder Warmteverlies is de voorvertoning van de gegenereerde IFC4X3/IFCX van het project, geen import
 - **A_ls zonder f_ls-weging** — de verliesoppervlakte telde grond en kruipruimte voor 1 mee; nu 0,7 (NTA 8800 §6.7.3), aangrenzende verwarmde ruimte 0. Raakt de BENG1-grens, niet de indicator
 - **Lichte-bouwwijze-toeslag op de BENG1-grens** (Bbl art. 4.149 lid 4, +5 bij D_m ≤ 180) werd niet toegepast. Met f_ls samen zijn de Aalten- en Gouda-grenzen nu gelijk aan certified (123,39 en 96,40)
 - **Woongebouw** (portiek, galerij, gestapeld) kreeg de grens van een grondgebonden woning; nu Bbl tabel 4.148A rij 1a
