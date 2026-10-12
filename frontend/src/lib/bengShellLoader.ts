@@ -2,10 +2,11 @@
  * BENG-schilmodel laden met web-ifc (zonder Fragments): per element de
  * driehoeken in wereldcoordinaten, de kleur uit het IFC en `Pset_KBA_BENG`.
  *
- * web-ifc zet de geometrie al om naar meters en Y-up: wereld = (x, z, -y),
- * gelijk aan `toWorld` van de warmteverliesvlakken. Zonder
- * COORDINATE_TO_ORIGIN vallen beide weergaven dus op elkaar als ifc-ruimtebalans
- * het schilmodel in hetzelfde frame schrijft als thermal.
+ * web-ifc zet de geometrie al om naar meters en Y-up: wereld = (x, z, -y).
+ * Het schilmodel staat in het stelsel van het bron-IFC (afspraak met
+ * ifc-ruimtebalans, 12-10-2026), vaak RD (>100 km). Daarom standaard
+ * COORDINATE_TO_ORIGIN: precisie in float32; de BENG-weergave staat los van de
+ * warmteverliesvlakken (schakelaar), een overlay is niet nodig.
  */
 import { IfcAPI } from "web-ifc";
 
@@ -29,6 +30,8 @@ export interface BengShellElement {
 export interface LoadOptions {
   /** Map met web-ifc.wasm (browser: "/wasm/"); in node niet nodig. */
   wasmPath?: string;
+  /** Model naar de oorsprong schuiven (default true). */
+  coordinateToOrigin?: boolean;
 }
 
 const FLOATS_PER_VERTEX = 6; // x y z nx ny nz
@@ -53,7 +56,7 @@ export async function loadBengShell(bytes: Uint8Array, opts: LoadOptions = {}): 
   const api = new IfcAPI();
   if (opts.wasmPath) api.SetWasmPath(opts.wasmPath, true);
   await api.Init();
-  const modelId = api.OpenModel(bytes, { COORDINATE_TO_ORIGIN: false });
+  const modelId = api.OpenModel(bytes, { COORDINATE_TO_ORIGIN: opts.coordinateToOrigin ?? true });
   if (modelId < 0) throw new Error("BENG-schilmodel is geen leesbaar IFC.");
   try {
     const parts = new Map<

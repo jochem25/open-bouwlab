@@ -169,7 +169,7 @@ describe("crossCheckGevelIds", () => {
 
 describe("loadBengShell (web-ifc, synthetische tussenwoning)", () => {
   it("leest vlakken, raam en belending met kleur, Pset en wereldcoordinaten in m", async () => {
-    const els = await loadBengShell(new Uint8Array(readFileSync(FIXTURE)));
+    const els = await loadBengShell(new Uint8Array(readFileSync(FIXTURE)), { coordinateToOrigin: false });
     expect(els).toHaveLength(8);
     const byName = new Map(els.map((e) => [e.name, e]));
 
@@ -216,5 +216,13 @@ describe("loadBengShell (web-ifc, synthetische tussenwoning)", () => {
       "belending",
     ]);
     expect(legend.mixedColors).toEqual([]);
+  });
+
+  it("standaard naar de oorsprong geschoven (RD-modellen): zelfde maten, kleinere coordinaten", async () => {
+    const els = await loadBengShell(new Uint8Array(readFileSync(FIXTURE)));
+    const zuid = els.find((e) => e.name === "g-rz-1-03")!;
+    const xs = [...zuid.positions].filter((_, i) => i % 3 === 0);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(5, 6);
+    for (const v of zuid.positions) expect(Math.abs(v)).toBeLessThan(10);
   });
 });

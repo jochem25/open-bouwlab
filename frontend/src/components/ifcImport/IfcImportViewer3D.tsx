@@ -197,7 +197,7 @@ export function IfcImportViewer3D({
   const bengEntries = useRef<BengEntry[]>([]);
   const bengBox = useRef<THREE.Box3 | null>(null);
   const applyGroupMatrix = (m: THREE.Matrix4) => {
-    for (const g of [surfaceGroup.current, openingGroup.current, bengGroup.current]) {
+    for (const g of [surfaceGroup.current, openingGroup.current]) {
       g.matrixAutoUpdate = false;
       g.matrix.copy(m);
       g.matrixWorldNeedsUpdate = true;
@@ -420,7 +420,7 @@ export function IfcImportViewer3D({
           if (el.info?.gevel_id && g.boundingBox) box.union(g.boundingBox);
           bengEntries.current.push({ el, mesh, base });
         }
-        bengBox.current = box.isEmpty() ? null : box.clone().applyMatrix4(group.matrix);
+        bengBox.current = box.isEmpty() ? null : box;
         const legend = buildLegend(els.map((e) => ({ info: e.info, color: e.color })));
         const check = bengDoc ? crossCheckGevelIds(els.map((e) => e.info), bengDoc) : null;
         const ms = performance.now() - t0;
@@ -457,8 +457,9 @@ export function IfcImportViewer3D({
     }
   }, [bengSelId, bengState]);
   useEffect(() => {
-    if (ifcModelRef.current) ifcModelRef.current.object.visible = showModel;
-  }, [showModel, modelState]);
+    // Het schilmodel staat in een eigen stelsel: geen overlay met het origineel.
+    if (ifcModelRef.current) ifcModelRef.current.object.visible = showModel && mode !== "beng";
+  }, [showModel, modelState, mode]);
 
   // --- Selectie-opmaak ------------------------------------------------------
   useEffect(() => {
@@ -639,7 +640,7 @@ export function IfcImportViewer3D({
             </label>
           </>
         )}
-        <label
+        {!isBeng && (<label
           className={`flex items-center gap-1 ${modelAvailable ? "" : "opacity-50"}`}
           title={modelAvailable ? undefined : "Het originele model is niet beschikbaar na herladen: upload het IFC opnieuw."}
         >
@@ -650,8 +651,8 @@ export function IfcImportViewer3D({
             onChange={(e) => setShowModel(e.target.checked)}
           />
           Origineel model (transparant)
-        </label>
-        {!modelAvailable && (
+        </label>)}
+        {!modelAvailable && !isBeng && (
           <span className="text-on-surface-muted">
             Origineel model niet beschikbaar (herladen): upload het IFC opnieuw om het te tonen.
           </span>
