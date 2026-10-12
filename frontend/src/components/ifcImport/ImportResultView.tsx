@@ -1,6 +1,15 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 
-import type { IfcAnalyseResponse, QcFinding } from "../../lib/ifcAnalyse";
+import { decodeEmbeddedIfc, type IfcAnalyseResponse, type QcFinding } from "../../lib/ifcAnalyse";
+import { bengImportSummary, type BengCheck } from "../../lib/bengImport";
+import { defaultViewerMode } from "../../lib/bengShell";
+import {
+  IMPORT_DESTINATIONS,
+  canTakeOver,
+  defaultSelection,
+  type DestinationStatus,
+  type ImportDestinationId,
+} from "../../lib/ifcImportDestinations";
 import { filterApprovedRooms, type FilteredImport } from "../../lib/ifcImportFilter";
 import {
   ORIENTATION_LABEL,
@@ -50,7 +59,13 @@ interface Props {
   existingRoomCount: number;
   /** Het geuploade IFC (alleen voor de 3D-weergave); null na herladen. */
   ifcFile?: File | null;
-  onImport: (filtered: FilteredImport, approvedIds: string[]) => void;
+  onImport: (
+    filtered: FilteredImport,
+    approvedIds: string[],
+    destinations: ImportDestinationId[],
+  ) => void;
+  /** Status van de BENG-import uit dezelfde analyse (alleen met BENG-uitvoer). */
+  bengCheck?: BengCheck | null;
 }
 
 export function ImportResultView({
@@ -59,6 +74,7 @@ export function ImportResultView({
   existingRoomCount,
   ifcFile = null,
   onImport,
+  bengCheck = null,
 }: Props) {
   const { thermal, qc } = response;
   const rooms = useMemo(() => realRooms(thermal), [thermal]);
@@ -71,6 +87,14 @@ export function ImportResultView({
   const [viewerOpen, setViewerOpen] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedSurface, setSelectedSurface] = useState<ViewSurface | null>(null);
+  const bengShell = useMemo(
+    () => (response.beng_ifc ? decodeEmbeddedIfc(response.beng_ifc) : null),
+    [response.beng_ifc],
+  );
+  const initialViewerMode = defaultViewerMode({
+    hasBengShell: !!bengShell,
+    teControleren: bengCheck?.phase === "ready" && bengCheck.result.te_controleren,
+  });
   const viewModel = useMemo(
     () => buildViewModel(thermal, qc.findings, importResult.construction_catalog),
     [thermal, qc.findings, importResult.construction_catalog],
@@ -129,15 +153,43 @@ export function ImportResultView({
   const relevantBlocking = blockingFindings.filter(
     (f) => !f.room_id || approved.has(f.room_id),
   );
+  const statuses = useMemo(() => {
+    const ctx = {
+      filtered,
+      approvedCount: approved.size,
+      blockingCount: relevantBlocking.length,
+      bengCheck,
+    };
+    return Object.fromEntries(IMPORT_DESTINATIONS.map((d) => [d.id, d.status(ctx)])) as Record<
+      ImportDestinationId,
+      DestinationStatus
+    >;
+  }, [filtered, approved.size, relevantBlocking.length, bengCheck]);
+  // null = nog niet door de gebruiker aangepast: volg de begin-keuze (die
+  // verandert nog als de BENG-status binnenkomt).
+  const [chosenByUser, setChosen] = useState<Set<ImportDestinationId> | null>(null);
+  const chosen = new Set(
+    [...(chosenByUser ?? defaultSelection(statuses))].filter((id) => canTakeOver(id, statuses[id])),
+  );
+  const toggleDestination = (id: ImportDestinationId) => {
+    const next = new Set(chosen);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setChosen(next);
+  };
+  const chosenList = IMPORT_DESTINATIONS.map((d) => d.id).filter((id) => chosen.has(id));
+  const toWarmteverlies = chosen.has("warmteverlies");
+
   const needsConfirm =
-    relevantBlocking.length > 0 ||
-    filtered.orphanedHeatedCount > 0 ||
-    filtered.orphanedUnheatedCount > 0 ||
-    existingRoomCount > 0;
+    toWarmteverlies &&
+    (relevantBlocking.length > 0 ||
+      filtered.orphanedHeatedCount > 0 ||
+      filtered.orphanedUnheatedCount > 0 ||
+      existingRoomCount > 0);
 
   const handleImportClick = () => {
     if (needsConfirm) setConfirming(true);
-    else onImport(filtered, [...approved]);
+    else onImport(filtered, [...approved], chosenList);
   };
 
   return (
@@ -251,6 +303,7 @@ export function ImportResultView({
       </Card>
 
       <div className="2xl:sticky 2xl:top-4 2xl:self-start">
+        {bengCheck && <BengCheckStrip check={bengCheck} hasShell={!!bengShell} />}
         <Card title="3D-controle">
           <button
             type="button"
@@ -269,6 +322,9 @@ export function ImportResultView({
                 selectedRoomId={selectedRoomId}
                 selectedSurfaceId={selectedSurface?.id ?? null}
                 onSelectSurface={selectSurfaceFrom3d}
+                bengShell={bengShell}
+                initialMode={initialViewerMode}
+                bengDoc={response.beng}
               />
             </Suspense>
           )}
@@ -303,10 +359,12 @@ export function ImportResultView({
         </table>
       </Card>
 
+      <DestinationPicker statuses={statuses} chosen={chosen} onToggle={toggleDestination} />
+
       <div className="flex items-center gap-4">
         <button
           type="button"
-          disabled={approved.size === 0}
+          disabled={chosen.size === 0}
           onClick={handleImportClick}
           data-testid="import-button"
           className="rounded bg-primary px-5 py-2 text-sm font-medium text-white hover:bg-primary-hover disabled:cursor-not-allowed disabled:opacity-40"
@@ -315,6 +373,7 @@ export function ImportResultView({
         </button>
         <span className="text-sm text-on-surface-secondary">
           {approved.size} van {rooms.length} ruimten goedgekeurd
+          {chosen.size === 0 && " · kies minstens een bestemming"}
         </span>
       </div>
 
@@ -331,7 +390,7 @@ export function ImportResultView({
         onCancel={() => setConfirming(false)}
         onConfirm={() => {
           setConfirming(false);
-          onImport(filtered, [...approved]);
+          onImport(filtered, [...approved], chosenList);
         }}
       />
     </div>
@@ -593,5 +652,122 @@ function RoomDetail({
         ))}
       </tbody>
     </table>
+  );
+}
+
+const MAX_MELDINGEN = 5;
+
+/** BENG uit dezelfde analyse: status, meldingen en overnemen. */
+export function BengCheckStrip({ check, hasShell }: { check: BengCheck; hasShell: boolean }) {
+  if (check.phase === "loading") {
+    return <p className="mb-3 text-sm text-on-surface-muted">BENG-import controleren…</p>;
+  }
+  if (check.phase === "error") {
+    return (
+      <p role="alert" className="mb-3 rounded-md border border-red-400 px-3 py-2 text-sm text-red-400">
+        BENG-import uit dit IFC mislukt: {check.message}
+      </p>
+    );
+  }
+  const r = check.result;
+  return (
+    <div
+      data-testid="beng-check"
+      className={`mb-3 rounded-md border px-3 py-2 text-sm ${
+        r.te_controleren || r.status === "onvolledig" ? "border-amber-500" : "border-green-500"
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <strong>BENG-schil:</strong> {r.status}
+          {r.te_controleren ? " (te controleren)" : ""} - {bengImportSummary(r)}
+        </span>
+      </div>
+      {!hasShell && (
+        <p className="mt-1 text-xs text-on-surface-muted">Geen 3D-schilmodel in deze analyse.</p>
+      )}
+      {r.meldingen.length > 0 && (
+        <ul className="mt-1 list-disc pl-5 text-xs text-on-surface-secondary">
+          {r.meldingen.slice(0, MAX_MELDINGEN).map((m) => (
+            <li key={m}>{m}</li>
+          ))}
+          {r.meldingen.length > MAX_MELDINGEN && <li>en {r.meldingen.length - MAX_MELDINGEN} meer</li>}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+const STATE_LABEL: Record<DestinationStatus["state"], string> = {
+  compleet: "compleet",
+  onvolledig: "onvolledig",
+  te_controleren: "te controleren",
+  niet_beschikbaar: "niet beschikbaar",
+  bezig: "bezig",
+  fout: "fout",
+};
+const STATE_STYLE: Record<DestinationStatus["state"], string> = {
+  compleet: "text-green-500",
+  onvolledig: "text-amber-500",
+  te_controleren: "text-amber-500",
+  niet_beschikbaar: "text-on-surface-muted",
+  bezig: "text-on-surface-muted",
+  fout: "text-red-400",
+};
+
+/** Bestemmingskeuze bij overnemen, met de eigen status per bestemming. */
+export function DestinationPicker({
+  statuses,
+  chosen,
+  onToggle,
+}: {
+  statuses: Record<ImportDestinationId, DestinationStatus>;
+  chosen: ReadonlySet<ImportDestinationId>;
+  onToggle: (id: ImportDestinationId) => void;
+}) {
+  return (
+    <Card title="Overnemen naar">
+      <ul className="flex flex-col gap-3" data-testid="destination-picker">
+        {IMPORT_DESTINATIONS.map((d) => {
+          const st = statuses[d.id];
+          const enabled = canTakeOver(d.id, st);
+          return (
+            <li key={d.id} data-destination={d.id} data-state={st.state} className="text-sm">
+              <label className={`flex items-start gap-2 ${enabled ? "" : "opacity-60"}`}>
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  disabled={!enabled}
+                  checked={chosen.has(d.id)}
+                  onChange={() => onToggle(d.id)}
+                />
+                <span>
+                  <span className="font-medium text-on-surface">{d.label}</span>{" "}
+                  <span className={STATE_STYLE[st.state]}>({STATE_LABEL[st.state]})</span>
+                  <span className="block text-xs text-on-surface-secondary">{st.summary}</span>
+                </span>
+              </label>
+              {st.ontbrekend.length > 0 && (
+                <div className="ml-6 mt-1 text-xs">
+                  <span className="text-on-surface-muted">Ontbreekt:</span>
+                  <ul className="list-disc pl-5 text-on-surface-secondary">
+                    {st.ontbrekend.map((m) => (
+                      <li key={m}>{m}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {st.meldingen.length > 0 && d.id !== "beng" && (
+                <ul className="ml-6 mt-1 list-disc pl-5 text-xs text-amber-500">
+                  {st.meldingen.map((m) => (
+                    <li key={m}>{m}</li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }

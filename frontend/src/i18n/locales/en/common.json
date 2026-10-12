@@ -71,7 +71,7 @@
     "rooms": "Rooms",
     "constructions": "Constructions",
     "modeller": "Modeller",
-    "ifc": "IFC",
+    "ifc": "IFC export",
     "ifcImport": "IFC import",
     "results": "Results",
     "library": "Library",
@@ -122,7 +122,13 @@
       "confirmOverwrite": "Overwrite the current project with the imported Uniec 3 file?",
       "success": "Uniec 3 file imported: {{name}}",
       "failed": "Import failed: {{detail}}",
-      "warningsTitle": "Import warnings"
+      "warningsTitle": "Import warnings",
+      "geomButton": "Import BENG geometry (.beng.json)",
+      "geomConfirm": "Overwrite the current BENG geometry with the imported geometry?",
+      "geomIncomplete": "Incomplete: {{count}} value(s) missing: {{paths}}",
+      "geomMore": "and {{count}} more",
+      "geomIgnored": "Ignored (not read by v1): {{items}}",
+      "geomUnchecked": "Geometry from IFC (beng-import): to be checked, not yet calibrated."
     },
     "compare": {
       "title": "Comparison with certified Uniec 3",

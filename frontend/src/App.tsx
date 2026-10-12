@@ -26,6 +26,7 @@ import { ProjectConstructions } from "./pages/ProjectConstructions";
 import { Rapport } from "./pages/Rapport";
 import { Ifc } from "./pages/Ifc";
 import { IfcImport } from "./pages/IfcImport";
+import { IFC_IMPORT_ROUTE, LEGACY_REDIRECTS } from "./lib/appRoutes";
 import { Help } from "./pages/Help";
 import { ConstructieStaal } from "./pages/ConstructieStaal";
 import { ConstructieBeton } from "./pages/ConstructieBeton";
@@ -80,9 +81,11 @@ export function App() {
             <Route path="/warmteverlies/instellingen" element={<WarmteverliesInstellingen />} />
             <Route path="/results" element={<Results />} />
             <Route path="/modeller" element={<Modeller />} />
-            <Route path="/ifc-import" element={<IfcImport />} />
+            <Route path={IFC_IMPORT_ROUTE} element={<IfcImport />} />
             <Route path="/ifc" element={<Ifc />} />
-            <Route path="/ifc-reconstructie" element={<Navigate to="/ifc-import" replace />} />
+            {LEGACY_REDIRECTS.map((r) => (
+              <Route key={r.from} path={r.from} element={<Navigate to={r.to} replace />} />
+            ))}
             <Route path="/rapport" element={<Rapport />} />
             <Route path="/import/thermal" element={<ThermalImportWizard />} />
             <Route path="/help" element={<Help />} />

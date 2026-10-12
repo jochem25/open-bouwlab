@@ -44,6 +44,14 @@ const DEFAULT_RETRY_AFTER_S: u64 = 30;
 /// Sidecar-foutcode bij een lopende analyse (HTTP 503).
 const SIDECAR_BUSY_CODE: &str = "BEZET";
 
+/// Multipart-veld met de gevraagde uitvoer (sidecar: `uitvoer`).
+const UITVOER_FIELD: &str = "uitvoer";
+
+/// Enige toegestane niet-default uitvoer: thermal plus beng-import v1 en het
+/// BENG-schilmodel (`beng`, `beng_ifc` in de respons). Zonder veld vraagt de
+/// sidecar alleen thermal.
+const UITVOER_THERMAL_BENG: &str = "thermal,beng";
+
 /// Fallback-bestandsnaam als de client er geen meestuurt.
 const DEFAULT_CLIENT_FILENAME: &str = "upload.ifc";
 
@@ -120,25 +128,38 @@ pub async fn analyse_ifc(
     };
 
     let mut file_data: Option<(String, bytes::Bytes)> = None;
+    let mut uitvoer_raw: Option<String> = None;
     loop {
         let field = match multipart.next_field().await {
             Ok(Some(f)) => f,
             Ok(None) => break,
             Err(e) => return upload_error(&e),
         };
-        if field.name() != Some(FILE_FIELD) {
-            continue;
+        match field.name() {
+            Some(FILE_FIELD) if file_data.is_none() => {
+                let filename = field
+                    .file_name()
+                    .unwrap_or(DEFAULT_CLIENT_FILENAME)
+                    .to_string();
+                match field.bytes().await {
+                    Ok(bytes) => file_data = Some((filename, bytes)),
+                    Err(e) => return upload_error(&e),
+                }
+            }
+            Some(UITVOER_FIELD) => match field.text().await {
+                Ok(t) => uitvoer_raw = Some(t),
+                Err(e) => return upload_error(&e),
+            },
+            _ => continue,
         }
-        let filename = field
-            .file_name()
-            .unwrap_or(DEFAULT_CLIENT_FILENAME)
-            .to_string();
-        match field.bytes().await {
-            Ok(bytes) => file_data = Some((filename, bytes)),
-            Err(e) => return upload_error(&e),
-        }
-        break;
     }
+
+    let uitvoer = match parse_uitvoer(uitvoer_raw.as_deref()) {
+        Ok(u) => u,
+        Err(detail) => {
+            return error_response(StatusCode::BAD_REQUEST, "invalid_uitvoer", detail)
+        }
+    };
 
     let Some((filename, data)) = file_data else {
         return error_response(
@@ -172,8 +193,34 @@ pub async fn analyse_ifc(
         &upload_name,
         data,
         state.ifc_analyse_token.as_deref(),
+        uitvoer,
     )
     .await
+}
+
+/// Lees het optionele `uitvoer`-veld. Leeg of `thermal` = default (niets
+/// doorsturen); een set met `beng` (komma of spatie, met of zonder `thermal`)
+/// wordt [`UITVOER_THERMAL_BENG`]. Al het andere is een 400: wij sturen alleen
+/// bekende waarden door.
+fn parse_uitvoer(raw: Option<&str>) -> Result<Option<&'static str>, String> {
+    let Some(raw) = raw else { return Ok(None) };
+    let mut beng = false;
+    for deel in raw
+        .split(|c: char| c == ',' || c.is_whitespace())
+        .filter(|d| !d.is_empty())
+    {
+        match deel.to_ascii_lowercase().as_str() {
+            "thermal" => {}
+            "beng" => beng = true,
+            _ => {
+                return Err(format!(
+                    "uitvoer kent alleen thermal en beng, kreeg '{}'",
+                    truncate_chars(deel, MAX_SOURCE_FILENAME_CHARS)
+                ))
+            }
+        }
+    }
+    Ok(beng.then_some(UITVOER_THERMAL_BENG))
 }
 
 fn too_large(len: usize) -> Response {
@@ -229,7 +276,8 @@ fn truncate_chars(s: &str, max: usize) -> String {
 ///
 /// Er worden bewust GEEN extra multipart-velden meegestuurd (`profile`,
 /// `surfaces_ifc`, `exported_at`): de sidecar hanteert dan zijn eigen
-/// defaults (profiel `kba`, geen vlakken-IFC).
+/// defaults (profiel `kba`, geen vlakken-IFC). Uitzondering: `uitvoer`, alleen
+/// als de client BENG vraagt (zie [`parse_uitvoer`]).
 ///
 /// Timeout: de caller geeft de waarde uit `IFC_ANALYSE_TIMEOUT_S` (default
 /// 300 s). Ter referentie: een middelgroot utiliteitsmodel duurt ca. 46 s lokaal; de harde grens
@@ -247,12 +295,16 @@ async fn forward_to_sidecar(
     upload_name: &str,
     data: bytes::Bytes,
     token: Option<&str>,
+    uitvoer: Option<&str>,
 ) -> Response {
     let url = format!("{}{SIDECAR_ANALYSE_PATH}", base_url.trim_end_matches('/'));
     let size = data.len();
 
     let part = reqwest::multipart::Part::stream(data).file_name(upload_name.to_string());
-    let form = reqwest::multipart::Form::new().part(FILE_FIELD, part);
+    let mut form = reqwest::multipart::Form::new().part(FILE_FIELD, part);
+    if let Some(u) = uitvoer {
+        form = form.text(UITVOER_FIELD, u.to_string());
+    }
 
     tracing::info!(size_bytes = size, "IFC-analyse: doorgifte naar sidecar");
 
@@ -411,6 +463,15 @@ mod tests {
         timeout: Duration,
         token: Option<&str>,
     ) -> (StatusCode, axum::http::HeaderMap, Value) {
+        call_uitvoer(base, timeout, token, None).await
+    }
+
+    async fn call_uitvoer(
+        base: &str,
+        timeout: Duration,
+        token: Option<&str>,
+        uitvoer: Option<&str>,
+    ) -> (StatusCode, axum::http::HeaderMap, Value) {
         let resp = forward_to_sidecar(
             &reqwest::Client::new(),
             base,
@@ -419,6 +480,7 @@ mod tests {
             "upload.ifc",
             bytes::Bytes::from_static(b"ISO-10303-21;"),
             token,
+            uitvoer,
         )
         .await;
         let status = resp.status();
@@ -558,6 +620,7 @@ mod tests {
             "upload.ifc",
             bytes::Bytes::from_static(b"x"),
             None,
+            None,
         )
         .await;
         assert_eq!(resp.status(), StatusCode::BAD_GATEWAY);
@@ -590,6 +653,58 @@ mod tests {
         assert_eq!(met["auth"], "Bearer geheim123");
         let (_, _, zonder) = call_full(&base, TEST_TIMEOUT, None).await;
         assert_eq!(zonder["auth"], "");
+    }
+
+    /// Nep-sidecar die de ontvangen multipart-veldnamen en `uitvoer` teruggeeft.
+    async fn sidecar_echo_velden() -> String {
+        let app = Router::new().route(
+            "/analyse",
+            post(|mut mp: Multipart| async move {
+                let mut velden = Vec::new();
+                let mut uitvoer = Value::Null;
+                while let Ok(Some(f)) = mp.next_field().await {
+                    let naam = f.name().unwrap_or("").to_string();
+                    if naam == UITVOER_FIELD {
+                        uitvoer = Value::String(f.text().await.unwrap());
+                    } else {
+                        let _ = f.bytes().await;
+                    }
+                    velden.push(naam);
+                }
+                Json(json!({"velden": velden, "uitvoer": uitvoer}))
+            }),
+        );
+        spawn_sidecar(app).await
+    }
+
+    #[tokio::test]
+    async fn uitvoer_beng_gaat_mee_naar_sidecar() {
+        let base = sidecar_echo_velden().await;
+        let (status, _, v) =
+            call_uitvoer(&base, TEST_TIMEOUT, None, Some(UITVOER_THERMAL_BENG)).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(v["uitvoer"], "thermal,beng");
+        assert_eq!(v["velden"], json!(["file", "uitvoer"]));
+    }
+
+    #[tokio::test]
+    async fn zonder_uitvoer_alleen_het_bestand() {
+        let base = sidecar_echo_velden().await;
+        let (_, _, v) = call_uitvoer(&base, TEST_TIMEOUT, None, None).await;
+        assert_eq!(v["velden"], json!(["file"]));
+        assert_eq!(v["uitvoer"], Value::Null);
+    }
+
+    #[test]
+    fn parse_uitvoer_kent_alleen_thermal_en_beng() {
+        assert_eq!(parse_uitvoer(None), Ok(None));
+        assert_eq!(parse_uitvoer(Some("")), Ok(None));
+        assert_eq!(parse_uitvoer(Some("thermal")), Ok(None));
+        assert_eq!(parse_uitvoer(Some("beng")), Ok(Some(UITVOER_THERMAL_BENG)));
+        assert_eq!(parse_uitvoer(Some("thermal, BENG")), Ok(Some(UITVOER_THERMAL_BENG)));
+        assert_eq!(parse_uitvoer(Some("thermal beng")), Ok(Some(UITVOER_THERMAL_BENG)));
+        let fout = parse_uitvoer(Some("beng,rapport")).unwrap_err();
+        assert!(fout.contains("rapport"), "{fout}");
     }
 
     #[tokio::test]

@@ -28,9 +28,13 @@ interface Props {
   progress: AnalyseProgress | null;
   error: string | null;
   onFile: (file: File) => void;
+  /** Ook de BENG-schil vragen (beng-import + `<naam>_beng.ifc`). */
+  beng?: boolean;
+  /** Zonder deze callback geen keuzevak. */
+  onBengChange?: (beng: boolean) => void;
 }
 
-export function UploadPanel({ busy, progress, error, onFile }: Props) {
+export function UploadPanel({ busy, progress, error, onFile, beng = false, onBengChange }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -82,6 +86,18 @@ export function UploadPanel({ busy, progress, error, onFile }: Props) {
           }}
         />
       </div>
+      {onBengChange && (
+        <label className="mt-3 flex items-center gap-2 text-sm text-on-surface-secondary">
+          <input
+            type="checkbox"
+            data-testid="ifc-beng-toggle"
+            checked={beng}
+            disabled={busy}
+            onChange={(e) => onBengChange(e.target.checked)}
+          />
+          Ook BENG-schil (NTA 8800): beng-import en 3D-schilmodel, te controleren
+        </label>
+      )}
       {busy && (
         <div className="mt-4" role="status" aria-live="polite">
           <p className="text-sm text-on-surface-secondary">{progressLabel(progress)}</p>

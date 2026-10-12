@@ -15,6 +15,7 @@ import { useModellerToolStore } from "../../store/modellerToolStore";
 import { useModellerStore } from "../modeller/modellerStore";
 import type { ModellerTool, SnapMode } from "../modeller/types";
 import { FLOOR_LABELS } from "../modeller/exampleData";
+import { IFC_IMPORT_ROUTE } from "../../lib/appRoutes";
 
 // ---------------------------------------------------------------------------
 // Sub-tab definitions
@@ -315,7 +316,7 @@ function InvoegenSubTab() {
       </Group>
       <Group label="IFC">
         <div className="flex h-full items-center gap-1">
-          <LargeBtn icon={Download} label={t("modeller.import")} onClick={() => navigate("/ifc-import")} />
+          <LargeBtn icon={Download} label={t("modeller.import")} onClick={() => navigate(IFC_IMPORT_ROUTE)} />
           <LargeBtn icon={Upload} label={t("modeller.export")} onClick={dispatch("modeller:export-ifc")} />
         </div>
       </Group>

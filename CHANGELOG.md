@@ -6,6 +6,10 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### ✨ Nieuw
 
+- **IFC-import op projectniveau** (`/project/ifc-import`, in de navigatie onder Project) — `/ifc-import` en `/ifc-reconstructie` sturen door. Bij overnemen kies je de bestemming: Warmteverlies, BENG of beide, elk met eigen status (compleet, onvolledig, te controleren) en de ontbrekende velden. BENG neemt alleen een compleet document over. De herkomst onthoudt de bestemmingen (`ifcImport.destinations`, `ifcImport.beng`); projecten met een eerdere import blijven gekoppeld en gelden als Warmteverlies
+- **BENG-schil in de 3D-controle van de IFC-import** — schakelaar Warmteverlies / BENG-schil. Met het keuzevak "Ook BENG-schil" vraagt de analyse ook beng-import en het schilmodel van ifc-ruimtebalans (`uitvoer=thermal,beng`, respons `beng` + `beng_ifc`). Kleur uit het model, legenda per begrenzing en orientatie (met aantal en A_T), klik op een vlak toont gevel_id, zone, grenst_aan, orientatie, helling, A_T, constructie en herkomst; gevel_id's die niet in beng.json staan worden gemeld. Is de BENG-import 'te controleren', dan opent de viewer op de BENG-schil. Knop "BENG-geometrie overnemen" zet de geometrie in het project
+- **Knop "Importeer BENG-geometrie (.beng.json)"** op de BENG-pagina (client voor `/import/beng`): compleet vervangt de BENG-geometrie (met bevestiging), onvolledig overschrijft niets en toont de ontbrekende paden
+- **API `POST /api/v1/ifc/analyse` accepteert `uitvoer`** (`thermal`, `beng`) en geeft alleen die bekende waarden door aan de sidecar; anders 400 `invalid_uitvoer`
 - **BENG-import v1** (`POST /api/v1/import/beng`, schema `schemas/v1/beng-import.schema.json`) — BENG-geometrie uit een externe bron (de IFC-route) direct naar `project.beng_geometry`. Antwoord `compleet` met geometrie of `onvolledig` met de ontbrekende Rc/U-paden; niets wordt stil ingevuld. Zie `docs/beng-import-v1-contract.md`
 - **BENG-grenswaarden utiliteit** — alle gebruiksfuncties uit Bbl tabel 4.148A, bij meer functies gewogen naar gebruiksoppervlak (art. 4.149 lid 2); gebruiksfuncties per rekenzone in `beng_geometry.zones[].gebruiksfuncties`
 - **BENG uit de IFC-route is 'te controleren'** — `/import/beng` antwoordt met `te_controleren: true` en een melding; de geometrie krijgt `bron`, en de BENG-uitkomst draagt dan `te_controleren` plus een rode banner op de BENG-pagina, tot de route geijkt is
@@ -33,6 +37,9 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🐛 Bug fixes
 
+- **Zonwinst met helling (BENG, NTA 8800 tabel 17.2)** — een raam of opaak vlak met een azimuth en een helling anders dan 90° kreeg `I_sol` van de verticale gevel. Nu tabel 17.2, lineair geïnterpoleerd over de hellingshoek (§17.2): een dak van 2° naar het zuiden rekent als (bijna) horizontaal, niet als zuidgevel. Gemeten op de ankers: Aalten BENG1 97,58 → 98,69 kWh/m² (certified 103,69), Gouda 64,31 → 64,52. De tabel staat nu in `nta8800-tables::climate::tilted` (PV gebruikt hem via het oude pad)
+- **BENG-schil: kleur per geplaatste geometrie** — de lader nam de kleur van de eerste geometrie per element; het magenta belendingsdeel van een deels bedekte wand (kleurklasse `belending_deels`) verdween in het grijs. Nu een mesh per kleur en doorzicht; de legenda toont extra deelkleuren
+- **Navigatie: "IFC" heet nu "IFC-export"** — het item onder Warmteverlies is de voorvertoning van de gegenereerde IFC4X3/IFCX van het project, geen import
 - **A_ls zonder f_ls-weging** — de verliesoppervlakte telde grond en kruipruimte voor 1 mee; nu 0,7 (NTA 8800 §6.7.3), aangrenzende verwarmde ruimte 0. Raakt de BENG1-grens, niet de indicator
 - **Lichte-bouwwijze-toeslag op de BENG1-grens** (Bbl art. 4.149 lid 4, +5 bij D_m ≤ 180) werd niet toegepast. Met f_ls samen zijn de Aalten- en Gouda-grenzen nu gelijk aan certified (123,39 en 96,40)
 - **Woongebouw** (portiek, galerij, gestapeld) kreeg de grens van een grondgebonden woning; nu Bbl tabel 4.148A rij 1a

@@ -9,6 +9,7 @@ import ResultatenTab from "./ResultatenTab";
 import RapportTab from "./RapportTab";
 import IfcTab from "./IfcTab";
 import "./Ribbon.css";
+import { IFC_IMPORT_ROUTE } from "../../lib/appRoutes";
 
 interface RibbonProps {
   onFileTabClick?: () => void;
@@ -27,6 +28,7 @@ type TabId = (typeof TABS)[number];
 /** Map routes to their corresponding ribbon tab. */
 const ROUTE_TO_TAB: Record<string, TabId> = {
   "/project": "vertrekken",
+  [IFC_IMPORT_ROUTE]: "vertrekken",
   "/rooms": "vertrekken",
   "/constructies": "constructies",
   "/rc": "constructies",

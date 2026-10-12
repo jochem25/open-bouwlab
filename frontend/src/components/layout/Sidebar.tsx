@@ -3,6 +3,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import { isTauri } from "../../lib/backend";
+import { IFC_IMPORT_ROUTE } from "../../lib/appRoutes";
 import { useProjectStore } from "../../store/projectStore";
 import { useConstructieEntitlement } from "../../hooks/useConstructieEntitlement";
 
@@ -232,6 +233,8 @@ type NavItemSpec = {
   disabled?: boolean;
   /** i18n key for tooltip when disabled */
   disabledTitleKey?: string;
+  /** Alleen actief op exact dit pad (niet op subroutes zoals /project/ifc-import). */
+  end?: boolean;
 };
 
 type NavGroupSpec = {
@@ -244,13 +247,14 @@ type NavGroupSpec = {
 
 /* ─── Nav data ─── */
 
-const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
+export const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
   {
     key: "project",
     titleKey: "sidebar.groups.project",
     defaultCollapsed: false,
     items: [
-      { to: "/project", labelKey: "sidebar.project", Icon: IconHome },
+      { to: "/project", labelKey: "sidebar.project", Icon: IconHome, end: true },
+      { to: IFC_IMPORT_ROUTE, labelKey: "sidebar.ifcImport", Icon: IconIfcImport },
       { to: "/constructies", labelKey: "sidebar.constructions", Icon: IconClipboardList },
       { to: "/modeller", labelKey: "sidebar.modeller", Icon: IconCube },
     ],
@@ -262,7 +266,6 @@ const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
     items: [
       { to: "/rooms", labelKey: "sidebar.rooms", Icon: IconGrid },
       { to: "/ifc", labelKey: "sidebar.ifc", Icon: IconIfc },
-      { to: "/ifc-import", labelKey: "sidebar.ifcImport", Icon: IconIfcImport },
       { to: "/warmteverlies/instellingen", labelKey: "sidebar.warmteverliesInstellingen", Icon: IconLayers },
       { to: "/results", labelKey: "sidebar.results", Icon: IconBarChart },
     ],
@@ -409,12 +412,23 @@ function useGroupCollapsed(): [CollapsedMap, (key: GroupKey) => void] {
 
 /* ─── Components ─── */
 
-function NavItem({ to, labelKey, Icon }: { to: string; labelKey: string; Icon: IconComponent }) {
+function NavItem({
+  to,
+  labelKey,
+  Icon,
+  end,
+}: {
+  to: string;
+  labelKey: string;
+  Icon: IconComponent;
+  end?: boolean;
+}) {
   const { t } = useTranslation();
   return (
     <li>
       <NavLink
         to={to}
+        end={end}
         className={({ isActive }) =>
           `flex items-center gap-3 rounded px-3 py-2 text-sm transition-colors
           ${
@@ -496,7 +510,7 @@ function NavGroup({
                 titleKey={item.disabledTitleKey}
               />
             ) : (
-              <NavItem key={item.to} to={item.to} labelKey={item.labelKey} Icon={item.Icon} />
+              <NavItem key={item.to} to={item.to} labelKey={item.labelKey} Icon={item.Icon} end={item.end} />
             ),
           )}
         </ul>

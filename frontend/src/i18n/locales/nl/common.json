@@ -71,7 +71,7 @@
     "rooms": "Vertrekken",
     "constructions": "Constructies",
     "modeller": "Modeller",
-    "ifc": "IFC",
+    "ifc": "IFC-export",
     "ifcImport": "IFC-import",
     "results": "Resultaten",
     "library": "Bibliotheek",
@@ -122,7 +122,13 @@
       "confirmOverwrite": "Huidig project overschrijven met het geïmporteerde Uniec 3-bestand?",
       "success": "Uniec 3-bestand geïmporteerd: {{name}}",
       "failed": "Import mislukt: {{detail}}",
-      "warningsTitle": "Import-waarschuwingen"
+      "warningsTitle": "Import-waarschuwingen",
+      "geomButton": "Importeer BENG-geometrie (.beng.json)",
+      "geomConfirm": "Huidige BENG-geometrie overschrijven met de geïmporteerde geometrie?",
+      "geomIncomplete": "Onvolledig: {{count}} waarde(n) ontbreken: {{paths}}",
+      "geomMore": "en {{count}} meer",
+      "geomIgnored": "Genegeerd (niet gelezen door v1): {{items}}",
+      "geomUnchecked": "Geometrie uit IFC (beng-import): te controleren, nog niet geijkt."
     },
     "compare": {
       "title": "Vergelijking met certified Uniec 3",

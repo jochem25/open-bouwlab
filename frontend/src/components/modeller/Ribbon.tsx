@@ -12,6 +12,7 @@ import {
 
 import type { ModellerTool, SnapMode, SnapSettings, ViewMode } from "./types";
 import { FLOOR_LABELS } from "./exampleData";
+import { IFC_IMPORT_ROUTE } from "../../lib/appRoutes";
 
 // ---------------------------------------------------------------------------
 // Props
@@ -313,7 +314,7 @@ function InvoegenTab({
 
       <RibbonGroup label="IFC">
         <div className="flex h-full items-center gap-1">
-          <LargeButton icon={Download} label="Importeren" onClick={() => navigate("/ifc-import")} />
+          <LargeButton icon={Download} label="Importeren" onClick={() => navigate(IFC_IMPORT_ROUTE)} />
           <LargeButton icon={Upload} label="Exporteren" onClick={onExportIfc} />
         </div>
       </RibbonGroup>

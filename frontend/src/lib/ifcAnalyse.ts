@@ -110,10 +110,21 @@ export interface IfcAnalyseResponse {
   stats: IfcAnalyseStats;
   /** Volledig QC-rapport (~0,9 MB bij een groot model). */
   report?: unknown;
-  /** Losse vlakken-IFC voor de viewer (tot ~3 MB), of null. */
   /** Positie van thermal t.o.v. de IFC-wereld (optioneel, additief). */
   geometry_origin?: GeometryOrigin | null;
-  surfaces_ifc?: { filename: string; bytes: number; base64: string } | null;
+  /** Losse vlakken-IFC voor de viewer (tot ~3 MB), of null. */
+  surfaces_ifc?: EmbeddedIfc | null;
+  /** beng-import v1-document (alleen met `uitvoer=thermal,beng`), anders null. */
+  beng?: unknown;
+  /** BENG-schilmodel `<naam>_beng.ifc` (alleen met BENG-uitvoer), of null. */
+  beng_ifc?: EmbeddedIfc | null;
+}
+
+/** Een IFC-bestand in de respons (base64). */
+export interface EmbeddedIfc {
+  filename: string;
+  bytes: number;
+  base64: string;
 }
 
 /**
@@ -123,11 +134,24 @@ export interface IfcAnalyseResponse {
  * bij elke opslag naar server en bestand meegeschreven. `thermal`, `qc`,
  * `rooms_extra`, engine, `thermal_sha256` en stats blijven.
  */
-export type IfcAnalyseStored = Omit<IfcAnalyseResponse, "report" | "surfaces_ifc">;
+export type IfcAnalyseStored = Omit<IfcAnalyseResponse, "report" | "surfaces_ifc" | "beng" | "beng_ifc">;
 
 export function stripAnalyse(response: IfcAnalyseResponse): IfcAnalyseStored {
-  const { report: _report, surfaces_ifc: _surfaces, ...stored } = response;
+  const { report: _report, surfaces_ifc: _surfaces, beng: _beng, beng_ifc: _bengIfc, ...stored } = response;
   return stored;
+}
+
+/** Decodeer een meegeleverd IFC (base64) naar bytes. */
+export function decodeEmbeddedIfc(ifc: EmbeddedIfc): Uint8Array {
+  const bin = atob(ifc.base64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+export interface AnalyseOptions {
+  /** Ook de BENG-schil vragen (`uitvoer=thermal,beng`): `beng` + `beng_ifc`. */
+  beng?: boolean;
 }
 
 export type AnalyseProgress =
@@ -205,6 +229,7 @@ async function mockAnalyse(
 export function analyseIfc(
   file: File,
   onProgress?: (p: AnalyseProgress) => void,
+  options: AnalyseOptions = {},
 ): Promise<IfcAnalyseResponse> {
   if (isMockMode()) return mockAnalyse(onProgress);
 
@@ -251,6 +276,7 @@ export function analyseIfc(
     };
 
     const form = new FormData();
+    if (options.beng) form.append("uitvoer", "thermal,beng");
     form.append("file", file);
     xhr.send(form);
   });

@@ -21,6 +21,15 @@ import { useProjectStore } from "../store/projectStore";
 import { buildV2Payload, splitV2ForStore } from "../lib/projectV2Migration";
 import { bengCalculate, BengInputError } from "../lib/bengClient";
 import { importUniec3, Uniec3ImportError } from "../lib/uniecImport";
+import {
+  bengImportSummary,
+  importBengDocument,
+} from "../lib/bengImport";
+
+/** Max. aantal ontbrekende paden in de foutmelding bij een onvolledige import. */
+const MAX_MISSING_PATHS = 10;
+/** Prefix van `BengGeometry.bron` zoals gezet door de beng-import (Rust). */
+const BENG_IMPORT_BRON_PREFIX = "beng-import:";
 import type { Uniec3CertifiedResults } from "../types/uniec";
 import type {
   AutomationInput,
@@ -250,6 +259,7 @@ export function Beng() {
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const [importInfo, setImportInfo] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const bengFileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<"installaties" | "geometrie">(
     "installaties",
   );
@@ -434,6 +444,78 @@ export function Beng() {
     ],
   );
 
+  // -- beng-import v1 (geometrie uit IFC, .beng.json) --
+  const handleBengImportClick = useCallback(() => {
+    bengFileInputRef.current?.click();
+  }, []);
+
+  const handleBengFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = "";
+      if (!file) return;
+
+      setImporting(true);
+      setError(null);
+      setImportInfo(null);
+      try {
+        const text = await file.text();
+        const r = await importBengDocument(text);
+
+        if (r.status === "onvolledig" || !r.beng_geometry) {
+          // Niets overschrijven; toon de ontbrekende paden.
+          const shown = r.ontbrekend.slice(0, MAX_MISSING_PATHS).join(", ");
+          const more =
+            r.ontbrekend.length > MAX_MISSING_PATHS
+              ? `, ${t("beng.import.geomMore", "en {{count}} meer", {
+                  count: r.ontbrekend.length - MAX_MISSING_PATHS,
+                })}`
+              : "";
+          setError(
+            t(
+              "beng.import.geomIncomplete",
+              "Onvolledig: {{count}} waarde(n) ontbreken: {{paths}}",
+              { count: r.ontbrekend.length, paths: shown + more },
+            ),
+          );
+          return;
+        }
+
+        if (bengGeometry) {
+          const confirmed = window.confirm(
+            t(
+              "beng.import.geomConfirm",
+              "Huidige BENG-geometrie overschrijven met de geïmporteerde geometrie?",
+            ),
+          );
+          if (!confirmed) return;
+        }
+
+        setBengGeometry(r.beng_geometry);
+        setResult(null);
+        setInputHint(null);
+        const warnings = [...r.meldingen];
+        if (r.genegeerd.length > 0) {
+          warnings.push(
+            t(
+              "beng.import.geomIgnored",
+              "Genegeerd (niet gelezen door v1): {{items}}",
+              { items: r.genegeerd.join(", ") },
+            ),
+          );
+        }
+        setImportWarnings(warnings);
+        setImportInfo(bengImportSummary(r));
+      } catch (err) {
+        // BengImportError e.a.: boodschap letterlijk tonen.
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setImporting(false);
+      }
+    },
+    [bengGeometry, setBengGeometry, t],
+  );
+
   return (
     <div>
       <PageHeader
@@ -459,6 +541,20 @@ export function Beng() {
               {importing
                 ? t("beng.import.busy", "Importeren…")
                 : t("beng.import.button", "Importeer Uniec 3-bestand")}
+            </Button>
+            <input
+              ref={bengFileInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={handleBengFileChange}
+            />
+            <Button
+              variant="secondary"
+              onClick={handleBengImportClick}
+              disabled={importing}
+            >
+              {t("beng.import.geomButton", "Importeer BENG-geometrie (.beng.json)")}
             </Button>
             <Button variant="ghost" onClick={handleReset}>
               {t("beng.reset", "Leegmaken")}
@@ -486,6 +582,14 @@ export function Beng() {
         {importInfo && (
           <div className="rounded-md border border-green-600/30 bg-green-600/15 px-4 py-3 text-sm text-green-400">
             {importInfo}
+          </div>
+        )}
+        {!result && bengGeometry?.bron?.startsWith(BENG_IMPORT_BRON_PREFIX) && (
+          <div className="rounded-md border oa-warning-box px-4 py-3 text-sm">
+            {t(
+              "beng.import.geomUnchecked",
+              "Geometrie uit IFC (beng-import): te controleren, nog niet geijkt.",
+            )}
           </div>
         )}
         {importWarnings.length > 0 && (
