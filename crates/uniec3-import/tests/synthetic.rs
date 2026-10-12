@@ -355,6 +355,63 @@ fn floating_home_water_floor_and_wall_map_to_water() {
 }
 
 #[test]
+fn vloer_btnl_onder_en_kelderwand_tegen_grond() {
+    // VL_BTNL_ONDER op een gewone VLAK_VLOER = vloer boven buitenlucht (geen
+    // omtrek-eis); een kelderwand zonder buitenlucht-code grenst aan grond.
+    let entities = json!([
+        ent("UNIT", "u1", 100.0, &[("UNIT_TYPEWON", "TWON_VRIJ_K")]),
+        ent("UNIT-RZ", "ur1", 100.0, &[("UNIT-RZAG", "80,00"), ("UNIT-RZID", "rz1")]),
+        ent("RZ", "rz1", 100.0, &[("RZ_OMSCHR", "zone"), ("RZ_BOUWW_VL", "CONSTRM_FL_11"), ("RZ_BOUWW_W", "CONSTRM_W_11")]),
+        ent("BEGR", "b1", 100.0, &[("BEGR_VLAK", "VLAK_VLOER"), ("BEGR_VLOER", "VL_BTNL_ONDER"), ("BEGR_A", "12,00"), ("BEGR_HEL", "n.v.t."), ("BEGR_OMSCHR", "vloer boven buiten")]),
+        ent("CONSTRD", "cd1", 100.0, &[("CONSTRD_LIB", "ld1"), ("CONSTRD_OPP", "12,00")]),
+        ent("BEGR", "b2", 200.0, &[("BEGR_VLAK", "VLAK_KELDERWAND"), ("BEGR_A", "18,00"), ("BEGR_HEL", "90"), ("BEGR_OMSCHR", "kelderwand")]),
+        ent("CONSTRD", "cd2", 100.0, &[("CONSTRD_LIB", "ld2"), ("CONSTRD_OPP", "18,00")]),
+        ent("LIBCONSTRD", "ld1", 100.0, &[("LIBCONSTRD_TYPE", "LIBVLAK_VLOER"), ("LIBCONSTRD_RC", "3,50"), ("LIBCONSTRD_OMSCHR", "Vloer")]),
+        ent("LIBCONSTRD", "ld2", 200.0, &[("LIBCONSTRD_TYPE", "LIBVLAK_GEVEL"), ("LIBCONSTRD_RC", "4,50"), ("LIBCONSTRD_OMSCHR", "Wand")]),
+        ent("INFILUNIT", "if1", 100.0, &[("INFILUNIT_QV", "0,45")]),
+        ent("INSTALLATIE", "iv", 100.0, &[("INSTALL_TYPE", "INST_VERW")]),
+        ent("VERW", "vw", 100.0, &[]),
+        ent("VERW-OPWEK", "vo", 100.0, &[("VERW-OPWEK_POMP", "VERW-OPWEK_POMP_BUWA"), ("VERW-OPWEK_COP_NON", "4,00")]),
+        ent("VERW-AFG", "va", 100.0, &[("VERW-AFG_TYPE_AFG", "VERW-AFG_TYPE_AFG_VLV")]),
+    ]);
+    let relations = json!([
+        rel("u1", "ur1"), rel("u1", "if1"),
+        rel("ur1", "b1"), rel("ur1", "b2"),
+        rel("b1", "cd1"), rel("b2", "cd2"),
+        rel("iv", "vw"), rel("vw", "vo"), rel("vw", "va"),
+    ]);
+    let summary = json!({"GEB_OMSCHR": "Woning", "GEB_TYPEGEB": "TGEB_WOONBB"});
+
+    let bytes = {
+        let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        write_entry(&mut zip, "meta.json", &json!({"Version": 2, "App": "x"}));
+        write_entry(&mut zip, "buildings.json", &json!([{"BuildingId": 1}]));
+        write_entry(&mut zip, "buildings/1/entities.json", &entities);
+        write_entry(&mut zip, "buildings/1/relations.json", &relations);
+        write_entry(&mut zip, "buildings/1/summary.json", &summary);
+        zip.finish().unwrap().into_inner()
+    };
+
+    let result = import_uniec3(&bytes).expect("import moet slagen");
+    let geo = result.project.beng_geometry.as_ref().unwrap();
+    geo.validate().expect("geometrie moet valideren");
+
+    use openaec_project_shared::beng_geometry::BengAdjacency;
+    let zone = &geo.zones[0];
+    let vloer = zone.gevels.iter().find(|g| g.omschrijving == "vloer boven buiten").unwrap();
+    assert_eq!(vloer.vlak_type, VlakType::VloerBovenBuitenlucht);
+    assert_eq!(
+        vloer.grenst_aan,
+        BengAdjacency::Buitenlucht { orientatie: Orientation::Horizontaal }
+    );
+    let wand = zone.gevels.iter().find(|g| g.omschrijving == "kelderwand").unwrap();
+    assert_eq!(wand.grenst_aan, BengAdjacency::KelderwandGrond);
+    assert!((wand.f_ls() - 0.7).abs() < 1e-12);
+    // A_ls = 1,0 * 12 + 0,7 * 18 = 24,6.
+    assert!((geo.loss_surface_area_m2() - 24.6).abs() < 1e-9, "{}", geo.loss_surface_area_m2());
+}
+
+#[test]
 fn multi_unit_is_still_rejected() {
     // Twee UNIT-entiteiten (appartementen) → nette, specifieke fout (apart ticket).
     let bytes = {

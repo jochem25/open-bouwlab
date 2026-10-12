@@ -236,6 +236,13 @@
             "aor_forfaitair"
           ],
           "type": "string"
+        },
+        {
+          "description": "Wand tegen grond (kelderwand). NTA 8800 §6.7.3 c: `f_ls` = 0,7. Uniec `VLAK_KELDERWAND` zonder buitenlucht-code.",
+          "enum": [
+            "kelderwand_grond"
+          ],
+          "type": "string"
         }
       ]
     },
@@ -311,6 +318,13 @@
     "BengGeometry": {
       "description": "Gevel-georiënteerde BENG-geometrie-invoer (F6). Zie module-doc.\n\nAdditief invoerblok náást [`crate::geometry::SharedGeometry`]; alle velden hebben een default zodat een half-ingevuld formulier geldig blijft en bestaande JSON byte-identiek round-trippt.",
       "properties": {
+        "bron": {
+          "description": "Herkomst van de geometrie als die niet in de app is ingevoerd, bv. `\"beng-import:<source>\"`. Gezet door de ontvanger van beng-import (niet door de bron). Zolang de IFC-route niet geijkt is, markeert [`crate::beng::compute_beng`] de uitkomst dan als \"te controleren\".",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "opaque_defs": {
           "description": "Bouwkundige bibliotheek — opake constructie-definities (Uniec `LIBCONSTRD_*`). Door de gevels gerefereerd via [`BengBoundary::constructie_ref`].",
           "items": {

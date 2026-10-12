@@ -285,7 +285,8 @@ fn boundary_kind(adjacency: &BengAdjacency) -> BoundaryKind {
         }
         // Grondcontact (grond/spouw, z ≤ 0,3) → grondmodel (§8.3).
         BengAdjacency::VloerOpMaaiveldBovenGrond
-        | BengAdjacency::VloerOnderMaaiveldBovenGrond => BoundaryKind::Ground,
+        | BengAdjacency::VloerOnderMaaiveldBovenGrond
+        | BengAdjacency::KelderwandGrond => BoundaryKind::Ground,
         // Onverwarmde buffers (kruipruimte, onverwarmde kelder, AOS/AOR) → §8.4
         // b-factor-tak.
         BengAdjacency::VloerOpMaaiveldBovenKruipruimte
@@ -371,6 +372,7 @@ mod tests {
 
     fn geo_with_one_gevel(ramen: Vec<BengWindowPlacement>, window_defs: Vec<WindowDef>) -> BengGeometry {
         BengGeometry {
+            bron: None,
             opaque_defs: vec![OpaqueConstructionDef {
                 id: "def-wand".into(),
                 omschrijving: "Wand".into(),

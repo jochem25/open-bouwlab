@@ -22,7 +22,12 @@
 //! - De optionele blokken worden in v1 alleen op vorm gecontroleerd (array van
 //!   objecten) en als `genegeerd` teruggemeld; `meldingen` gaan door naar de
 //!   gebruiker.
-//! - Onbekende sleutels op het hoogste niveau zijn een fout (vangt typfouten).
+//! - Onbekende sleutels zijn een fout, ook binnen `beng_geometry` (vangt
+//!   typfouten zoals `frame_fractie`). Sleutels die met `_` beginnen gelden als
+//!   commentaar en worden genegeerd.
+//! - Zolang de IFC-route niet geijkt is (R-3), is de uitkomst "te controleren":
+//!   `te_controleren = true` in het antwoord en `beng_geometry.bron` gezet, zodat
+//!   ook de latere BENG-berekening dat meldt.
 //! - Rc/U en U_w komen niet uit IFC. Bij `compleet = false` mogen
 //!   `opaque_defs[].thermal` en `window_defs[].u_w_per_m2k` ontbreken; de
 //!   import geeft dan status [`BengImportStatus::Onvolledig`] met de
@@ -36,6 +41,9 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::beng_geometry::BengGeometry;
+
+/// Melding bij elke import zolang de IFC-route niet geijkt is (R-3).
+pub const MELDING_TE_CONTROLEREN: &str = "Te controleren: BENG-geometrie uit de IFC-route is nog niet tegen certified berekeningen geijkt (R-3). Controleer de uitkomst voor gebruik.";
 
 /// Vaste waarde van het `format`-veld.
 pub const BENG_IMPORT_FORMAT: &str = "beng-import";
@@ -138,6 +146,9 @@ pub struct BengImportResult {
     /// Aanwezige optionele blokken die v1 niet leest.
     #[serde(default)]
     pub genegeerd: Vec<String>,
+    /// De uitkomst is indicatief en moet gecontroleerd worden (de IFC-route is
+    /// nog niet geijkt, R-3). Nu altijd `true`.
+    pub te_controleren: bool,
     /// Projectnaam uit het document.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub project_name: Option<String>,
@@ -213,10 +224,15 @@ pub fn import_beng(doc: &Value) -> Result<BengImportResult, BengImportError> {
         let mut result = basis_resultaat(&typed, obj);
         result.status = BengImportStatus::Onvolledig;
         result.ontbrekend = ontbrekend;
+        result
+            .meldingen
+            .extend(belemmering_meldingen(&typed.beng_geometry));
         return Ok(result);
     }
 
     let typed = parse_typed(doc)?;
+    let mut typed = typed;
+    typed.beng_geometry.bron = Some(format!("beng-import:{}", typed.source));
     typed
         .beng_geometry
         .validate()
@@ -261,10 +277,78 @@ fn check_envelope(
 }
 
 fn parse_typed(doc: &Value) -> Result<BengImportV1, BengImportError> {
-    serde_path_to_error::deserialize(doc).map_err(|e| BengImportError::Schema {
-        pad: e.path().to_string(),
-        reden: e.inner().to_string(),
-    })
+    let mut schoon = doc.clone();
+    verwijder_commentaar(&mut schoon);
+    let typed: BengImportV1 =
+        serde_path_to_error::deserialize(&schoon).map_err(|e| BengImportError::Schema {
+            pad: e.path().to_string(),
+            reden: e.inner().to_string(),
+        })?;
+    // De geneste typen weigeren onbekende velden niet zelf (bestaande
+    // projectbestanden blijven zo leesbaar). Hier wel: serialiseer terug en
+    // zoek sleutels die serde heeft laten vallen.
+    let terug = serde_json::to_value(&typed.beng_geometry).map_err(|e| BengImportError::Schema {
+        pad: "beng_geometry".into(),
+        reden: e.to_string(),
+    })?;
+    if let Some(invoer) = schoon.get("beng_geometry") {
+        let mut onbekend = Vec::new();
+        zoek_onbekend(invoer, &terug, "beng_geometry", &mut onbekend);
+        if let Some(pad) = onbekend.first() {
+            return Err(BengImportError::Schema {
+                pad: pad.clone(),
+                reden: format!("onbekend veld ({} in totaal)", onbekend.len()),
+            });
+        }
+    }
+    Ok(typed)
+}
+
+/// Verwijder sleutels die met `_` beginnen (commentaar) op elk niveau.
+fn verwijder_commentaar(v: &mut Value) {
+    match v {
+        Value::Object(m) => {
+            m.retain(|k, _| !k.starts_with('_'));
+            m.values_mut().for_each(verwijder_commentaar);
+        }
+        Value::Array(a) => a.iter_mut().for_each(verwijder_commentaar),
+        _ => {}
+    }
+}
+
+/// Sleutels in `invoer` die na deserialiseren en terugserialiseren ontbreken
+/// in `terug`. Een sleutel die alleen ontbreekt omdat hij de default had
+/// (`null`, `false`, `""`, `[]`, `{}`, `"none"`) telt niet.
+fn zoek_onbekend(invoer: &Value, terug: &Value, pad: &str, uit: &mut Vec<String>) {
+    match (invoer, terug) {
+        (Value::Object(a), Value::Object(b)) => {
+            for (k, v) in a {
+                let sub = format!("{pad}.{k}");
+                match b.get(k) {
+                    Some(t) => zoek_onbekend(v, t, &sub, uit),
+                    None if is_default_waarde(v) => {}
+                    None => uit.push(sub),
+                }
+            }
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            for (i, (v, t)) in a.iter().zip(b).enumerate() {
+                zoek_onbekend(v, t, &format!("{pad}[{i}]"), uit);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn is_default_waarde(v: &Value) -> bool {
+    match v {
+        Value::Null => true,
+        Value::Bool(b) => !b,
+        Value::String(s) => s.is_empty() || s == "none",
+        Value::Array(a) => a.is_empty(),
+        Value::Object(m) => m.is_empty(),
+        Value::Number(_) => false,
+    }
 }
 
 fn basis_resultaat(typed: &BengImportV1, obj: &serde_json::Map<String, Value>) -> BengImportResult {
@@ -277,13 +361,15 @@ fn basis_resultaat(typed: &BengImportV1, obj: &serde_json::Map<String, Value>) -
         })
         .map(|k| (*k).to_string())
         .collect();
-    let meldingen = typed.meldingen.iter().map(melding_tekst).collect();
+    let mut meldingen: Vec<String> = vec![MELDING_TE_CONTROLEREN.to_string()];
+    meldingen.extend(typed.meldingen.iter().map(melding_tekst));
     BengImportResult {
         status: BengImportStatus::Compleet,
         beng_geometry: None,
         ontbrekend: Vec::new(),
         meldingen,
         genegeerd,
+        te_controleren: true,
         project_name: typed.project_name.clone(),
         source: typed.source.clone(),
     }

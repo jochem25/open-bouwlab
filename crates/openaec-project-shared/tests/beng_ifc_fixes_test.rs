@@ -58,6 +58,7 @@ fn geo_alle_begrenzingen() -> BengGeometry {
         orientatie: Orientation::Zuid,
     };
     BengGeometry {
+        bron: None,
         opaque_defs: vec![
             def("v", VlakType::Vloer),
             def("g", VlakType::Gevel),

@@ -12,7 +12,11 @@ Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-f
 - [ ] Onvolledige import aanvullen in OB (Rc uit de materiaalcatalogus op `opaque_defs_extra[].lagen`)
 - [ ] Zijbelemmering (§17.3.2 d, tabel 17.10/17.11) en belemmering met constante hoogte (b); Uniec `BELEMTYPE_ZIJ*` nu nog als minimal
 - [x] Review (Opus als tweede Claude + Ollama): lichte-bouwwijze-toeslag ontbrak (ankers nu exact op certified), KIND-match, woongebouw rij 1a, kelderwand AVR, validatie bij onvolledig
-- [ ] Review-restpunten (laag): `Obstruction::validate` ook op de SharedGeometry-route; onbekende sleutels dieper in beng-import worden genegeerd; editor zet leeg h_o op 1,0; drijvende woning (Bbl rij 1c/1d) ontbreekt
+- [x] Review 2 (Sonnet, 12-10): onbekende geneste sleutels geweigerd, GF-code op prefix, melding aandeel zonder eis, spaties in meldingen, h_o-afronding, niet-UTF-8, belemmeringsmelding bij onvolledig
+- [x] Vervolgpunten ifc-ruimtebalans: `kelderwand_grond` (f_ls 0,7), Uniec `VL_BTNL_ONDER` -> vloer boven buitenlucht; 'te controleren' in import- en BENG-uitkomst (R-3)
+- [ ] Review-restpunten (laag): `Obstruction::validate` ook op de SharedGeometry-route; editor zet leeg h_o op 1,0; drijvende woning (Bbl rij 1c/1d) ontbreekt; utiliteit zonder `GEB_TYPEGEB` wordt als woning gelezen; helling < 15 graden noord klemt naar de 0-graden-kolom (normtoets ontbreekt)
+- [ ] 'Te controleren' laten vervallen na een zuivere ijking van de IFC-route (R-3)
+- [ ] Belending (rb levert `aangrenzende_verwarmde_ruimte` met omschrijving 'belending') en catalogus uit de laagvingerafdrukken (rb-punten 3 en 4)
 - [ ] Uniec-gebruiksfunctiecodes naast `GF_BIJEENOVER` bevestigen met echte exports
 - [ ] Rekenkern utiliteit: BENG1-indicator wijkt fors af van certified op het utiliteitsproject (grenswaarden kloppen wel)
 - [ ] Optionele blokken lezen: `aansluitingen` (psi-koppeling), `vloeren_per_bouwlaag` (C5b), `pv_vlakken`

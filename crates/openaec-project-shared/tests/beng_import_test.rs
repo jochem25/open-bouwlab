@@ -200,6 +200,39 @@ fn e2e_import_naar_project_en_beng() {
     assert!((res.beng2.limit.unwrap() - 30.0).abs() < 1e-9);
     assert!((res.beng3.limit.unwrap() - 50.0).abs() < 1e-9);
     assert!(res.beng1.value.is_finite() && res.beng1.value > 0.0);
+    assert!(res.te_controleren);
+    assert!(res.notes.iter().any(|n| n.starts_with("TE CONTROLEREN")));
+}
+
+#[test]
+fn import_is_te_controleren_tot_in_de_beng_uitkomst() {
+    let r = import_beng(&fixture()).unwrap();
+    assert!(r.te_controleren);
+    assert!(r.meldingen[0].starts_with("Te controleren"));
+    let geo = r.beng_geometry.unwrap();
+    assert_eq!(geo.bron.as_deref(), Some("beng-import:synthetisch@test"));
+    // De BENG-uitkomst zelf: zie e2e_import_naar_project_en_beng.
+}
+
+#[test]
+fn onbekend_genest_veld_wordt_geweigerd() {
+    let mut doc = fixture();
+    doc["beng_geometry"]["window_defs"][0]["frame_fractie"] = Value::from(0.2);
+    match import_beng(&doc) {
+        Err(BengImportError::Schema { pad, .. }) => {
+            assert_eq!(pad, "beng_geometry.window_defs[0].frame_fractie");
+        }
+        other => panic!("verwacht schemafout, kreeg {other:?}"),
+    }
+}
+
+#[test]
+fn commentaar_en_defaultwaarden_zijn_geen_onbekend_veld() {
+    let mut doc = fixture();
+    doc["beng_geometry"]["_note"] = Value::from("commentaar");
+    doc["beng_geometry"]["zones"][0]["gevels"][1]["helling_deg"] = Value::Null;
+    let r = import_beng(&doc).expect("commentaar en null mogen");
+    assert_eq!(r.status, BengImportStatus::Compleet);
 }
 
 /// Het gecommitte schema is exact wat de Rust-types genereren. Bij een

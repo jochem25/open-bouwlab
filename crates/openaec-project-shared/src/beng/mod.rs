@@ -246,6 +246,11 @@ pub struct BengResult {
     /// (`skip_serializing_if`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zeb_indicator: Option<zeb::ZebIndicator>,
+    /// `true` als de geometrie uit een import komt die nog niet geijkt is
+    /// (`beng_geometry.bron`, bv. de IFC-route via beng-import). De uitkomst is
+    /// dan indicatief en moet gecontroleerd worden; de reden staat in `notes`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub te_controleren: bool,
 }
 
 /// Fouten van de BENG-orchestrator.
@@ -748,9 +753,33 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
             .filter(|z| z.gebruiksfuncties.is_empty())
             .map(|z| z.id.as_str())
             .collect();
+        // Functies zonder eis (industrie, overig) vallen uit de weging; meld
+        // welk deel van het gebruiksoppervlak dat is.
+        let a_totaal: f64 = aandelen.iter().map(|(_, a)| a.max(0.0)).sum();
+        let a_zonder_eis: f64 = aandelen
+            .iter()
+            .filter(|(f, _)| nta8800_ep::BengLimits::for_bbl_functie(*f, als_ag).is_none())
+            .map(|(_, a)| a.max(0.0))
+            .sum();
+        if a_zonder_eis > 0.0 && a_totaal > 0.0 {
+            notes.push(format!(
+                "{a_zonder_eis:.1} m² ({:.0} %) van het gebruiksoppervlak heeft een functie zonder BENG-eis in Bbl tabel 4.148A en telt niet mee in de weging.",
+                a_zonder_eis / a_totaal * 100.0
+            ));
+        }
+        // Som van de functie-oppervlakken tegen A_g per zone.
+        for z in project.beng_geometry.iter().flat_map(|bg| bg.zones.iter()) {
+            let som: f64 = z.gebruiksfuncties.iter().map(|gf| gf.a_g_m2).sum();
+            if !z.gebruiksfuncties.is_empty() && (som - z.a_g_m2).abs() > 0.01 * z.a_g_m2 {
+                notes.push(format!(
+                    "Rekenzone {}: som gebruiksfuncties {som:.1} m² wijkt af van A_g {:.1} m²; de weging volgt de functie-oppervlakken.",
+                    z.id, z.a_g_m2
+                ));
+            }
+        }
         if !zonder.is_empty() {
             notes.push(format!(
-                "Rekenzone(s) zonder gebruiksfunctie tellen niet mee in de weging van de                  BENG-grenswaarden: {}.",
+                "Rekenzone(s) zonder gebruiksfunctie tellen niet mee in de weging van de BENG-grenswaarden: {}.",
                 zonder.join(", ")
             ));
         }
@@ -809,7 +838,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         if d_m <= LICHTE_BOUWWIJZE_DM_MAX_KJ_M2K {
             l.beng1_max_kwh_per_m2 += nta8800_ep::beng::LICHTE_BOUWWIJZE_TOESLAG_KWH_M2;
             notes.push(format!(
-                "Lichte-bouwwijze-toeslag toegepast (Bbl art. 4.149 lid 4): gewogen D_m =                  {d_m:.0} kJ/(m²·K) ≤ 180 → BENG1-grens + 5 kWh/(m²·jr)."
+                "Lichte-bouwwijze-toeslag toegepast (Bbl art. 4.149 lid 4): gewogen D_m = {d_m:.0} kJ/(m²·K) ≤ 180 → BENG1-grens + 5 kWh/(m²·jr)."
             ));
         }
     }
@@ -893,6 +922,14 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         None
     };
 
+    let bron = project.beng_geometry.as_ref().and_then(|bg| bg.bron.clone());
+    let te_controleren = bron.is_some();
+    if let Some(bron) = bron {
+        notes.push(format!(
+            "TE CONTROLEREN: de BENG-geometrie komt uit een import ({bron}) die nog niet tegen certified berekeningen is geijkt. Controleer de uitkomst voor gebruik."
+        ));
+    }
+
     Ok(BengResult {
         beng1,
         beng2,
@@ -908,6 +945,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         notes,
         value_sources,
         zeb_indicator,
+        te_controleren,
     })
 }
 

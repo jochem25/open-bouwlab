@@ -331,6 +331,7 @@ fn multizone_beng_geometry(a_g_zone1: f64, a_g_zone2: f64) -> BengGeometry {
         gevels: vec![floor(&format!("{id}-vloer"), a_g), wall(&format!("{id}-gevel-z"))],
     };
     BengGeometry {
+        bron: None,
         opaque_defs: vec![
             opaque("vloer-def", VlakType::Vloer, 3.7),
             opaque("gevel-def", VlakType::Gevel, 4.7),

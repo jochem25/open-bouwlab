@@ -141,7 +141,8 @@ export type BengAdjacencyUnit =
   | "sterk_geventileerd"
   | "water"
   | "aangrenzende_verwarmde_ruimte"
-  | "aor_forfaitair";
+  | "aor_forfaitair"
+  | "kelderwand_grond";
 
 /**
  * Waar een begrenzingsvlak aan grenst (Uniec referentie-enums §2). Externally
@@ -298,6 +299,11 @@ export interface BengGeometry {
   window_defs?: WindowDef[];
   /** Rekenzones (meestal één voor een grondgebonden woning). */
   zones?: BengZone[];
+  /**
+   * Herkomst bij een import (bv. `beng-import:<source>`), gezet door de API.
+   * Zolang die route niet geijkt is, is de BENG-uitkomst "te controleren".
+   */
+  bron?: string;
 }
 
 /** Gebruiksfunctie volgens Bbl tabel 4.148A (serde snake_case). */

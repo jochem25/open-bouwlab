@@ -939,6 +939,20 @@ function BengResultView({
   return (
     <Card title={t("beng.result.title", "Resultaat")}>
       <div className="space-y-5">
+        {result.te_controleren && (
+          <div
+            role="alert"
+            data-testid="beng-te-controleren"
+            className="rounded-md border border-red-400 px-4 py-3 text-sm text-red-400"
+          >
+            <p className="font-medium">
+              {t(
+                "beng.result.teControleren",
+                "Te controleren: de geometrie komt uit een import die nog niet tegen certified berekeningen is geijkt. Gebruik deze uitkomst niet zonder controle.",
+              )}
+            </p>
+          </div>
+        )}
         {/* Energielabel prominent */}
         <div className="flex items-center gap-4">
           <div className="rounded-md border border-primary/40 bg-primary/10 px-5 py-3">

@@ -96,6 +96,8 @@ export interface BengResult {
    * bronnen. Additief; leeg voor projecten zonder bronopgave.
    */
   value_sources: ValueSourceReport[];
+  /** Geometrie uit een nog niet geijkte import: uitkomst indicatief. */
+  te_controleren?: boolean;
 }
 
 // ---------------------------------------------------------------------------

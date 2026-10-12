@@ -78,6 +78,13 @@ pub struct BengGeometry {
     /// Rekenzones (Uniec `RZ`). Meestal één voor een grondgebonden woning.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub zones: Vec<BengZone>,
+
+    /// Herkomst van de geometrie als die niet in de app is ingevoerd, bv.
+    /// `"beng-import:<source>"`. Gezet door de ontvanger van beng-import
+    /// (niet door de bron). Zolang de IFC-route niet geijkt is, markeert
+    /// [`crate::beng::compute_beng`] de uitkomst dan als "te controleren".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bron: Option<String>,
 }
 
 impl BengGeometry {
@@ -618,6 +625,9 @@ pub enum BengAdjacency {
     },
     /// Aangrenzende onverwarmde ruimte (AOR), forfaitair. Uniec `AOR forfaitair`.
     AorForfaitair,
+    /// Wand tegen grond (kelderwand). NTA 8800 §6.7.3 c: `f_ls` = 0,7. Uniec
+    /// `VLAK_KELDERWAND` zonder buitenlucht-code.
+    KelderwandGrond,
 }
 
 impl BengAdjacency {
@@ -640,8 +650,9 @@ impl BengAdjacency {
     ///   een onverwarmde kelder is een AOR, dus ook 1;
     /// - c) grond en kruipruimte: 0,7.
     ///
-    /// Een kelderwand grenst aan de grond; die weging zit in
-    /// [`BengBoundary::f_ls`], niet hier.
+    /// Een wand tegen grond is [`Self::KelderwandGrond`] (0,7). Een vlak van
+    /// het type kelderwand weegt ook met een andere aangrenzing 0,7; die regel
+    /// zit in [`BengBoundary::f_ls`].
     #[must_use]
     pub fn f_ls(&self) -> f64 {
         match self {
@@ -649,7 +660,8 @@ impl BengAdjacency {
             BengAdjacency::VloerOpMaaiveldBovenKruipruimte
             | BengAdjacency::VloerOpMaaiveldBovenGrond
             | BengAdjacency::VloerOnderMaaiveldBovenKruipruimte
-            | BengAdjacency::VloerOnderMaaiveldBovenGrond => F_LS_GROND_KRUIPRUIMTE,
+            | BengAdjacency::VloerOnderMaaiveldBovenGrond
+            | BengAdjacency::KelderwandGrond => F_LS_GROND_KRUIPRUIMTE,
             BengAdjacency::VloerOpMaaiveldBovenOnverwarmdeKelder
             | BengAdjacency::VloerOnderMaaiveldBovenOnverwarmdeKelder
             | BengAdjacency::Buitenlucht { .. }
@@ -768,6 +780,7 @@ mod tests {
 
     fn minimal_geo() -> BengGeometry {
         BengGeometry {
+            bron: None,
             opaque_defs: vec![OpaqueConstructionDef {
                 id: "def-wand".into(),
                 omschrijving: "Wand".into(),

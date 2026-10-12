@@ -114,6 +114,7 @@ const ADJACENCY_KINDS: Array<{ value: BengAdjacencyKind; label: string }> = [
   },
   { value: "aos_forfaitair", label: "AOS forfaitair (onverwarmde serre)" },
   { value: "aor_forfaitair", label: "AOR forfaitair (onverwarmde ruimte)" },
+  { value: "kelderwand_grond", label: "Grond (kelderwand)" },
 ];
 
 type ObstructionKind = "none" | "minimal" | "full" | "overhang" | "other";

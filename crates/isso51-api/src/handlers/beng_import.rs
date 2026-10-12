@@ -17,9 +17,9 @@ use openaec_project_shared::beng_import::import_beng;
 /// - 400: geen geldige JSON;
 /// - 422: JSON klopt niet met het contract (envelope, schema, validatie), met
 ///   de letterlijke melding inclusief JSON-pad.
-pub async fn beng_import_handler(body: String) -> impl IntoResponse {
+pub async fn beng_import_handler(body: axum::body::Bytes) -> impl IntoResponse {
     let result = tokio::task::spawn_blocking(move || {
-        let doc: serde_json::Value = serde_json::from_str(&body)
+        let doc: serde_json::Value = serde_json::from_slice(&body)
             .map_err(|e| (StatusCode::BAD_REQUEST, "json_parse_error", e.to_string()))?;
         import_beng(&doc).map_err(|e| {
             (
@@ -54,7 +54,13 @@ mod tests {
         include_str!("../../../../tests/fixtures/beng-import-v1-synthetisch.json");
 
     async fn call(body: &str) -> (StatusCode, serde_json::Value) {
-        let resp = beng_import_handler(body.to_string()).await.into_response();
+        call_bytes(body.as_bytes()).await
+    }
+
+    async fn call_bytes(body: &[u8]) -> (StatusCode, serde_json::Value) {
+        let resp = beng_import_handler(axum::body::Bytes::copy_from_slice(body))
+            .await
+            .into_response();
         let status = resp.status();
         let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX)
             .await
@@ -75,6 +81,21 @@ mod tests {
         let (status, v) = call("{niet json").await;
         assert_eq!(status, StatusCode::BAD_REQUEST);
         assert_eq!(v["error"], "json_parse_error");
+    }
+
+    #[tokio::test]
+    async fn geen_utf8_geeft_400_json() {
+        let (status, v) = call_bytes(&[0xff, 0xfe, b'{']).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST);
+        assert_eq!(v["error"], "json_parse_error");
+    }
+
+    #[tokio::test]
+    async fn antwoord_is_te_controleren() {
+        let (status, v) = call(FIXTURE).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(v["te_controleren"], true);
+        assert!(v["beng_geometry"]["bron"].as_str().unwrap().starts_with("beng-import:"));
     }
 
     #[tokio::test]

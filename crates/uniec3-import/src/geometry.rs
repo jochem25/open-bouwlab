@@ -94,6 +94,7 @@ pub fn map_geometry(idx: &EntityIndex, warnings: &mut Vec<String>) -> Result<Ben
         opaque_defs,
         window_defs: ctx.window_defs,
         zones,
+        bron: None,
     })
 }
 
@@ -333,43 +334,45 @@ pub(crate) fn gebruiksfunctie_from_code(code: &str) -> Option<(BblGebruiksfuncti
     if code == "GF_BIJEENOVER" {
         return Some((F::BijeenkomstOverig, true));
     }
-    let c = code.to_ascii_uppercase();
-    let f = if c.contains("KIND") {
-        // Vóór de IND-test: "KIND" bevat "IND".
+    // Alleen het begin van de functienaam na `GF_` telt; een losse substring
+    // elders in de code (bv. "IND" in "BINDING") mag geen functie opleveren.
+    let upper = code.to_ascii_uppercase();
+    let c = upper.strip_prefix("GF_").unwrap_or(&upper);
+    let f = if c.starts_with("KIND") {
         F::BijeenkomstKinderopvang
-    } else if c.contains("BIJEEN") {
+    } else if c.starts_with("BIJEEN") {
         if c.contains("KIND") {
             F::BijeenkomstKinderopvang
         } else {
             F::BijeenkomstOverig
         }
-    } else if c.contains("GEZ") {
+    } else if c.starts_with("GEZ") {
         if c.contains("BED") {
             F::GezondheidszorgMetBedgebied
         } else {
             F::GezondheidszorgOverig
         }
-    } else if c.contains("LOG") {
+    } else if c.starts_with("LOG") {
         if c.contains("GEB") {
             F::LogiesInLogiesgebouw
         } else {
             F::LogiesOverig
         }
-    } else if c.contains("CEL") {
+    } else if c.starts_with("CEL") {
         F::Celfunctie
-    } else if c.contains("IND") {
+    } else if c.starts_with("IND") {
         F::Industriefunctie
-    } else if c.contains("KANT") {
+    } else if c.starts_with("KANT") {
         F::Kantoorfunctie
-    } else if c.contains("ONDERW") {
+    } else if c.starts_with("ONDERW") {
         F::Onderwijsfunctie
-    } else if c.contains("SPORT") {
+    } else if c.starts_with("SPORT") {
         F::Sportfunctie
-    } else if c.contains("WINK") {
+    } else if c.starts_with("WINK") {
         F::Winkelfunctie
-    } else if c.contains("WOONGEB") {
+    } else if c.starts_with("WOONGEB") {
         F::Woongebouw
-    } else if c.contains("WON") || c.contains("WOON") {
+    } else if c.starts_with("WON") || c.starts_with("WOON") {
         F::AndereWoonfunctie
     } else {
         return None;
@@ -404,6 +407,16 @@ fn map_boundaries(
                 ));
                 continue;
             }
+        };
+
+        // Een gewone vloer met BEGR_VLOER = VL_BTNL_ONDER (buitenlucht onder)
+        // is een vloer boven buitenlucht, net als VLAK_VLOER_BOVBUI.
+        let vlak_type = if vlak_type == VlakType::Vloer
+            && begr.prop("BEGR_VLOER") == Some("VL_BTNL_ONDER")
+        {
+            VlakType::VloerBovenBuitenlucht
+        } else {
+            vlak_type
         };
 
         let Some(area) = begr.num("BEGR_A") else {
@@ -510,6 +523,8 @@ fn map_adjacency(
             Some("GVL_WATER") => BengAdjacency::Water,
             code => match orientation_from_code(code, "GVL_BTNL_") {
                 Some(o) => BengAdjacency::Buitenlucht { orientatie: o },
+                // Kelderwand zonder buitenlucht-code: wand tegen grond.
+                None if vlak_type == VlakType::Kelderwand => BengAdjacency::KelderwandGrond,
                 None => adjacency_fallback_or_buitenlucht(begr, "gevel", warnings),
             },
         },
@@ -666,7 +681,9 @@ fn overhang_h_o(belem: &Entity, short: &str, warnings: &mut Vec<String>) -> Opti
         // Afgerond op 0,001: de bronmaten hebben twee decimalen.
         (Some(h), Some(a)) if h > 0.0 && a > 0.0 => Some((h / a * 1000.0).round() / 1000.0),
         _ => None,
-    };
+    }
+    // Afronding kan een heel klein overstek op 0 zetten; h_o moet > 0 zijn.
+    .filter(|&h_o| h_o > 0.0);
     let uit_hoek = belem
         .num("BELEMM_HOEK_OVERST")
         .filter(|&deg| deg > 0.0 && deg < 90.0)
@@ -778,5 +795,16 @@ mod gebruiksfunctie_tests {
             Some(BblGebruiksfunctie::Industriefunctie)
         );
         assert_eq!(gebruiksfunctie_from_code("GF_BIJEENOVER"), Some((BblGebruiksfunctie::BijeenkomstOverig, true)));
+    }
+
+    #[test]
+    fn substring_elders_in_de_code_geeft_geen_functie() {
+        // "BINDING" bevat "IND", "XKANT" bevat "KANT": geen functie.
+        assert_eq!(gebruiksfunctie_from_code("GF_BINDING"), None);
+        assert_eq!(gebruiksfunctie_from_code("GF_XKANT"), None);
+        assert_eq!(
+            gebruiksfunctie_from_code("GF_KANTOOR").map(|(f, _)| f),
+            Some(BblGebruiksfunctie::Kantoorfunctie)
+        );
     }
 }
