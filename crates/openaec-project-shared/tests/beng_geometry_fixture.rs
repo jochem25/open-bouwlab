@@ -1,8 +1,9 @@
 //! F6 fase-1 vangrail: de gevel-georiënteerde BENG-geometrie-fixture voor
 //! 2522 Woning Aalten parst en valideert groen.
 //!
-//! De fixture (`tests/verification/beng_uniec_crosscheck/aalten-2522/
-//! beng_geometry.input.json`) is gereconstrueerd uit de certified-Uniec
+//! De fixture (`tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/
+//! beng_geometry.input.json`, lokaal: echt project, niet in de publieke repo;
+//! ontbreekt hij, dan slaan deze tests over) is gereconstrueerd uit de certified-Uniec
 //! velden-capture van dezelfde case. Deze test bewijst dat het
 //! [`BengGeometry`]-invoermodel die geometrie 1-op-1 kan dragen: de twee
 //! bibliotheken, 6 begrenzingsvlakken en kozijn-plaatsingen deserialiseren, de
@@ -17,22 +18,30 @@
 
 use openaec_project_shared::{BengAdjacency, BengGeometry, Orientation, VlakType};
 
-const AALTEN_BENG_GEOMETRY: &str = include_str!(
-    "../../../tests/verification/beng_uniec_crosscheck/aalten-2522/beng_geometry.input.json"
-);
+const LOCAL_DIR: &str = "../../tests/fixtures.local/beng_uniec_crosscheck";
 
-const GOUDA_BENG_GEOMETRY: &str = include_str!(
-    "../../../tests/verification/beng_uniec_crosscheck/gouda-2467/beng_geometry.input.json"
-);
+fn read_local(case: &str) -> Option<String> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(LOCAL_DIR)
+        .join(case)
+        .join("beng_geometry.input.json");
+    let raw = std::fs::read_to_string(&path).ok();
+    if raw.is_none() {
+        eprintln!("SKIP: lokale anker-fixture ontbreekt: {}", path.display());
+    }
+    raw
+}
 
 /// Parse de fixture naar [`BengGeometry`]. Onbekende `_meta`/`_note`-sleutels
 /// (fixture-commentaar) worden door serde genegeerd.
-fn load() -> BengGeometry {
-    serde_json::from_str(AALTEN_BENG_GEOMETRY).expect("Aalten BENG-geometrie-fixture moet parsen")
+fn load() -> Option<BengGeometry> {
+    let raw = read_local("aalten-2522")?;
+    Some(serde_json::from_str(&raw).expect("Aalten BENG-geometrie-fixture moet parsen"))
 }
 
-fn load_gouda() -> BengGeometry {
-    serde_json::from_str(GOUDA_BENG_GEOMETRY).expect("Gouda BENG-geometrie-fixture moet parsen")
+fn load_gouda() -> Option<BengGeometry> {
+    let raw = read_local("gouda-2467")?;
+    Some(serde_json::from_str(&raw).expect("Gouda BENG-geometrie-fixture moet parsen"))
 }
 
 /// Totale kozijn-oppervlakte op een gevel = Σ (aantal · WindowDef::area_m2).
@@ -51,13 +60,13 @@ fn windows_area(geo: &BengGeometry, gevel: &openaec_project_shared::BengBoundary
 
 #[test]
 fn fixture_parses_and_validates() {
-    let geo = load();
+    let Some(geo) = load() else { return };
     geo.validate().expect("Aalten-geometrie moet groen valideren");
 }
 
 #[test]
 fn fixture_has_expected_library_and_zone_shape() {
-    let geo = load();
+    let Some(geo) = load() else { return };
     assert_eq!(geo.opaque_defs.len(), 3, "3 opake constructie-definities");
     assert_eq!(geo.window_defs.len(), 13, "13 kozijnmerken (A–J + deurglas + deur + dakraam)");
     assert_eq!(geo.zones.len(), 1, "1 rekenzone");
@@ -69,7 +78,7 @@ fn fixture_has_expected_library_and_zone_shape() {
 
 #[test]
 fn floor_is_ground_bound_with_perimeter() {
-    let geo = load();
+    let Some(geo) = load() else { return };
     let vloer = geo.zones[0]
         .gevels
         .iter()
@@ -86,7 +95,7 @@ fn floor_is_ground_bound_with_perimeter() {
 
 #[test]
 fn boundary_orientations_match_uniec() {
-    let geo = load();
+    let Some(geo) = load() else { return };
     let by_id = |id: &str| {
         geo.zones[0]
             .gevels
@@ -112,7 +121,7 @@ fn opaque_areas_match_certified_capture() {
     // de eerste walk, O/W uit de her-capture v2 (uniec_fields_capture_retry2.json,
     // mét losse invoervelden). Voor élke gevel is de certified opake CONSTRD_OPP
     // bekend en sluit opaak + ramen exact op het bruto gevelvlak.
-    let geo = load();
+    let Some(geo) = load() else { return };
     let check = |id: &str, expected_opaque: f64| {
         let g = geo.zones[0].gevels.iter().find(|g| g.id == id).unwrap();
         let opaque = g.bruto_buiten_opp_m2 - windows_area(&geo, g);
@@ -135,12 +144,13 @@ fn opaque_areas_match_certified_capture() {
 
 #[test]
 fn gouda_fixture_parses_and_validates() {
-    load_gouda().validate().expect("Gouda-geometrie moet groen valideren");
+    let Some(geo) = load_gouda() else { return };
+    geo.validate().expect("Gouda-geometrie moet groen valideren");
 }
 
 #[test]
 fn gouda_fixture_has_expected_shape() {
-    let geo = load_gouda();
+    let Some(geo) = load_gouda() else { return };
     assert_eq!(geo.opaque_defs.len(), 3, "3 opake defs (vloer/gevel/dak)");
     assert_eq!(geo.window_defs.len(), 13, "13 kozijnmerken (A–K + F-glas + K-glas)");
     assert_eq!(geo.zones.len(), 1);
@@ -153,7 +163,7 @@ fn gouda_fixture_has_expected_shape() {
 fn gouda_floor_is_crawlspace_no_omtrek_required() {
     // Gouda-verschil met Aalten: vloer grenst aan kruipruimte (buffer), niet aan
     // grond → geen P/A-methode, dus omtrek P is niet vereist (wél gecapturet).
-    let geo = load_gouda();
+    let Some(geo) = load_gouda() else { return };
     let vloer = geo.zones[0].gevels.iter().find(|g| g.id == "gevel-vloer").unwrap();
     assert_eq!(vloer.vlak_type, VlakType::Vloer);
     assert_eq!(vloer.grenst_aan, BengAdjacency::VloerOpMaaiveldBovenKruipruimte);
@@ -163,7 +173,7 @@ fn gouda_floor_is_crawlspace_no_omtrek_required() {
 
 #[test]
 fn gouda_has_two_roof_planes() {
-    let geo = load_gouda();
+    let Some(geo) = load_gouda() else { return };
     let daken: Vec<_> = geo.zones[0]
         .gevels
         .iter()
@@ -182,7 +192,7 @@ fn gouda_opaque_areas_match_certified_capture() {
     // Opaak = bruto − Σ ramen; alle 7 vlakken certified (Achtergevel W + Gevel
     // Rechts N via de her-capture met CONSTRD_OPP). Elke opaak sluit exact op
     // het certified CONSTRD_OPP.
-    let geo = load_gouda();
+    let Some(geo) = load_gouda() else { return };
     let check = |id: &str, expected_opaque: f64| {
         let g = geo.zones[0].gevels.iter().find(|g| g.id == id).unwrap();
         let opaque = g.bruto_buiten_opp_m2 - windows_area(&geo, g);

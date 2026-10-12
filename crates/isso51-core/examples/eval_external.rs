@@ -9,7 +9,7 @@
 //! Gebruik:
 //!     cargo run --release --example eval_external -p isso51-core -- <path>
 //!
-//! Historie: ontwikkeld 2026-05-12 voor Weesp Muiderweg 565 sanity-check
+//! Historie: ontwikkeld 2026-05-12 voor een sanity-check op een extern project
 //! (klantproject 3076).
 
 use std::env;

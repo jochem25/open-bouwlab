@@ -18,7 +18,8 @@
 //! 2. **Certified Uniec 3.3.x replay** (open-energy-studio, John Heikens, LGPL-3.0).
 //!    `meta.uniecReference` uit twee `.oes.json`-projecten. Deterministische invoer +
 //!    sub-totalen per dienst → diagnostisch sterker dan alleen eindwaarden. Fixtures
-//!    onder `tests/verification/beng_uniec_crosscheck/`.
+//!    lokaal onder `tests/fixtures.local/beng_uniec_crosscheck/` (echte projecten,
+//!    niet in de publieke repo); zonder die map slaan deze tests over.
 //!
 //! De `#[ignore]`-tests parsen hun fixtures (structuur-validatie) en eindigen in
 //! `unimplemented!("compute_beng ontbreekt nog — F2")`. Eén niet-genegeerde test
@@ -27,6 +28,7 @@
 //! — het vangnet tegen kale, ongeverifieerde expected-waarden.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use serde::Deserialize;
 
@@ -169,26 +171,34 @@ const RVO_VRIJSTAAND_INPUT: &str = include_str!(
     "../../../tests/verification/beng_rvo_voorbeeldconcepten/vrijstaande-l-g12/input.json"
 );
 
-const UNIEC_GOUDA_EXPECTED: &str =
-    include_str!("../../../tests/verification/beng_uniec_crosscheck/gouda-2467/expected.json");
-const UNIEC_GOUDA_INPUT: &str =
-    include_str!("../../../tests/verification/beng_uniec_crosscheck/gouda-2467/input.oes.json");
-const UNIEC_AALTEN_EXPECTED: &str =
-    include_str!("../../../tests/verification/beng_uniec_crosscheck/aalten-2522/expected.json");
-const UNIEC_AALTEN_INPUT: &str =
-    include_str!("../../../tests/verification/beng_uniec_crosscheck/aalten-2522/input.oes.json");
-/// F6 fase 2 — de gevel-georiënteerde BENG-geometrie (buiten-opp per gevel) van
-/// dezelfde Aalten-case. Wordt op het oes-project gehangen zodat de brug de
-/// geometrie-bron overneemt terwijl installaties/koudebruggen gelijk blijven.
-const UNIEC_AALTEN_BENG_GEOMETRY: &str = include_str!(
-    "../../../tests/verification/beng_uniec_crosscheck/aalten-2522/beng_geometry.input.json"
-);
+/// De Uniec-ankers komen uit echte projecten en staan daarom NIET in de
+/// (publieke) repo maar lokaal onder `tests/fixtures.local/` (gitignored).
+/// Ontbreekt een bestand, dan slaat de test over (CI, verse clone).
+const UNIEC_LOCAL_DIR: &str = "../../tests/fixtures.local/beng_uniec_crosscheck";
 
-/// F6 fase 2b — de gevel-georiënteerde BENG-geometrie van de Gouda-case
-/// (2 dakvlakken O/W, vloer-op-kruipruimte, 4 gevels). Zelfde brug-recept.
-const UNIEC_GOUDA_BENG_GEOMETRY: &str = include_str!(
-    "../../../tests/verification/beng_uniec_crosscheck/gouda-2467/beng_geometry.input.json"
-);
+fn uniec_local(case: &str, file: &str) -> Option<String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(UNIEC_LOCAL_DIR)
+        .join(case)
+        .join(file);
+    match std::fs::read_to_string(&path) {
+        Ok(s) => Some(s),
+        Err(_) => {
+            eprintln!("SKIP: lokale anker-fixture ontbreekt: {}", path.display());
+            None
+        }
+    }
+}
+
+/// Lees een lokale anker-fixture of verlaat de test (overslaan).
+macro_rules! anker {
+    ($case:expr, $file:expr) => {
+        match uniec_local($case, $file) {
+            Some(s) => s,
+            None => return,
+        }
+    };
+}
 
 const RVO_FIXTURES: &[(&str, &str)] = &[
     ("tussenwoning-m-g13", RVO_TUSSENWONING_EXPECTED),
@@ -196,10 +206,21 @@ const RVO_FIXTURES: &[(&str, &str)] = &[
     ("vrijstaande-l-g12", RVO_VRIJSTAAND_EXPECTED),
 ];
 
-const UNIEC_FIXTURES: &[(&str, &str, &str)] = &[
-    ("gouda-2467", UNIEC_GOUDA_EXPECTED, UNIEC_GOUDA_INPUT),
-    ("aalten-2522", UNIEC_AALTEN_EXPECTED, UNIEC_AALTEN_INPUT),
-];
+const UNIEC_CASES: &[&str] = &["gouda-2467", "aalten-2522"];
+
+/// (case, expected.json, input.oes.json) voor de ankers die lokaal aanwezig zijn.
+fn uniec_fixtures() -> Vec<(&'static str, String, String)> {
+    UNIEC_CASES
+        .iter()
+        .filter_map(|c| {
+            Some((
+                *c,
+                uniec_local(c, "expected.json")?,
+                uniec_local(c, "input.oes.json")?,
+            ))
+        })
+        .collect()
+}
 
 // ---------------------------------------------------------------------------
 // `.oes.json` (open-energy-studio project{}-schema) → `ProjectV2`
@@ -449,7 +470,7 @@ fn uniec_subtype(case: &str) -> ResidentialType {
 #[test]
 #[ignore = "diagnostiek — draai handmatig met --nocapture"]
 fn uniec_measure() {
-    for (name, exp_raw, input_raw) in UNIEC_FIXTURES {
+    for (name, exp_raw, input_raw) in &uniec_fixtures() {
         let fx: UniecExpected = serde_json::from_str(exp_raw).unwrap();
         let input: serde_json::Value = serde_json::from_str(input_raw).unwrap();
         let project = oes_to_projectv2(&input, uniec_subtype(name));
@@ -480,24 +501,26 @@ fn uniec_measure() {
 /// [`compute_beng`] de F6-brug gebruikt. Installaties, koudebruggen en
 /// luchtdichtheid blijven exact het oes-project — alleen de geometrie-bron
 /// (binnen- → buiten-oppervlak per gevel) verandert.
-fn aalten_project_with_beng_geometry() -> ProjectV2 {
-    let input: serde_json::Value = serde_json::from_str(UNIEC_AALTEN_INPUT).unwrap();
+fn aalten_project_with_beng_geometry() -> Option<ProjectV2> {
+    let input: serde_json::Value =
+        serde_json::from_str(&uniec_local("aalten-2522", "input.oes.json")?).unwrap();
     let mut project = oes_to_projectv2(&input, uniec_subtype("aalten-2522"));
-    let beng_geometry: BengGeometry = serde_json::from_str(UNIEC_AALTEN_BENG_GEOMETRY)
+    let beng_geometry: BengGeometry = serde_json::from_str(&uniec_local("aalten-2522", "beng_geometry.input.json")?)
         .expect("beng_geometry.input.json moet naar BengGeometry parsen");
     project.beng_geometry = Some(beng_geometry);
-    project
+    Some(project)
 }
 
 /// Idem voor Gouda: hang de gevel-georiënteerde BENG-geometrie op het
 /// Gouda-oes-project zodat [`compute_beng`] de F6-brug gebruikt.
-fn gouda_project_with_beng_geometry() -> ProjectV2 {
-    let input: serde_json::Value = serde_json::from_str(UNIEC_GOUDA_INPUT).unwrap();
+fn gouda_project_with_beng_geometry() -> Option<ProjectV2> {
+    let input: serde_json::Value =
+        serde_json::from_str(&uniec_local("gouda-2467", "input.oes.json")?).unwrap();
     let mut project = oes_to_projectv2(&input, uniec_subtype("gouda-2467"));
-    let beng_geometry: BengGeometry = serde_json::from_str(UNIEC_GOUDA_BENG_GEOMETRY)
+    let beng_geometry: BengGeometry = serde_json::from_str(&uniec_local("gouda-2467", "beng_geometry.input.json")?)
         .expect("gouda beng_geometry.input.json moet naar BengGeometry parsen");
     project.beng_geometry = Some(beng_geometry);
-    project
+    Some(project)
 }
 
 /// F6 fase 2 golden — **`#[ignore]` (na C3 opnieuw over de volle breedte): de
@@ -539,11 +562,11 @@ fn gouda_project_with_beng_geometry() -> ProjectV2 {
 #[test]
 #[ignore = "C3 (13-07): met norm-correcte C_m (D_m=180, tabel 7.10) + interne warmtewinst woningbouw (formule 7.21, Φ_int 4,50 W/m²) staat BENG1 op −7,0 % (96,47 vs 103,69), BENG2 op −37,4 % (15,48 vs 24,71) en BENG3 op +4,6 pp (89,6 vs 85,0). C3 corrigeert de dynamica norm-conform, maar dat legt een demand-keten-fout bloot: certified rekent zélf met dezelfde D_m=180+7.21 en houdt heating op 2551 kWh, onze keten zakt naar 2053 (−19,5 %) → de light_woning/forfait-defaults maskeerden een gain-utilization-overwaardering (η_H;gn te hoog of Q_H;ht te laag). Zie docs/2026-07-13-c3-norm-analyse-massa-interne-winst.md + het C3-eindrapport. Vervolg = demand-keten-analyse (buiten C3-scope). C4+C5a-stand (13-07): BENG1 −5,9 % (97,58), BENG2 −37,8 % (15,38), BENG3 +4,9 pp — BENG1 alleen valt binnen ±6 %, maar BENG2/BENG3 buiten → de gecombineerde toets blijft rood. Anti-fudge: expected.json onaangeraakt."]
 fn aalten_beng_geometry_within_certified_tolerance() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_AALTEN_EXPECTED).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("aalten-2522", "expected.json")).unwrap();
     let e = &fx.expected;
     let t = &fx.tolerance;
 
-    let project = aalten_project_with_beng_geometry();
+    let Some(project) = aalten_project_with_beng_geometry() else { return };
     let r = compute_beng(&project).expect("compute_beng via de F6-brug mag niet falen");
 
     assert!(
@@ -633,10 +656,10 @@ fn aalten_beng_geometry_within_certified_tolerance() {
 #[test]
 #[ignore = "C4 (13-07): zonwinst-omissies gefixt (F_w=0,90 form.7.40 + Q_sky form.7.39) → heating primair 2168 kWh (−15,0 %) vs certified 2551, koudebehoefte 1329→1036 kWh (cert 873). Formule-audit (§7.8) bevestigt η_H;gn/τ/a norm-correct — geen utilization-fout. Split beweegt richting certified maar restgap > ±10 %. Resterend (buiten C4-scope): opake zonwinst/Q_sky (form.7.33, demand-keten rekent alleen ramen) + onbewezen plafondkolom D_m110 vs 180 (voetnoot c, ~+4pp). C5a (13-07, opake zonwinst form. 7.33): heating primair 2168 → 2172 kWh (−14,9 %) — de opake bijdrage is klein (α·R_se·U-gedempt). C5b: voetnoot c is niet norm-afleidbaar uit de enkelvoudige bouwwijze-code (vergt per-verdieping-vloerdata), dus D_m180 blijft; gevoeligheid D_m110 → heating 2264 (−11,2 %), BENG1 +1,0 %. Zie docs/2026-07-13-c5-norm-analyse-opaak-plafondkolom.md + docs/2026-07-13-c4-demand-keten-analyse.md. expected.json onaangeraakt."]
 fn aalten_beng_geometry_heating_matches_certified() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_AALTEN_EXPECTED).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("aalten-2522", "expected.json")).unwrap();
     let e = &fx.expected;
 
-    let project = aalten_project_with_beng_geometry();
+    let Some(project) = aalten_project_with_beng_geometry() else { return };
     let r = compute_beng(&project).expect("compute_beng via de F6-brug mag niet falen");
 
     // Primair verwarmingsgebruik [kWh] = service-breakdown [kWh/(m²·jr)] · A_g.
@@ -688,10 +711,10 @@ fn aalten_beng_geometry_heating_matches_certified() {
 #[test]
 #[ignore = "C4 (13-07): zonwinst-fix (F_w + Q_sky) corrigeert de verwarming/koeling-split maar is ~BENG-neutraal; BENG2 14,73 (−40,4 %) vs certified 24,71 (buiten ±10 %). Resterende aggregaat-gap = te lage totale energiebehoefte (opake zonwinst/Q_sky form.7.33 + plafondkolom-massa), niet de koudebalans. C5a (13-07): opake zonwinst (form. 7.33) tilt BENG2 14,73 → 15,38 (−37,8 %), nog ruim buiten ±10 %. Zie docs/2026-07-13-c5-norm-analyse-opaak-plafondkolom.md. expected.json onaangeraakt."]
 fn aalten_beng_geometry_beng2_matches_certified() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_AALTEN_EXPECTED).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("aalten-2522", "expected.json")).unwrap();
     let e = &fx.expected;
 
-    let project = aalten_project_with_beng_geometry();
+    let Some(project) = aalten_project_with_beng_geometry() else { return };
     let r = compute_beng(&project).expect("compute_beng via de F6-brug mag niet falen");
 
     let rel_pct = (r.beng2.value - e.beng2_kwh_m2_jr) / e.beng2_kwh_m2_jr * 100.0;
@@ -712,12 +735,12 @@ fn aalten_beng_geometry_beng2_matches_certified() {
 #[test]
 #[ignore = "diagnostiek — draai handmatig met --nocapture"]
 fn uniec_measure_bridged() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_AALTEN_EXPECTED).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("aalten-2522", "expected.json")).unwrap();
     let e = &fx.expected;
-    let input: serde_json::Value = serde_json::from_str(UNIEC_AALTEN_INPUT).unwrap();
+    let input: serde_json::Value = serde_json::from_str(&anker!("aalten-2522", "input.oes.json")).unwrap();
 
     let base = oes_to_projectv2(&input, uniec_subtype("aalten-2522"));
-    let bridged = aalten_project_with_beng_geometry();
+    let Some(bridged) = aalten_project_with_beng_geometry() else { return };
 
     let r_base = compute_beng(&base).expect("baseline compute_beng ok");
     let r_bridge = compute_beng(&bridged).expect("bridged compute_beng ok");
@@ -803,11 +826,11 @@ fn uniec_measure_bridged() {
 #[test]
 #[ignore = "F6 2b / F3d-8b / C2 / C3 (13-07): C3 (norm-correcte C_m=180 + interne warmtewinst formule 7.21) duwt BENG1 van +1,0% naar −13,2% (83,18 vs 95,86), BENG2 naar −83,8% (4,44 vs 27,48), koeling 1969→1591 kWh. Twee stapelende blokkades: (1) PV-saldering-normversie (F3d-8, BENG2/3, volledig vs ~64% credit) en (2) de C3-bevinding — demand-keten crediteert gains te sterk (heating 5131→4505 kWh, −30,8% vs cert 6506). Beide buiten C3-scope. C4+C5a-stand (13-07): BENG1 −13,4 % (82,98), BENG2 −84,5 % (4,27), heating 4777 / koeling 1295 kWh. Anti-fudge: expected.json onaangeraakt. Meet met gouda_measure_bridged/zeb_measure."]
 fn gouda_beng_geometry_within_certified_tolerance() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_GOUDA_EXPECTED).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("gouda-2467", "expected.json")).unwrap();
     let e = &fx.expected;
     let t = &fx.tolerance;
 
-    let project = gouda_project_with_beng_geometry();
+    let Some(project) = gouda_project_with_beng_geometry() else { return };
     let r = compute_beng(&project).expect("compute_beng via de F6-brug mag niet falen");
 
     assert!(
@@ -845,12 +868,12 @@ fn gouda_beng_geometry_within_certified_tolerance() {
 #[test]
 #[ignore = "diagnostiek — draai handmatig met --nocapture"]
 fn gouda_measure_bridged() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_GOUDA_EXPECTED).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("gouda-2467", "expected.json")).unwrap();
     let e = &fx.expected;
-    let input: serde_json::Value = serde_json::from_str(UNIEC_GOUDA_INPUT).unwrap();
+    let input: serde_json::Value = serde_json::from_str(&anker!("gouda-2467", "input.oes.json")).unwrap();
 
     let base = oes_to_projectv2(&input, uniec_subtype("gouda-2467"));
-    let bridged = gouda_project_with_beng_geometry();
+    let Some(bridged) = gouda_project_with_beng_geometry() else { return };
 
     let r_base = compute_beng(&base).expect("baseline compute_beng ok");
     let r_bridge = compute_beng(&bridged).expect("bridged compute_beng ok");
@@ -898,19 +921,20 @@ fn zeb_measure() {
     let cases = [
         (
             "gouda-2467",
-            UNIEC_GOUDA_EXPECTED,
-            gouda_project_with_beng_geometry as fn() -> ProjectV2,
+            anker!("gouda-2467", "expected.json"),
+            gouda_project_with_beng_geometry as fn() -> Option<ProjectV2>,
         ),
         (
             "aalten-2522",
-            UNIEC_AALTEN_EXPECTED,
-            aalten_project_with_beng_geometry as fn() -> ProjectV2,
+            anker!("aalten-2522", "expected.json"),
+            aalten_project_with_beng_geometry as fn() -> Option<ProjectV2>,
         ),
     ];
     for (name, exp_raw, build) in cases {
-        let fx: UniecExpected = serde_json::from_str(exp_raw).unwrap();
+        let fx: UniecExpected = serde_json::from_str(&exp_raw).unwrap();
         let e = &fx.expected;
-        let r = compute_beng(&build()).expect("compute_beng ok");
+        let Some(project) = build() else { return };
+        let r = compute_beng(&project).expect("compute_beng ok");
         let z = r
             .zeb_indicator
             .expect("ZEB-indicator moet berekend zijn (all-electric)");
@@ -1007,7 +1031,7 @@ fn all_expected_fixtures_have_provenance() {
     }
 
     // --- Uniec ---
-    for (name, exp_raw, input_raw) in UNIEC_FIXTURES {
+    for (name, exp_raw, input_raw) in &uniec_fixtures() {
         let fx: UniecExpected = serde_json::from_str(exp_raw)
             .unwrap_or_else(|e| panic!("{name}: expected.json parse-fout: {e}"));
 
@@ -1209,7 +1233,7 @@ fn uniec_golden_body(name: &str, expected_raw: &str, input_raw: &str) {
             +506% (F_sh=1,0). Zie docs/2026-07-12-f3d8-norm-analyse-saldering.md §7 + fixture-README §engine-gaps. \
             Meet met zeb_measure."]
 fn uniec_gouda_2467() {
-    uniec_golden_body("gouda-2467", UNIEC_GOUDA_EXPECTED, UNIEC_GOUDA_INPUT);
+    uniec_golden_body("gouda-2467", &anker!("gouda-2467", "expected.json"), &anker!("gouda-2467", "input.oes.json"));
 }
 
 #[test]
@@ -1222,7 +1246,7 @@ fn uniec_gouda_2467() {
             (orientation \"N\" vs 3811 kWh), koeling +104% (F_sh=1,0) en Q_H;nd te laag. \
             Zie docs/2026-07-12-f3d8-norm-analyse-saldering.md §7 + fixture-README §engine-gaps. Meet met zeb_measure."]
 fn uniec_aalten_2522() {
-    uniec_golden_body("aalten-2522", UNIEC_AALTEN_EXPECTED, UNIEC_AALTEN_INPUT);
+    uniec_golden_body("aalten-2522", &anker!("aalten-2522", "expected.json"), &anker!("aalten-2522", "input.oes.json"));
 }
 
 
@@ -1232,8 +1256,9 @@ fn uniec_aalten_2522() {
 /// A_ls/A_g = 225,64 / 67 = 3,3678 → 100 + 50·0,3678 + 5 = 123,39 = certified.
 #[test]
 fn aalten_beng1_grens_gelijk_aan_certified() {
-    let fx: UniecExpected = serde_json::from_str(UNIEC_AALTEN_EXPECTED).unwrap();
-    let r = compute_beng(&aalten_project_with_beng_geometry()).unwrap();
+    let fx: UniecExpected = serde_json::from_str(&anker!("aalten-2522", "expected.json")).unwrap();
+    let Some(project) = aalten_project_with_beng_geometry() else { return };
+    let r = compute_beng(&project).unwrap();
     let lim = r.beng1.limit.unwrap();
     assert!((lim - fx.expected.beng1_limit_kwh_m2_jr).abs() < 0.01, "grens {lim}");
 }

@@ -1,6 +1,6 @@
 # Vabi `.vp` SQLite Schema Reference
 
-Geverifieerd schema van `Voorweg 210a - nieuw.vp` (2026-05-14). Gebruik dit document als bron voor importer-queries — niet meer gokken.
+Geverifieerd schema van `vabi-ref-a.vp` (2026-05-14). Gebruik dit document als bron voor importer-queries — niet meer gokken.
 
 ## Top-level project chain
 
@@ -82,7 +82,7 @@ LIMIT 1
 - `IsOverridden=1` + `CustomID` gezet → `BuildingRequirementsData.ID = var.CustomID` direct
 - Voor MVP: gebruik altijd template-path, log warning als IsOverridden=1 (Fase 3 werk)
 
-**Voorweg sample-verificatie:**
+**ref-a sample-verificatie:**
 - `Building[0].RequirementsID=308419` → `VarAsp.TemplateID=3410` ("Vrijstaande woning met kap") → `BRT.DataID=3441` → `BRD.ConditionsID=3534` → `BDC.ID=3534` ✓
 
 ## Climate
@@ -125,7 +125,7 @@ LocalHeatRecoverySystemX (6 rows)          -- aanwezig = WTW; nullable FK
 ## Rooms
 
 ```
-Room (21 rows in Voorweg)                 -- exact 21, klopt met sessie-doc
+Room (21 rows in ref-a)                 -- exact 21, klopt met sessie-doc
   ID  BIGINT
   ProjectVersionID  BIGINT
   RoomNumber  TEXT                         -- rooms[].id, bv. "210A.02"
@@ -183,7 +183,7 @@ Room.VentilationID → VarAsp_VentilationData.AspectID → TemplateID
 
 ## Fase 2 — BuildingPart, Constructies, U-waardes, Geometrie
 
-Verified op Voorweg sample (2026-05-14).
+Verified op ref-a sample (2026-05-14).
 
 ### BuildingPart (154 rows)
 
@@ -341,7 +341,7 @@ LEFT JOIN (
 WHERE r.ID = ?
 ```
 
-**Verified op Voorweg sample:** Room 210A.-1 heeft Volume=26.93m³, floor_area=12.10m², height=2.23m.
+**Verified op ref-a sample:** Room 1 (kelder) heeft Volume=26.93m³, floor_area=12.10m², height=2.23m.
 
 ### Fase 2 U-waarde berekening — geverifieerd
 

@@ -132,15 +132,16 @@ fn a_ls_weegt_met_f_ls_per_begrenzing() {
     );
 }
 
-/// Aalten-fixture (bestaand BENG-anker): grondvloer 67,0 m² weegt 0,7, de
+/// Aalten-fixture (bestaand BENG-anker, lokaal; overslaan als hij ontbreekt): grondvloer 67,0 m² weegt 0,7, de
 /// overige vlakken 1. A_ls = 0,7·67,0 + (21,96 + 23,81 + 39,86 + 23,81) + 69,3
 /// = 46,90 + 109,44 + 69,30 = 225,64 m² (was ongewogen 245,74).
 #[test]
 fn a_ls_aalten_fixture_gewogen() {
-    let raw = std::fs::read_to_string(
-        "../../tests/verification/beng_uniec_crosscheck/aalten-2522/beng_geometry.input.json",
-    )
-    .unwrap();
+    let path = "../../tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/beng_geometry.input.json";
+    let Ok(raw) = std::fs::read_to_string(path) else {
+        eprintln!("SKIP: lokale anker-fixture ontbreekt: {path}");
+        return;
+    };
     let geo: BengGeometry = serde_json::from_str(&raw).unwrap();
     assert!(
         (geo.loss_surface_area_m2() - 225.64).abs() < 1e-9,

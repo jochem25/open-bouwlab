@@ -83,7 +83,7 @@ Het beoogde getal van 11 is **niet** gehaald — publieke Vabi-output op het pos
 
 ---
 
-### 3. Punt Ontwerp en Advies — Hoekwoning Wyandottelaan 20 Barneveld (2020, ISSO 51:2017)
+### 3. Punt Ontwerp en Advies — Hoekwoning Barneveld (2020, ISSO 51:2017)
 - **Bron:** https://www.puntontwerpenadvies.nl/wp-content/uploads/2020/10/warmteverlies-berekening-punt-ontwerp-advies.pdf
 - **Type:** **hoekwoning nieuwbouw**, half-vrijstaand, ~3 bouwlagen, 12 ruimten
 - **Norm-versie:** ISSO 51, 53 en 57 (**2017**)

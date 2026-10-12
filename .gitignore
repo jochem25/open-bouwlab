@@ -73,3 +73,6 @@ mockup-brandbook.html
 PROMPTS.md
 
 *.bak-*
+
+# Echte projectdata voor lokale ijking (BENG-ankers); nooit in de publieke repo
+tests/fixtures.local/

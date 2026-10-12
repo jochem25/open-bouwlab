@@ -232,7 +232,7 @@ fn truncate_chars(s: &str, max: usize) -> String {
 /// defaults (profiel `kba`, geen vlakken-IFC).
 ///
 /// Timeout: de caller geeft de waarde uit `IFC_ANALYSE_TIMEOUT_S` (default
-/// 300 s). Ter referentie: model 2786 duurt ca. 46 s lokaal; de harde grens
+/// 300 s). Ter referentie: een middelgroot utiliteitsmodel duurt ca. 46 s lokaal; de harde grens
 /// van de sidecar zelf is 600 s.
 ///
 /// Foutmapping sidecar naar API: 400/422 naar 422 `analyse_failed`; 413 naar

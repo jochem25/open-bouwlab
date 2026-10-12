@@ -9,7 +9,7 @@ kruisvalidatie tegen de bestaande hand-fixtures.
 
 **Analysebronnen:**
 - `tests/verification/beng_uniec_crosscheck/aalten-2522/2522_woning-aalten_2024-11-22.uniec3` (Uniec 3.3.3.1)
-- `tests/verification/beng_uniec_crosscheck/gouda-2467/2467_goejanverwelledijk-85-gouda_2024-09-17.uniec3` (Uniec 3.3.2.1)
+- `tests/fixtures.local/beng_uniec_crosscheck/gouda-2467/project.uniec3` (lokaal) (Uniec 3.3.2.1)
 - Versie-variatie: 6 extra exports uit `C:\Users\JochemK\Desktop\uniec\` (3.1.3.0 t/m 3.3.6.0, 2022–2025)
 - Kruisreferentie: `beng_geometry.input.json`, `expected.json`, `uniec_fields_capture*.json` per case
 - Verwant: `docs/2026-07-12-uniec-velden-inventarisatie.md` (UI-capture-inventarisatie, §5 mapping)

@@ -283,7 +283,7 @@ mod tests {
     /// project + certified + de bekende twee waarschuwingen.
     #[tokio::test]
     async fn aalten_golden_imports_end_to_end_if_present() {
-        let path = "../../tests/verification/beng_uniec_crosscheck/aalten-2522/2522_woning-aalten_2024-11-22.uniec3";
+        let path = "../../tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/project.uniec3";
         let Ok(bytes) = std::fs::read(path) else {
             eprintln!("SKIPPED: Aalten-golden ontbreekt (gitignored, alleen lokaal): {path}");
             return;

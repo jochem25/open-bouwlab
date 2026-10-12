@@ -39,7 +39,7 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 - **Bearer-tokens (ak-*) kregen geen groepen** — de groepen uit `users/me` werden niet gelezen, waardoor ook de constructie-entitlement via Bearer nooit werkte
 
 - **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard
-- **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (2786-proef: 45,0 → 24,3 kW na matcher-fix)
+- **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (proef met een utiliteitsmodel: 45,0 → 24,3 kW na matcher-fix)
 
 ### 🗑️ Verwijderd
 

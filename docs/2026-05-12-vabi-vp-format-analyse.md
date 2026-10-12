@@ -3,7 +3,7 @@
 **Datum:** 2026-05-12
 **Bestanden onderzocht:**
 - `tests/references/24221-20250618.vp` (1.7 MB) — Vabi Elements v3.12.0.9
-- `tests/references/Voorweg 210a - nieuw.vp` (956 KB) — Vabi Elements v3.5.0.7 → v3.6.0.2
+- `tests/references/vabi-ref-a.vp` (956 KB) — Vabi Elements v3.5.0.7 → v3.6.0.2
 
 ---
 
@@ -15,7 +15,7 @@
   - `Elements.sqlite3` — 12.86 MB SQLite 3.x database (geschreven met SQLite 3.46.1)
   - `cfg` — 1.8 KB XML met UI-instellingen (camera-posities, license-modules)
 
-### Voorweg 210a - nieuw.vp
+### vabi-ref-a.vp
 - Eerste 16 bytes (hex): `50 4B 03 04 2D 00 00 00 08 00 52 76 7B 5C 9D 31`
 - Interpretatie: identieke structuur — ZIP met `Elements.sqlite3` (4.47 MB) + `cfg` (2.1 KB)
 
@@ -41,7 +41,7 @@ Beide databases bevatten identiek **361 tabellen** (geen views). Naamgeving en k
 
 ### 3.2 Sleutel-tabellen voor warmteverlies (volledig leesbare invoer)
 
-| Tabel | Doel | Rij-count 24221 / Voorweg | Belangrijke kolommen |
+| Tabel | Doel | Rij-count 24221 / ref-a | Belangrijke kolommen |
 |-------|------|-----------------------------|---------------------|
 | `Project` | Project-header | 1 / 1 | `Name`, `Description`, `CurrentProjectVersionID` |
 | `ProjectData` | Klant/locatie | 1 / 1 | `ReferenceNumber`, `PrincipalID`, `ConsultantID` |

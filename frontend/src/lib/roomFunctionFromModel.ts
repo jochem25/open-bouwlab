@@ -8,10 +8,9 @@
  *  2. naam:    keywords in de ruimtenaam (`roomFunctionFromName`);
  *  3. default: woonkamer (hoogste temperatuur, veilige kant), gemarkeerd.
  *
- * Gemeten waarden uit 2786 (profiel 2786): "overige gebruiksfunctie" (7),
- * "toiletruimte" (6), "Badruimte" (4), "verkeersruimte" (3),
- * "bijeenkomstfunctie" (3), "bijeenkomst" (2), "afval" (1), "meterruimte" (1),
- * null (2).
+ * Termen die in IFC-exports voorkomen: "overige gebruiksfunctie",
+ * "toiletruimte", "Badruimte", "verkeersruimte", "bijeenkomstfunctie",
+ * "bijeenkomst", "afval", "meterruimte", of geen waarde (null).
  */
 import type { Project, RoomFunction } from "../types";
 import type { RoomExtra } from "./ifcAnalyse";
