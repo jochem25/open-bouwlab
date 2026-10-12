@@ -91,6 +91,7 @@ const BENG_EDGE_COLOR = 0x1f2937;
 /** Vanaf deze hoek (graden) tekent EdgesGeometry een rand: alleen echte omtrekken. */
 const BENG_EDGE_ANGLE_DEG = 30;
 const BENG_EDGE_OPACITY_TRANSPARENT = 0.4;
+const BENG_SELECT_EMISSIVE = 0.6;
 
 interface BengEntry {
   el: BengShellElement;
@@ -453,7 +454,11 @@ export function IfcImportViewer3D({
   useEffect(() => {
     for (const e of bengEntries.current) {
       const mat = e.mesh.material as THREE.MeshStandardMaterial;
-      mat.color.copy(e.el.expressId === bengSelId ? new THREE.Color(SELECT_COLOR) : e.base);
+      const sel = e.el.expressId === bengSelId;
+      // Kleur alleen is niet genoeg: amber valt weg tegen oker/oranje vlakken.
+      mat.color.copy(sel ? new THREE.Color(SELECT_COLOR) : e.base);
+      mat.emissive.set(sel ? SELECT_COLOR : 0x000000);
+      mat.emissiveIntensity = sel ? BENG_SELECT_EMISSIVE : 0;
     }
   }, [bengSelId, bengState]);
   useEffect(() => {
