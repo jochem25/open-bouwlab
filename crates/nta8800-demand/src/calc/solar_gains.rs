@@ -37,12 +37,22 @@
 //!
 //! De invoer [`nta8800_model::ClimateData::solar_irradiation`] is reeds in
 //! MJ/m² per maand geserialiseerd — conversie is niet nodig.
+//!
+//! **Helling (tabel 17.2).** `ClimateData` draagt alleen β = 90° per
+//! oriëntatie en β = 0° (horizontaal). Een vlak met een azimuth en een andere
+//! helling (dakraam, licht hellend dak) krijgt `I_sol` uit tabel 17.2, lineair
+//! geïnterpoleerd over de hellingshoek (§17.2), via
+//! [`nta8800_tables::climate::isol_w_per_m2`]. Zonder deze stap rekende een dak
+//! van 2° naar het zuiden als een verticale zuidgevel. Verticale vlakken en
+//! vlakken zonder azimuth blijven op `climate.solar_irradiation`.
 
 use nta8800_model::geometry::Window;
 use nta8800_model::location::{Orientation, Tilt};
 use nta8800_model::time::{Month, MonthlyProfile};
 use nta8800_model::units::Energy;
 use nta8800_model::ClimateData;
+
+use nta8800_tables::climate::isol_w_per_m2;
 
 use crate::calc::internal_gains::{MONTH_HOURS, WH_TO_MJ};
 use crate::calc::shading::{movable_shading_g_factor, obstruction_g_factor, SolarBalance};
@@ -86,6 +96,36 @@ fn sky_view_factor(tilt_deg: f64) -> f64 {
         0.75
     } else {
         0.5
+    }
+}
+
+/// Tolerantie [°] waarbinnen een vlak als verticaal geldt voor de keuze van de
+/// `I_sol`-bron (klimaatprofiel β = 90° of tabel 17.2 met interpolatie).
+const VERTICAL_TILT_TOL_DEG: f64 = 1e-6;
+
+/// Maand-instraling `I_sol;mi` [MJ/m²] op een vlak met oriëntatie + helling.
+///
+/// - Verticaal (β = 90°) of zonder azimuth ([`Orientation::Horizontaal`]): het
+///   profiel uit `climate` (ongewijzigd gedrag); `None` als het ontbreekt.
+/// - Anders: tabel 17.2, lineair geïnterpoleerd over β (§17.2), omgerekend met
+///   `t_mi` naar MJ/m² (`W/m² · h · 0,0036`).
+fn irradiation_mj(climate: &ClimateData, orientation: Orientation, tilt: Tilt) -> Option<[f64; 12]> {
+    match orientation.degrees() {
+        Some(azimuth) if (tilt.degrees - 90.0).abs() > VERTICAL_TILT_TOL_DEG => {
+            let mut out = [0.0_f64; 12];
+            for month in Month::all() {
+                let i = month.index();
+                out[i] = isol_w_per_m2(tilt.degrees, azimuth, month) * MONTH_HOURS[i] * WH_TO_MJ;
+            }
+            Some(out)
+        }
+        _ => climate.solar_irradiation.get(&orientation).map(|p| {
+            let mut out = [0.0_f64; 12];
+            for month in Month::all() {
+                out[month.index()] = p[month];
+            }
+            out
+        }),
     }
 }
 
@@ -139,7 +179,7 @@ pub fn monthly_solar_gains(
         let frame_transmitting = (1.0 - window.frame_fraction).max(0.0);
         let effective_area =
             window.area * window.g_value * F_W_GLAZING * shading_factor * frame_transmitting;
-        let profile = climate.solar_irradiation.get(&window.orientation);
+        let profile = irradiation_mj(climate, window.orientation, window.tilt);
         // Beweegbare zonwering (NTA 8800 §7.6.6.1.4). Op de warmtebalans geldt
         // voor woningen f_sh;with = 0 → geen g-reductie (factor 1,0); op de
         // koudebalans het maand-afhankelijke profiel. Zonder zonwering: 1,0.
@@ -160,7 +200,7 @@ pub fn monthly_solar_gains(
             let gross = match (effective_area > 0.0, profile) {
                 (true, Some(p)) => {
                     let m_factor = movable.as_ref().map_or(1.0, |q| q[month]);
-                    effective_area * m_factor * obstruction[month] * p[month]
+                    effective_area * m_factor * obstruction[month] * p[month.index()]
                 }
                 _ => 0.0,
             };
@@ -230,7 +270,7 @@ pub fn monthly_opaque_solar_gains(
         // Effectieve "zon-absorberende oppervlakte" α·R_se·U·A [m²]; × I_sol
         // [MJ/m²] → bruto-absorptie in MJ (formule 7.33, F_sh;obst = 1).
         let effective_area = ALPHA_SOL * R_SE * el.u_value * el.area;
-        let profile = climate.solar_irradiation.get(&el.orientation);
+        let profile = irradiation_mj(climate, el.orientation, el.tilt);
         // Hemelstraling Q_sky (formule 7.39): langgolvig verlies naar de hemel met
         // de opake U + oppervlakte en de vormfactor uit de helling. Onafhankelijk
         // van I_sol en de balanstak.
@@ -238,7 +278,7 @@ pub fn monthly_opaque_solar_gains(
         let q_sky_power_w = f_sky * R_SE * el.u_value * el.area * H_LR_E * DELTA_THETA_SKY_K;
         for month in Month::all() {
             let gross = match (effective_area > 0.0, profile) {
-                (true, Some(p)) => effective_area * p[month],
+                (true, Some(p)) => effective_area * p[month.index()],
                 _ => 0.0,
             };
             let q_sky_mj = q_sky_power_w * MONTH_HOURS[month.index()] * WH_TO_MJ;
@@ -555,10 +595,12 @@ mod tests {
 
     #[test]
     fn opaak_zuidelijk_dakvlak_45gr_juni_handberekening() {
-        // Hellend dakvlak 45° (F_sky=0,75), A=40 m², U=0,15, zuid, I=310 MJ/m².
-        //   bruto = 0,6·0,04·0,15·40·310                                     = 44,64 MJ
+        // Hellend dakvlak 45° (F_sky=0,75), A=40 m², U=0,15, zuid. I_sol uit
+        // tabel 17.2 β=45° Z juni = 197,3 W/m² (NTA 8800 p. 691-692), niet uit het
+        // verticale klimaatprofiel: 197,3·720·0,0036 = 511,4016 MJ/m².
+        //   bruto = 0,6·0,04·0,15·40·511,4016                                = 73,6418304 MJ
         //   Q_sky = 0,75·0,04·0,15·40·4,14·11·720·0,0036                     = 21,2471424 MJ
-        //   netto = 44,64 − 21,2471424                                       = 23,3928576 MJ
+        //   netto = 73,6418304 − 21,2471424                                  = 52,394688 MJ
         let climate = sample_climate();
         let el = OpaqueElement {
             area: 40.0,
@@ -568,10 +610,57 @@ mod tests {
         };
         let q = monthly_opaque_solar_gains(&[el], &climate);
         assert!(
-            (q[Month::Juni] - 23.392_857_6).abs() < 1e-6,
+            (q[Month::Juni] - 52.394_688).abs() < 1e-6,
             "kreeg {}",
             q[Month::Juni]
         );
+    }
+
+    #[test]
+    fn dakraam_2gr_zuid_rekent_niet_als_verticale_zuidgevel() {
+        // Raam in een dak van 2° naar het zuiden. Tabel 17.2 (NTA 8800 p. 691),
+        // januari: β=0° = 28,0 W/m², β=30° Z = 50,5 W/m². Lineair over β (§17.2):
+        //   I = 28,0 + (2/30)·(50,5 − 28,0) = 29,5 W/m²
+        //   I_MJ = 29,5·744·0,0036 = 79,0128 MJ/m²
+        // Raam A=2 m², g=0,6, F_F=0,2, U=1,1, F_w=0,9:
+        //   bruto = 2·0,6·0,9·0,8·79,0128 = 0,864·79,0128 = 68,2670592 MJ
+        //   Q_sky = F_sky(2° ≤ 5° → 1,0)·0,04·1,1·2·4,14·11·744·0,0036
+        //         = 0,088·4,14·11·744·0,0036 = 10,734891... MJ
+        let climate = sample_climate();
+        let w = Window::new("w-dak", "c1", 2.0, Orientation::Zuid, Tilt::new(2.0).unwrap(), 1.1, 0.6, 0.2)
+            .unwrap();
+        let q = monthly_solar_gains(&[&w], &climate, 1.0, SolarBalance::Heating);
+        let q_sky = 1.0 * 0.04 * 1.1 * 2.0 * 4.14 * 11.0 * 744.0 * 0.0036;
+        let verwacht = 0.864 * 29.5 * 744.0 * 0.0036 - q_sky;
+        assert!((q[Month::Januari] - verwacht).abs() < 1e-9, "kreeg {} verwacht {verwacht}", q[Month::Januari]);
+        assert!((verwacht - (68.267_059_2 - q_sky)).abs() < 1e-9);
+
+        // Tegenproef: dezelfde ruit verticaal neemt het klimaatprofiel (60 MJ/m²
+        // in sample_climate) — een ander getal, dus de helling telt.
+        let v = Window::new("w-gevel", "c1", 2.0, Orientation::Zuid, Tilt::VERTICAL, 1.1, 0.6, 0.2).unwrap();
+        let qv = monthly_solar_gains(&[&v], &climate, 1.0, SolarBalance::Heating);
+        let q_sky_v = 0.5 * 0.04 * 1.1 * 2.0 * 4.14 * 11.0 * 744.0 * 0.0036;
+        assert!((qv[Month::Januari] - (0.864 * 60.0 - q_sky_v)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn dakraam_2gr_zuid_met_de_bilt_ligt_bij_horizontaal_niet_bij_gevel() {
+        // Met het echte referentieklimaat: I_sol(2°, Z) per maand ligt tussen β=0°
+        // en β=30° Z en ver van β=90° Z (juni: horizontaal 209,3, β30 Z 211,2,
+        // β90 Z 112,7 W/m²).
+        let climate = nta8800_tables::climate::de_bilt_climate_data();
+        let dak = Window::new("w-dak", "c1", 1.0, Orientation::Zuid, Tilt::new(2.0).unwrap(), 1.1, 1.0, 0.0)
+            .unwrap();
+        let gevel = Window::new("w-gevel", "c1", 1.0, Orientation::Zuid, Tilt::VERTICAL, 1.1, 1.0, 0.0).unwrap();
+        let sky = |f_sky: f64, m: Month| f_sky * 0.04 * 1.1 * 4.14 * 11.0 * MONTH_HOURS[m.index()] * 0.0036;
+        let qd = monthly_solar_gains(&[&dak], &climate, 1.0, SolarBalance::Cooling);
+        let qg = monthly_solar_gains(&[&gevel], &climate, 1.0, SolarBalance::Cooling);
+        // Juni: I(2°) = 209,3 + (2/30)·(211,2 − 209,3) = 209,42667 W/m².
+        let i_dak = 209.3 + (2.0 / 30.0) * (211.2 - 209.3);
+        let verwacht_dak = 0.9 * i_dak * 720.0 * 0.0036 - sky(1.0, Month::Juni);
+        assert!((qd[Month::Juni] - verwacht_dak).abs() < 1e-9, "dak juni {}", qd[Month::Juni]);
+        let verwacht_gevel = 0.9 * 112.7 * 720.0 * 0.0036 - sky(0.5, Month::Juni);
+        assert!((qg[Month::Juni] - verwacht_gevel).abs() < 1e-6, "gevel juni {}", qg[Month::Juni]);
     }
 
     #[test]

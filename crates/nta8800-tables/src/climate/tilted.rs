@@ -19,7 +19,10 @@
 //!
 //! De oude V1-benadering (`f = cos(β − 35°)·cos((γ − 180°)/2)`) week hier
 //! systematisch van af en klapte west/noord door de `.max(0.0)`-clamp op 0 —
-//! zie [`crate::calc`].
+//! zie `nta8800_pv::calc`.
+//!
+//! Gebruikt door de PV-keten (`nta8800-pv`) en door de zonwinst door ramen en
+//! opake vlakken met een helling anders dan 90° (`nta8800-demand`).
 //!
 //! Bron-provenance: NTA 8800:2025+C1:2026, Tabel 17.2, PDF p. 690-693
 //! (β = 0°, 30°, 45°, 60°, 90°, 135°, 180°; γ = Z/ZW/W/NW/N/NO/O/ZO). De
