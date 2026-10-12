@@ -4,6 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { applyThermalImport } from "../lib/applyThermalImport";
 import { BengImportError, importBengDocument, type BengCheck } from "../lib/bengImport";
 import {
+  originDestinations,
+  routeAfterImport,
+  type ImportDestinationId,
+} from "../lib/ifcImportDestinations";
+import type { IfcImportBengOrigin, IfcImportOrigin } from "../types/ifcImport";
+import {
   analyseIfc,
   stripAnalyse,
   type AnalyseProgress,
@@ -29,7 +35,10 @@ interface Loaded {
   file: File | null;
 }
 
-/** Tab "IFC-import" (route `/ifc-import`): upload, controleer, keur goed, neem over. */
+/**
+ * Tab "IFC-import" op projectniveau (route {@link IFC_IMPORT_ROUTE}): upload,
+ * controleer, keur goed en neem over naar een of meer bestemmingen.
+ */
 export function IfcImport() {
   const navigate = useNavigate();
   const [busy, setBusy] = useState(false);
@@ -81,23 +90,61 @@ export function IfcImport() {
     }
   }, [withBeng]);
 
-  const handleTakeOverBeng = useCallback(() => {
-    if (bengCheck?.phase !== "ready" || !bengCheck.result.beng_geometry) return;
-    const hasGeometry = !!useProjectStore.getState().bengGeometry;
-    if (
-      hasGeometry &&
-      !window.confirm("De BENG-geometrie van dit project vervangen door die uit het IFC?")
-    ) {
-      return;
-    }
-    setBengGeometry(bengCheck.result.beng_geometry);
-    addToast("BENG-geometrie overgenomen uit het IFC (te controleren)", "success");
-    navigate("/beng");
-  }, [bengCheck, setBengGeometry, addToast, navigate]);
+
 
   const handleImport = useCallback(
-    (filtered: FilteredImport, approvedIds: string[]) => {
+    (filtered: FilteredImport, approvedIds: string[], destinations: ImportDestinationId[]) => {
       if (!loaded) return;
+      const chosen = new Set(destinations);
+      const bengResult = bengCheck?.phase === "ready" ? bengCheck.result : null;
+      const bengGeometry = chosen.has("beng") ? bengResult?.beng_geometry : undefined;
+      if (
+        bengGeometry &&
+        useProjectStore.getState().bengGeometry &&
+        !window.confirm("De BENG-geometrie van dit project vervangen door die uit het IFC?")
+      ) {
+        return;
+      }
+      const bengOrigin: IfcImportBengOrigin | undefined =
+        bengGeometry && bengResult
+          ? {
+              imported_at: new Date().toISOString(),
+              source: bengResult.source,
+              status: bengResult.status,
+              te_controleren: bengResult.te_controleren,
+              zones: bengGeometry.zones?.length ?? 0,
+              vlakken: (bengGeometry.zones ?? []).reduce((n, z) => n + (z.gevels?.length ?? 0), 0),
+            }
+          : undefined;
+      const messages: string[] = [];
+      if (bengGeometry) {
+        setBengGeometry(bengGeometry);
+        messages.push("BENG-geometrie (te controleren)");
+      }
+      if (!chosen.has("warmteverlies")) {
+        // Alleen BENG: de vertrekken en de warmteverlies-herkomst blijven staan.
+        const prev = useProjectStore.getState().ifcImport;
+        const merged: IfcImportOrigin = prev
+          ? {
+              ...prev,
+              destinations: [...new Set([...originDestinations(prev), "beng"])],
+              ...(bengOrigin ? { beng: bengOrigin } : {}),
+            }
+          : {
+              ifc_filename: loaded.response.source_filename,
+              engine_name: loaded.response.engine.name,
+              engine_version: loaded.response.engine.version,
+              imported_at: new Date().toISOString(),
+              rooms_count: 0,
+              approved_room_ids: [],
+              destinations: ["beng"],
+              ...(bengOrigin ? { beng: bengOrigin } : {}),
+            };
+        setIfcImport(merged);
+        addToast(`${messages.join(", ")} overgenomen uit ${loaded.response.source_filename}`, "success");
+        navigate(routeAfterImport(chosen));
+        return;
+      }
       const { importFile, importResult } = filtered;
       const applied = applyThermalImport(
         importFile,
@@ -142,12 +189,17 @@ export function IfcImport() {
           building_type: kept.building.building_type,
         },
         analyse: stripAnalyse(loaded.response),
+        destinations,
+        ...(bengOrigin ? { beng: bengOrigin } : {}),
       });
-      addToast(`${approvedIds.length} ruimten overgenomen uit ${loaded.response.source_filename}`, "success");
-      navigate("/rooms");
+      messages.unshift(`${approvedIds.length} ruimten`);
+      addToast(`${messages.join(" en ")} overgenomen uit ${loaded.response.source_filename}`, "success");
+      navigate(routeAfterImport(chosen));
     },
     [
       loaded,
+      bengCheck,
+      setBengGeometry,
       ensureProjectConstruction,
       replaceRoomsFromImport,
       setImportedBoundaries,
@@ -186,7 +238,6 @@ export function IfcImport() {
             existingRoomCount={existingRoomCount}
             onImport={handleImport}
             bengCheck={bengCheck}
-            onTakeOverBeng={handleTakeOverBeng}
           />
         )}
       </div>

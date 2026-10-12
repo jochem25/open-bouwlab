@@ -67,7 +67,7 @@ In v0.1 zit alle warmteverlies-data nog in één vendor-namespace attribute (`is
 
 Daarnaast ondersteund:
 - **`.isso51.json`** (legacy read-only) — eerdere proprietary envelope; volledig backwards-compatibel bij openen
-- **IFC import** via het tabblad IFC-import (`/ifc-import`): upload naar `POST /api/v1/ifc/analyse`, dat doorgeeft aan een externe analyse-engine (`IFC_ANALYSE_URL`); ruimtes, constructies en openingen na controle in het tabblad
+- **IFC import** via het tabblad IFC-import op projectniveau (`/project/ifc-import`; `/ifc-import` stuurt door): upload naar `POST /api/v1/ifc/analyse`, dat doorgeeft aan een externe analyse-engine (`IFC_ANALYSE_URL`); na controle overnemen naar Warmteverlies (ruimtes, constructies, openingen) en/of BENG (geometrie NTA 8800)
 - **IFC4X3 STEP export** — pure-TS generator in IFC-tab (geen Python afhankelijkheid)
 - **IFCX export** met `isso51::` namespace + `isso51::modeller::` constants voor 2D/3D-geometrie
 

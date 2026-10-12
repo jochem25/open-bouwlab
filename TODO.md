@@ -10,6 +10,8 @@ Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-f
 - [x] Akkoord Jochem, merge en deploy (12-10; sidecar ifc-ruimtebalans 7e4e481 mee live)
 - [x] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`) - branch feat/beng-schil-viewer
 - [x] BENG-schil in de 3D-viewer van de IFC-import (schakelaar, legenda, vlakinfo, overnemen) - branch feat/beng-schil-viewer, synthetische fixture
+- [x] IFC-import naar projectniveau met bestemmingskeuze Warmteverlies/BENG (planner msg_ab7ca215c179) - branch feat/beng-schil-viewer
+- [ ] Derde bestemming ventilatie (register `IMPORT_DESTINATIONS` in `frontend/src/lib/ifcImportDestinations.ts`)
 - [ ] BENG-schil-viewer: e2e tegen het echte `<naam>_beng.ifc` van ifc-ruimtebalans (B1b) en 2786; fixture vervangen door hun tussenwoning-model zodra geleverd
 - [ ] Tauri: `/import/beng` heeft nog geen command (desktop geeft een melding)
 - [ ] Onvolledige import aanvullen in OB (Rc uit de materiaalcatalogus op `opaque_defs_extra[].lagen`)

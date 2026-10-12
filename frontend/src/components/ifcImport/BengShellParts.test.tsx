@@ -96,11 +96,11 @@ describe("BengLegend", () => {
 });
 
 describe("BengCheckStrip", () => {
-  it("compleet en te controleren: status, meldingen en knop overnemen", () => {
-    const html = renderToString(<BengCheckStrip check={{ phase: "ready", result: compleet }} hasShell onTakeOver={() => {}} />);
+  it("compleet en te controleren: status en meldingen; overnemen loopt via de bestemmingskeuze", () => {
+    const html = renderToString(<BengCheckStrip check={{ phase: "ready", result: compleet }} hasShell />);
     expect(html).toContain("compleet (te controleren)");
     expect(html).toContain("1 rekenzone(s)");
-    expect(html).toContain("BENG-geometrie overnemen");
+    expect(html).not.toContain("BENG-geometrie overnemen");
     expect(html).toContain("BENG-BELENDING: 2 vlakken");
     expect(html).not.toContain("Geen 3D-schilmodel");
   });
@@ -110,7 +110,6 @@ describe("BengCheckStrip", () => {
       <BengCheckStrip
         check={{ phase: "ready", result: { ...compleet, status: "onvolledig", beng_geometry: undefined, ontbrekend: ["/a", "/b"] } }}
         hasShell={false}
-        onTakeOver={() => {}}
       />,
     );
     expect(html).toContain("Onvolledig: 2 waarde(n)");
@@ -134,10 +133,12 @@ describe("integratie in de importweergave", () => {
         existingRoomCount={0}
         onImport={() => {}}
         bengCheck={{ phase: "ready", result: compleet }}
-        onTakeOverBeng={() => {}}
       />,
     );
     expect(html).toContain('data-testid="beng-check"');
+    // Bestemmingskeuze: beide over te nemen, beide standaard aangevinkt.
+    expect(html).toMatch(/data-destination="beng" data-state="te_controleren"/);
+    expect(html).toMatch(/data-destination="warmteverlies" data-state="(compleet|onvolledig)"/);
     expect(html.indexOf("beng-check")).toBeLessThan(html.indexOf("3D-controle"));
   });
 

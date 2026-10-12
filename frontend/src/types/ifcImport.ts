@@ -75,4 +75,24 @@ export interface IfcImportOrigin {
    * `report` en `surfaces_ifc` (grootte; zie {@link IfcAnalyseStored}).
    */
   analyse?: IfcAnalyseStored;
+  /**
+   * Waarheen deze import is overgenomen ("warmteverlies", "beng"; later meer).
+   * Ontbreekt bij projecten van voor 12-10-2026: die gingen naar warmteverlies
+   * (zie `originDestinations`). Strings, zodat een onbekende waarde uit een
+   * nieuwere versie niet stuk gaat.
+   */
+  destinations?: string[];
+  /** BENG-overname uit deze import (alleen als "beng" gekozen is). */
+  beng?: IfcImportBengOrigin;
+}
+
+/** Herkomst van de BENG-geometrie uit een IFC-import. */
+export interface IfcImportBengOrigin {
+  imported_at: string;
+  /** `source` van het beng-import-document. */
+  source: string;
+  status: "compleet" | "onvolledig";
+  te_controleren: boolean;
+  zones: number;
+  vlakken: number;
 }
