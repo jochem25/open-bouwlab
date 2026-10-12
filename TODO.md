@@ -21,6 +21,8 @@ Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-f
 - [x] Review 2 (Sonnet, 12-10): onbekende geneste sleutels geweigerd, GF-code op prefix, melding aandeel zonder eis, spaties in meldingen, h_o-afronding, niet-UTF-8, belemmeringsmelding bij onvolledig
 - [x] Vervolgpunten ifc-ruimtebalans: `kelderwand_grond` (f_ls 0,7), Uniec `VL_BTNL_ONDER` -> vloer boven buitenlucht; 'te controleren' in import- en BENG-uitkomst (R-3)
 - [ ] Review-restpunten (laag): `Obstruction::validate` ook op de SharedGeometry-route; editor zet leeg h_o op 1,0; drijvende woning (Bbl rij 1c/1d) ontbreekt; utiliteit zonder `GEB_TYPEGEB` wordt als woning gelezen; helling < 15 graden: zichtveld Zuid + dichtstbijzijnde kolom getoetst voor 2 graden (beng_helling_test); minimale belemmering (17.4) kent nog maar drie hellingsblokken
+- [x] Review 3 (Sonnet + Ollama qwen3.6, 12-10, branch beng-schil-viewer): geen hoog/middel. Verwerkt: web-ifc Dispose per laadactie, viewer-lader met unmount- en modusguard
+- [ ] Review 3 restpunten (laag): late `/import/beng`-respons van een vorige upload kan `bengCheck` overschrijven (request-id); `/import/beng` 2 MB body-limit voor grote modellen; geannuleerde BENG-confirm slaat ook warmteverlies over, BENG-geometrie wordt gezet voor `applyThermalImport`, herkomst `destinations` bij latere warmteverlies-only import; `chosenByUser` bevriest standaardkeuze; `uitvoer` pas na buffering van het bestand gevalideerd
 - [ ] 'Te controleren' laten vervallen na een zuivere ijking van de IFC-route (R-3)
 - [ ] Belending (rb levert `aangrenzende_verwarmde_ruimte` met omschrijving 'belending') en catalogus uit de laagvingerafdrukken (rb-punten 3 en 4)
 - [ ] Uniec-gebruiksfunctiecodes naast `GF_BIJEENOVER` bevestigen met echte exports

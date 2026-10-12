@@ -74,7 +74,10 @@ export async function loadBengShell(bytes: Uint8Array, opts: LoadOptions = {}): 
   if (opts.wasmPath) api.SetWasmPath(opts.wasmPath, true);
   await api.Init();
   const modelId = api.OpenModel(bytes, { COORDINATE_TO_ORIGIN: opts.coordinateToOrigin ?? true });
-  if (modelId < 0) throw new Error("BENG-schilmodel is geen leesbaar IFC.");
+  if (modelId < 0) {
+    api.Dispose();
+    throw new Error("BENG-schilmodel is geen leesbaar IFC.");
+  }
   try {
     type Acc = { pos: number[]; idx: number[]; color: string; opacity: number };
     // expressID -> (kleur|doorzicht) -> stukken
@@ -147,5 +150,7 @@ export async function loadBengShell(bytes: Uint8Array, opts: LoadOptions = {}): 
     return out;
   } finally {
     api.CloseModel(modelId);
+    // Elke aanroep heeft een eigen wasm-instantie; zonder Dispose blijft die heap staan.
+    api.Dispose();
   }
 }

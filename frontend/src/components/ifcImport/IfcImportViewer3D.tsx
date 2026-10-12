@@ -376,6 +376,16 @@ export function IfcImportViewer3D({
 
   // --- BENG-schil (lazy bij de eerste keer BENG-modus) ---------------------
   const bengRequested = useRef(false);
+  // Huidige modus en levensduur voor de asynchrone lader (review 12-10).
+  const modeRef = useRef(mode);
+  modeRef.current = mode;
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
   useEffect(() => {
     if (mode !== "beng" || !bengShell || bengRequested.current) return;
     bengRequested.current = true;
@@ -385,6 +395,7 @@ export function IfcImportViewer3D({
       try {
         const { loadBengShell } = await import("../../lib/bengShellLoader");
         const els = await loadBengShell(bengShell, { wasmPath: WASM_PATH });
+        if (!alive.current) return;
         const group = bengGroup.current;
         disposeGroup(group);
         bengEntries.current = [];
@@ -430,7 +441,8 @@ export function IfcImportViewer3D({
         const ms = performance.now() - t0;
         console.info(`[IfcImportViewer3D] BENG-schil: ${els.length} elementen in ${ms.toFixed(0)} ms`);
         setBengState({ phase: "ready", ms, count: els.length, legend, check });
-        fitBox(bengBox.current, false);
+        // Teruggeschakeld tijdens het laden: camera niet naar het BENG-stelsel.
+        if (modeRef.current === "beng") fitBox(bengBox.current, false);
       } catch (err) {
         bengRequested.current = false;
         setBengState({
