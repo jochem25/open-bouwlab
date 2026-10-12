@@ -25,10 +25,18 @@
 //! | BENG 1-grens **grondgebonden woonfunctie** | ✅ | Bbl art. 4.149; RVO-voorbeeldconcepten p. 7 |
 //! | BENG 2/3-grens woonfunctie | ✅ | Bbl art. 4.149 (30 kWh/m², 50 %) |
 //! | TOjuli / GTO-grens | ✅ | Bbl art. 4.149b lid 1 / lid 2 |
-//! | BENG 1-grens **woongebouw** | ❌ niet geïmplementeerd | bronconflict basiswaarde 60 vs 65 — zie [`beng1_limit_woonfunctie_grondgebonden`] |
-//! | BENG-grenzen **utiliteit** | ❌ `None` | tabel 4.149-utiliteitswaarden niet geverifieerd — zie [`BengLimits::for_utiliteit`] |
+//! | BENG-grenzen **alle gebruiksfuncties** | ✅ | Bbl tabel 4.148A — zie [`BengLimits::for_bbl_functie`] |
+//! | BENG-grenzen **gemengd gebouw** | ✅ | Bbl art. 4.149 lid 2 — zie [`weighted_limits`] |
+//! | BENG-grenzen **utiliteit** via [`UsageFunction`] | ✅ eenduidige functies; `None` voor Bijeenkomst/Gezondheidszorg/Logies (gesplitst in subtypen), Industrie en Overige | zie [`BengLimits::for_utiliteit`] |
+//!
+//! **Woongebouw:** het eerdere bronconflict (basiswaarde 60 vs 65) is beslecht
+//! door Bbl tabel 4.148A, rij 1a: 65 kWh/m² bij `A_ls/A_g ≤ 1,83`. De
+//! bestaande [`BengLimits::for_woonfunctie`] blijft de *grondgebonden* curve
+//! (rij 1e) en is ongewijzigd; gebruik voor een woongebouw
+//! `BengLimits::for_bbl_functie(BblGebruiksfunctie::Woongebouw, ..)`.
 
 use nta8800_model::zoning::UsageFunction;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
 /// Omrekenfactor MJ → kWh (1 kWh = 3,6 MJ).
@@ -268,18 +276,353 @@ impl BengLimits {
         limits
     }
 
-    /// Grenswaarden voor een utiliteitsfunctie.
+    /// Grenswaarden voor een utiliteitsfunctie, via [`BengLimits::for_bbl_functie`].
     ///
-    /// **Bewust niet geïmplementeerd — retourneert `None`.** De numerieke
-    /// utiliteitswaarden in tabel 4.149 (per functie, deels met eigen
-    /// vormfactorformules en gewogen menging bij gemengde functies, Bbl
-    /// art. 4.149 lid 2) konden in deze fase niet één-op-één tegen de
-    /// wettekst geverifieerd worden. Conform de anti-fudge-discipline worden
-    /// geen ongeverifieerde grenzen hardcoded. Woonfunctie is wél volledig
-    /// gedekt. Utiliteit is F5-scope.
+    /// Alleen functies waarvan de [`UsageFunction`] eenduidig op één Bbl-rij
+    /// past: Celfunctie (rij 3), Kantoorfunctie (rij 6), Onderwijsfunctie
+    /// (rij 8), Sportfunctie (rij 9) en Winkelfunctie (rij 10).
+    ///
+    /// **`None`** voor:
+    /// - Bijeenkomst-, Gezondheidszorg- en Logiesfunctie: het Bbl splitst
+    ///   die in subtypen met verschillende waarden (rij 2a/2b, 4a/4b, 7a/7b);
+    ///   kies dan expliciet een [`BblGebruiksfunctie`] — een gok zou een
+    ///   verzonnen grens zijn;
+    /// - Industriefunctie en Overige gebruiksfunctie: geen eis (rij 5, 11);
+    /// - Woonfunctie: hoort bij [`BengLimits::for_woonfunctie`] of
+    ///   [`BblGebruiksfunctie::Woongebouw`].
+    ///
+    /// De BENG 1-grens hangt af van de vormfactor `als_ag` (`A_ls/A_g`).
     #[must_use]
-    pub fn for_utiliteit(_function: UsageFunction) -> Option<Self> {
-        None
+    pub fn for_utiliteit(function: UsageFunction, als_ag: f64) -> Option<Self> {
+        let functie = match function {
+            UsageFunction::Celfunctie => BblGebruiksfunctie::Celfunctie,
+            UsageFunction::Kantoorfunctie => BblGebruiksfunctie::Kantoorfunctie,
+            UsageFunction::Onderwijsfunctie => BblGebruiksfunctie::Onderwijsfunctie,
+            UsageFunction::Sportfunctie => BblGebruiksfunctie::Sportfunctie,
+            UsageFunction::Winkelfunctie => BblGebruiksfunctie::Winkelfunctie,
+            _ => return None,
+        };
+        Self::for_bbl_functie(functie, als_ag)
+    }
+
+    /// Grenswaarden voor één gebruiksfunctie uit Bbl tabel 4.148A.
+    ///
+    /// Geeft `None` voor functies zonder BENG-eis (industriefunctie,
+    /// overige gebruiksfunctie). `als_ag` is de vormfactor `A_ls/A_g`; de
+    /// voetnootgrenzen (1,5 / 1,8 / 1,83 / 3,0) zijn inclusief aan de lage kant,
+    /// zoals in de tabel ("≤" en ">").
+    ///
+    /// Een lichte-bouwwijzetoeslag (art. 4.149 lid 4) zit hier *niet* in.
+    #[must_use]
+    pub fn for_bbl_functie(functie: BblGebruiksfunctie, als_ag: f64) -> Option<Self> {
+        use BblGebruiksfunctie as F;
+        let (beng1, beng2, beng3) = match functie {
+            F::AndereWoonfunctie => (
+                beng1_limit_woonfunctie_grondgebonden(als_ag),
+                BBL_1E_BENG2,
+                BBL_1E_BENG3,
+            ),
+            F::Woongebouw => (beng1_limit_woongebouw(als_ag), BBL_1A_BENG2, BBL_1A_BENG3),
+            F::BijeenkomstKinderopvang => (
+                beng1_knik_1_8(BBL_2A_BENG1_BASIS, BBL_2A_BENG1_HELLING, als_ag),
+                BBL_2A_BENG2,
+                BBL_2A_BENG3,
+            ),
+            F::BijeenkomstOverig => (
+                beng1_knik_1_8(BBL_2B_BENG1_BASIS, BBL_2B_BENG1_HELLING, als_ag),
+                BBL_2B_BENG2,
+                BBL_2B_BENG3,
+            ),
+            F::Celfunctie => (
+                beng1_knik_1_8(BBL_3_BENG1_BASIS, BBL_3_BENG1_HELLING, als_ag),
+                BBL_3_BENG2,
+                BBL_3_BENG3,
+            ),
+            F::GezondheidszorgMetBedgebied => (BBL_4A_BENG1, BBL_4A_BENG2, BBL_4A_BENG3),
+            F::GezondheidszorgOverig => (
+                beng1_knik_1_8(BBL_4B_BENG1_BASIS, BBL_4B_BENG1_HELLING, als_ag),
+                BBL_4B_BENG2,
+                BBL_4B_BENG3,
+            ),
+            F::Kantoorfunctie => (
+                beng1_knik_1_8(BBL_6_BENG1_BASIS, BBL_6_BENG1_HELLING, als_ag),
+                BBL_6_BENG2,
+                BBL_6_BENG3,
+            ),
+            F::LogiesInLogiesgebouw => (
+                beng1_knik_1_8(BBL_7A_BENG1_BASIS, BBL_7A_BENG1_HELLING, als_ag),
+                BBL_7A_BENG2,
+                BBL_7A_BENG3,
+            ),
+            // Rij 7b heeft dezelfde BENG 1-curve als rij 1e (55 / 55+30x / 100+50x).
+            F::LogiesOverig => (
+                beng1_limit_woonfunctie_grondgebonden(als_ag),
+                BBL_7B_BENG2,
+                BBL_7B_BENG3,
+            ),
+            F::Onderwijsfunctie => (
+                beng1_knik_1_8(BBL_8_BENG1_BASIS, BBL_8_BENG1_HELLING, als_ag),
+                BBL_8_BENG2,
+                BBL_8_BENG3,
+            ),
+            F::Sportfunctie => (
+                beng1_knik_1_8(BBL_9_BENG1_BASIS, BBL_9_BENG1_HELLING, als_ag),
+                BBL_9_BENG2,
+                BBL_9_BENG3,
+            ),
+            F::Winkelfunctie => (
+                beng1_knik_1_8(BBL_10_BENG1_BASIS, BBL_10_BENG1_HELLING, als_ag),
+                BBL_10_BENG2,
+                BBL_10_BENG3,
+            ),
+            F::Industriefunctie | F::OverigeGebruiksfunctie => return None,
+        };
+        Some(Self {
+            beng1_max_kwh_per_m2: beng1,
+            beng2_max_kwh_per_m2: beng2,
+            beng3_min_pct: beng3,
+        })
+    }
+}
+
+/// Gebruiksfuncties zoals Bbl tabel 4.148A ze onderscheidt (subtypen van
+/// bijeenkomst-, gezondheidszorg- en logiesfunctie apart).
+///
+/// Woonwagen en drijvende bouwwerken (rij 1b-1d) en "bouwwerk geen gebouw
+/// zijnde" (rij 12) zijn niet opgenomen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum BblGebruiksfunctie {
+    /// Bbl tabel 4.148A, rij 1e: andere woonfunctie (grondgebonden woning).
+    AndereWoonfunctie,
+    /// Bbl tabel 4.148A, rij 1a: woongebouw.
+    Woongebouw,
+    /// Bbl tabel 4.148A, rij 2a: bijeenkomstfunctie voor kinderopvang.
+    BijeenkomstKinderopvang,
+    /// Bbl tabel 4.148A, rij 2b: andere bijeenkomstfunctie.
+    BijeenkomstOverig,
+    /// Bbl tabel 4.148A, rij 3: celfunctie.
+    Celfunctie,
+    /// Bbl tabel 4.148A, rij 4a: gezondheidszorgfunctie met bedgebied.
+    GezondheidszorgMetBedgebied,
+    /// Bbl tabel 4.148A, rij 4b: andere gezondheidszorgfunctie.
+    GezondheidszorgOverig,
+    /// Bbl tabel 4.148A, rij 5: industriefunctie (geen BENG-eis).
+    Industriefunctie,
+    /// Bbl tabel 4.148A, rij 6: kantoorfunctie.
+    Kantoorfunctie,
+    /// Bbl tabel 4.148A, rij 7a: logiesfunctie in een logiesgebouw.
+    LogiesInLogiesgebouw,
+    /// Bbl tabel 4.148A, rij 7b: andere logiesfunctie.
+    LogiesOverig,
+    /// Bbl tabel 4.148A, rij 8: onderwijsfunctie.
+    Onderwijsfunctie,
+    /// Bbl tabel 4.148A, rij 9: sportfunctie.
+    Sportfunctie,
+    /// Bbl tabel 4.148A, rij 10: winkelfunctie.
+    Winkelfunctie,
+    /// Bbl tabel 4.148A, rij 11: overige gebruiksfunctie (geen BENG-eis).
+    OverigeGebruiksfunctie,
+}
+
+/// Naar gebruiksoppervlak gewogen grenswaarden voor een gebouw met meerdere
+/// gebruiksfuncties (Bbl art. 4.149 lid 2).
+///
+/// `aandelen` bevat per functie het gebruiksoppervlak `A_g` in m². Alleen
+/// functies waarvoor een eis geldt (zie [`BengLimits::for_bbl_functie`])
+/// tellen mee in teller én noemer; functies zonder eis, en aandelen met een
+/// niet-eindige of niet-positieve oppervlakte, worden overgeslagen. Elke
+/// functie rekent met haar eigen tabelwaarden bij dezelfde `als_ag`.
+///
+/// Retourneert `None` als er geen enkele functie met eis en positief
+/// oppervlak is (ook bij een lege lijst).
+///
+/// De lichte-bouwwijzetoeslag (lid 4) en lid 3 (nevengebruiksfunctie van
+/// de woonfunctie) zijn aan de aanroeper.
+#[must_use]
+pub fn weighted_limits(aandelen: &[(BblGebruiksfunctie, f64)], als_ag: f64) -> Option<BengLimits> {
+    let mut totaal = 0.0_f64;
+    let mut s1 = 0.0_f64;
+    let mut s2 = 0.0_f64;
+    let mut s3 = 0.0_f64;
+    for &(functie, a_g) in aandelen {
+        if !a_g.is_finite() || a_g <= 0.0 {
+            continue;
+        }
+        let Some(l) = BengLimits::for_bbl_functie(functie, als_ag) else {
+            continue;
+        };
+        totaal += a_g;
+        s1 += a_g * l.beng1_max_kwh_per_m2;
+        s2 += a_g * l.beng2_max_kwh_per_m2;
+        s3 += a_g * l.beng3_min_pct;
+    }
+    if totaal <= 0.0 {
+        return None;
+    }
+    Some(BengLimits {
+        beng1_max_kwh_per_m2: s1 / totaal,
+        beng2_max_kwh_per_m2: s2 / totaal,
+        beng3_min_pct: s3 / totaal,
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Bbl tabel 4.148A — constanten per rij (BENG 1 basis/helling, BENG 2, BENG 3)
+// ---------------------------------------------------------------------------
+
+/// Knik in de BENG 1-curve voor rijen met voetnoot (6)/(7). Bbl tabel 4.148A.
+const KNIK_1_8: f64 = 1.8;
+/// Knik van het woongebouw, voetnoot (1)/(2). Bbl tabel 4.148A, rij 1a.
+const KNIK_WOONGEBOUW: f64 = 1.83;
+
+/// Bbl tabel 4.148A, rij 1a: BENG 1 voor `A_ls/A_g ≤ 1,83` (voetnoot (1)).
+const BBL_1A_BENG1_VLAK: f64 = 65.0;
+/// Bbl tabel 4.148A, rij 1a: BENG 1 middensegment `55 + 30·(x − 1,5)` voor
+/// `1,83 < x ≤ 3,0` (voetnoot (2)).
+const BBL_1A_BENG1_MIDDEN_BASIS: f64 = 55.0;
+/// Bbl tabel 4.148A, rij 1a: helling middensegment (voetnoot (2)).
+const BBL_1A_BENG1_MIDDEN_HELLING: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 1a: BENG 1 bovensegment `100 + 50·(x − 3,0)` (voetnoot (3)).
+const BBL_1A_BENG1_HOOG_BASIS: f64 = 100.0;
+/// Bbl tabel 4.148A, rij 1a: helling bovensegment (voetnoot (3)).
+const BBL_1A_BENG1_HOOG_HELLING: f64 = 50.0;
+/// Bbl tabel 4.148A, rij 1a: BENG 2 [kWh/m²·jr].
+const BBL_1A_BENG2: f64 = 50.0;
+/// Bbl tabel 4.148A, rij 1a: BENG 3 [%].
+const BBL_1A_BENG3: f64 = 40.0;
+
+/// Bbl tabel 4.148A, rij 1e: BENG 2 [kWh/m²·jr].
+const BBL_1E_BENG2: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 1e: BENG 3 [%].
+const BBL_1E_BENG3: f64 = 50.0;
+
+/// Bbl tabel 4.148A, rij 2a: BENG 1 basis (voetnoot (6)).
+const BBL_2A_BENG1_BASIS: f64 = 160.0;
+/// Bbl tabel 4.148A, rij 2a: BENG 1 helling (voetnoot (7)).
+const BBL_2A_BENG1_HELLING: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 2a: BENG 2.
+const BBL_2A_BENG2: f64 = 70.0;
+/// Bbl tabel 4.148A, rij 2a: BENG 3.
+const BBL_2A_BENG3: f64 = 40.0;
+
+/// Bbl tabel 4.148A, rij 2b: BENG 1 basis (voetnoot (6)).
+const BBL_2B_BENG1_BASIS: f64 = 90.0;
+/// Bbl tabel 4.148A, rij 2b: BENG 1 helling (voetnoot (7)).
+const BBL_2B_BENG1_HELLING: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 2b: BENG 2.
+const BBL_2B_BENG2: f64 = 60.0;
+/// Bbl tabel 4.148A, rij 2b: BENG 3.
+const BBL_2B_BENG3: f64 = 30.0;
+
+/// Bbl tabel 4.148A, rij 3: BENG 1 basis (voetnoot (6)).
+const BBL_3_BENG1_BASIS: f64 = 160.0;
+/// Bbl tabel 4.148A, rij 3: BENG 1 helling (voetnoot (7)).
+const BBL_3_BENG1_HELLING: f64 = 35.0;
+/// Bbl tabel 4.148A, rij 3: BENG 2.
+const BBL_3_BENG2: f64 = 120.0;
+/// Bbl tabel 4.148A, rij 3: BENG 3.
+const BBL_3_BENG3: f64 = 30.0;
+
+/// Bbl tabel 4.148A, rij 4a: BENG 1 (vlak, geen voetnoot).
+const BBL_4A_BENG1: f64 = 350.0;
+/// Bbl tabel 4.148A, rij 4a: BENG 2.
+const BBL_4A_BENG2: f64 = 130.0;
+/// Bbl tabel 4.148A, rij 4a: BENG 3.
+const BBL_4A_BENG3: f64 = 30.0;
+
+/// Bbl tabel 4.148A, rij 4b: BENG 1 basis (voetnoot (6)).
+const BBL_4B_BENG1_BASIS: f64 = 90.0;
+/// Bbl tabel 4.148A, rij 4b: BENG 1 helling (voetnoot (7)).
+const BBL_4B_BENG1_HELLING: f64 = 35.0;
+/// Bbl tabel 4.148A, rij 4b: BENG 2.
+const BBL_4B_BENG2: f64 = 50.0;
+/// Bbl tabel 4.148A, rij 4b: BENG 3.
+const BBL_4B_BENG3: f64 = 40.0;
+
+/// Bbl tabel 4.148A, rij 6: BENG 1 basis (voetnoot (6)).
+const BBL_6_BENG1_BASIS: f64 = 90.0;
+/// Bbl tabel 4.148A, rij 6: BENG 1 helling (voetnoot (7)).
+const BBL_6_BENG1_HELLING: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 6: BENG 2.
+const BBL_6_BENG2: f64 = 40.0;
+/// Bbl tabel 4.148A, rij 6: BENG 3.
+const BBL_6_BENG3: f64 = 30.0;
+
+/// Bbl tabel 4.148A, rij 7a: BENG 1 basis (voetnoot (6)).
+const BBL_7A_BENG1_BASIS: f64 = 100.0;
+/// Bbl tabel 4.148A, rij 7a: BENG 1 helling (voetnoot (7)).
+const BBL_7A_BENG1_HELLING: f64 = 35.0;
+/// Bbl tabel 4.148A, rij 7a: BENG 2.
+const BBL_7A_BENG2: f64 = 130.0;
+/// Bbl tabel 4.148A, rij 7a: BENG 3.
+const BBL_7A_BENG3: f64 = 40.0;
+
+/// Bbl tabel 4.148A, rij 7b: BENG 2.
+const BBL_7B_BENG2: f64 = 40.0;
+/// Bbl tabel 4.148A, rij 7b: BENG 3.
+const BBL_7B_BENG3: f64 = 50.0;
+
+/// Bbl tabel 4.148A, rij 8: BENG 1 basis (voetnoot (6)).
+const BBL_8_BENG1_BASIS: f64 = 190.0;
+/// Bbl tabel 4.148A, rij 8: BENG 1 helling (voetnoot (7)).
+const BBL_8_BENG1_HELLING: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 8: BENG 2.
+const BBL_8_BENG2: f64 = 70.0;
+/// Bbl tabel 4.148A, rij 8: BENG 3.
+const BBL_8_BENG3: f64 = 40.0;
+
+/// Bbl tabel 4.148A, rij 9: BENG 1 basis (voetnoot (6)).
+const BBL_9_BENG1_BASIS: f64 = 40.0;
+/// Bbl tabel 4.148A, rij 9: BENG 1 helling (voetnoot (7)).
+const BBL_9_BENG1_HELLING: f64 = 15.0;
+/// Bbl tabel 4.148A, rij 9: BENG 2.
+const BBL_9_BENG2: f64 = 90.0;
+/// Bbl tabel 4.148A, rij 9: BENG 3.
+const BBL_9_BENG3: f64 = 30.0;
+
+/// Bbl tabel 4.148A, rij 10: BENG 1 basis (voetnoot (6)).
+const BBL_10_BENG1_BASIS: f64 = 70.0;
+/// Bbl tabel 4.148A, rij 10: BENG 1 helling (voetnoot (7)).
+const BBL_10_BENG1_HELLING: f64 = 30.0;
+/// Bbl tabel 4.148A, rij 10: BENG 2.
+const BBL_10_BENG2: f64 = 60.0;
+/// Bbl tabel 4.148A, rij 10: BENG 3.
+const BBL_10_BENG3: f64 = 30.0;
+
+/// BENG 1 met knik bij 1,8: `basis` voor `x ≤ 1,8` (voetnoot (6)), anders
+/// `basis + helling·(x − 1,8)` (voetnoot (7)). Continu op de knik.
+fn beng1_knik_1_8(basis: f64, helling: f64, als_ag: f64) -> f64 {
+    if als_ag <= KNIK_1_8 {
+        basis
+    } else {
+        helling.mul_add(als_ag - KNIK_1_8, basis)
+    }
+}
+
+/// BENG 1-grens woongebouw, Bbl tabel 4.148A, rij 1a.
+///
+/// ```text
+/// x ≤ 1,83          → 65                    (voetnoot 1)
+/// 1,83 < x ≤ 3,0    → 55 + 30·(x − 1,5)     (voetnoot 2)
+/// x > 3,0           → 100 + 50·(x − 3,0)    (voetnoot 3)
+/// ```
+///
+/// Let op: het Bbl heeft bij 1,83 een kleine sprong: 55 + 30·0,33 = 64,9
+/// tegen 65 net eronder. Dit is de tabel zoals gepubliceerd.
+fn beng1_limit_woongebouw(als_ag: f64) -> f64 {
+    if als_ag <= KNIK_WOONGEBOUW {
+        BBL_1A_BENG1_VLAK
+    } else if als_ag <= BENG1_WOONFUNCTIE_KNIK_HOOG {
+        BBL_1A_BENG1_MIDDEN_HELLING.mul_add(
+            als_ag - BENG1_WOONFUNCTIE_KNIK_LAAG,
+            BBL_1A_BENG1_MIDDEN_BASIS,
+        )
+    } else {
+        BBL_1A_BENG1_HOOG_HELLING.mul_add(
+            als_ag - BENG1_WOONFUNCTIE_KNIK_HOOG,
+            BBL_1A_BENG1_HOOG_BASIS,
+        )
     }
 }
 
@@ -491,8 +834,13 @@ mod tests {
     }
 
     #[test]
-    fn utiliteit_bewust_none() {
-        assert!(BengLimits::for_utiliteit(UsageFunction::Kantoorfunctie).is_none());
+    fn utiliteit_eenduidig_en_none() {
+        assert!(BengLimits::for_utiliteit(UsageFunction::Kantoorfunctie, 1.5).is_some());
+        assert!(BengLimits::for_utiliteit(UsageFunction::Bijeenkomstfunctie, 1.5).is_none());
+        assert!(BengLimits::for_utiliteit(UsageFunction::Gezondheidszorgfunctie, 1.5).is_none());
+        assert!(BengLimits::for_utiliteit(UsageFunction::Logiesfunctie, 1.5).is_none());
+        assert!(BengLimits::for_utiliteit(UsageFunction::Industriefunctie, 1.5).is_none());
+        assert!(BengLimits::for_utiliteit(UsageFunction::OverigeGebruiksfunctie, 1.5).is_none());
     }
 
     // -- Indicatoren -------------------------------------------------------

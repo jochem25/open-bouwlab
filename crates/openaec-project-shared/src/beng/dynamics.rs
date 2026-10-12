@@ -146,6 +146,7 @@ mod tests {
             bouwwijze_vloer: floor.map(String::from),
             bouwwijze_wand: wall.map(String::from),
             woningtype: None,
+            gebruiksfuncties: Vec::new(),
             gevels: Vec::new(),
         }
     }

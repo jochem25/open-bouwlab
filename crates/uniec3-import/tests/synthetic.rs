@@ -382,7 +382,7 @@ fn multi_unit_is_still_rejected() {
 
 #[test]
 fn utility_building_is_rejected() {
-    // Zelfde archief maar met een utiliteit-gebouwtype → nette, specifieke fout.
+    // Onbekend gebouwtype (geen WON/WOON/UTIL in de code) → nette, specifieke fout.
     let bytes = {
         let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
         write_entry(&mut zip, "meta.json", &json!({"Version": 2, "App": "x"}));
@@ -446,4 +446,110 @@ fn oversized_entry_is_rejected() {
         ),
         "verwacht EntryTooLarge op meta.json, kreeg {err:?}"
     );
+}
+
+/// Utiliteit (12-10-2026): `TGEB_UTILIT` wordt ingelezen. Twee gebruiksfuncties
+/// in één rekenzone, drie belemmeringstypen. Alle waarden fictief.
+fn synthetic_utility_uniec3() -> Vec<u8> {
+    let entities = json!([
+        ent("UNIT", "u1", 100.0, &[("UNIT_TYPEGEB", "UNIL_GEB_TEST"), ("UNIT_OMSCHR", "Gebouw")]),
+        ent("UNIT-RZ", "ur1", 100.0, &[("UNIT-RZAG", "120,00"), ("UNIT-RZID", "rz1")]),
+        ent("RZ", "rz1", 100.0, &[("RZ_OMSCHR", "zone"), ("RZ_BOUWW_VL", "CONSTRM_FL_11"), ("RZ_BOUWW_W", "CONSTRM_W_11")]),
+        ent("UNIT-RZ-GF", "gf1", 100.0, &[("UNIT-RZ-GFID", "GF_BIJEENOVER"), ("UNIT-RZ-GFAG", "80,00")]),
+        ent("UNIT-RZ-GF", "gf2", 200.0, &[("UNIT-RZ-GFID", "GF_KANTOOR"), ("UNIT-RZ-GFAG", "40,00")]),
+        ent("LIBCONSTRD", "ld1", 100.0, &[("LIBCONSTRD_TYPE", "LIBVLAK_VLOER"), ("LIBCONSTRD_RC", "3,70"), ("LIBCONSTRD_OMSCHR", "Vloer")]),
+        ent("LIBCONSTRD", "ld2", 200.0, &[("LIBCONSTRD_TYPE", "LIBVLAK_GEVEL"), ("LIBCONSTRD_RC", "4,70"), ("LIBCONSTRD_OMSCHR", "Wand")]),
+        ent("LIBCONSTRT", "lt1", 100.0, &[("LIBCONSTRT_TYPE", "TRANSTYPE_RAAM"), ("LIBCONSTRT_U", "1,20"), ("LIBCONSTRT_G", "0,40"), ("LIBCONSTRT_AC", "2,00"), ("LIBCONSTRT_OMSCHR", "R1")]),
+        ent("BEGR", "b1", 100.0, &[("BEGR_VLAK", "VLAK_VLOER"), ("BEGR_VLOER", "VL_MV_GRSP"), ("BEGR_A", "120,00"), ("BEGR_OMSCHR", "vloer")]),
+        ent("CONSTRD", "cd1", 100.0, &[("CONSTRD_LIB", "ld1")]),
+        ent("CONSTRKENMV", "kv1", 100.0, &[("KENMV_OMTR_VL", "44,00")]),
+        ent("BEGR", "b2", 200.0, &[("BEGR_VLAK", "VLAK_GEVEL"), ("BEGR_GEVEL", "GVL_BTNL_Z"), ("BEGR_A", "40,00"), ("BEGR_HEL", "90"), ("BEGR_OMSCHR", "Wand")]),
+        ent("CONSTRD", "cd2", 100.0, &[("CONSTRD_LIB", "ld2")]),
+        ent("CONSTRT", "ct1", 100.0, &[("CONSTRT_LIB", "lt1"), ("CONSTRT_BESCH", "BELEMTYPE_VOLLEDIG")]),
+        ent("CONSTRT", "ct2", 200.0, &[("CONSTRT_LIB", "lt1"), ("CONSTRT_BESCH", "BELEMTYPE_CO_EN_ZIJ")]),
+        // Overstek 1,20 m boven het raammidden, 2,00 m diep → h_o = 0,6; hoek 31°.
+        ent("BELEMMERING", "be2", 100.0, &[("BELEMM_HOOGTE_OVERST", "1,20"), ("BELEMM_HOR_A_OVERST", "2,00"), ("BELEMM_HOEK_OVERST", "31")]),
+        ent("CONSTRT", "ct3", 300.0, &[("CONSTRT_LIB", "lt1"), ("CONSTRT_BESCH", "BELEMTYPE_CO_EN_ZIJ")]),
+        // Zelfde overstek plus een zijbelemmering links → overige belemmering (g).
+        ent("BELEMMERING", "be3", 100.0, &[("BELEMM_HOOGTE_OVERST", "1,20"), ("BELEMM_HOR_A_OVERST", "2,00"), ("BELEMM_HOR_A_LINKS", "1,00")]),
+        ent("INSTALLATIE", "iv", 100.0, &[("INSTALL_TYPE", "INST_VERW")]),
+        ent("VERW", "vw", 100.0, &[]),
+        ent("VERW-OPWEK", "vo", 100.0, &[("VERW-OPWEK_POMP", "VERW-OPWEK_POMP_BUWA"), ("VERW-OPWEK_COP_NON", "4,00")]),
+        ent("VERW-AFG", "va", 100.0, &[("VERW-AFG_TYPE_AFG", "VERW-AFG_TYPE_AFG_VLV")]),
+        ent("INSTALLATIE", "ivt", 300.0, &[("INSTALL_TYPE", "INST_VENT")]),
+        ent("VENT", "vt", 100.0, &[("VENT_VARIANT", "VARIANT_D2")]),
+        ent("WARMTETERUG", "wt", 100.0, &[("WARMTETERUG_WTW", "WARMTETERUG_WTW_WEL"), ("WARMTETERUG_REND", "0,90")]),
+    ]);
+    let relations = json!([
+        rel("u1", "ur1"),
+        rel("ur1", "gf1"),
+        rel("ur1", "gf2"),
+        rel("ur1", "b1"),
+        rel("ur1", "b2"),
+        rel("b1", "cd1"),
+        rel("b1", "kv1"),
+        rel("b2", "cd2"),
+        rel("b2", "ct1"),
+        rel("b2", "ct2"),
+        rel("b2", "ct3"),
+        rel("ct2", "be2"),
+        rel("ct3", "be3"),
+        rel("iv", "vw"),
+        rel("vw", "vo"),
+        rel("vw", "va"),
+        rel("ivt", "vt"),
+        rel("vt", "wt"),
+    ]);
+    let summary = json!({"GEB_OMSCHR": "Synthetisch utiliteitsgebouw", "GEB_TYPEGEB": "TGEB_UTILIT"});
+    let mut zip = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    write_entry(&mut zip, "meta.json", &json!({"Version": 2, "App": "x"}));
+    write_entry(&mut zip, "buildings.json", &json!([{"BuildingId": 1}]));
+    write_entry(&mut zip, "buildings/1/entities.json", &entities);
+    write_entry(&mut zip, "buildings/1/relations.json", &relations);
+    write_entry(&mut zip, "buildings/1/summary.json", &summary);
+    zip.finish().unwrap().into_inner()
+}
+
+#[test]
+fn utility_building_imports_with_functions_and_obstructions() {
+    use openaec_project_shared::beng_geometry::BblGebruiksfunctie as F;
+    use openaec_project_shared::shared::UtilityType;
+    use openaec_project_shared::Obstruction;
+
+    let imp = import_uniec3(&synthetic_utility_uniec3()).expect("utiliteit wordt ingelezen");
+    assert!(matches!(
+        imp.project.shared.building_type,
+        BuildingTypeShared::Utiliteit { subtype: UtilityType::Assembly }
+    ));
+    let bg = imp.project.beng_geometry.as_ref().unwrap();
+    let gf = &bg.zones[0].gebruiksfuncties;
+    assert_eq!(gf.len(), 2);
+    assert_eq!((gf[0].functie, gf[0].a_g_m2), (F::BijeenkomstOverig, 80.0));
+    assert_eq!((gf[1].functie, gf[1].a_g_m2), (F::Kantoorfunctie, 40.0));
+    // GF_KANTOOR is niet uit een echte export bekend: afgeleid + waarschuwing.
+    assert!(imp.warnings.iter().any(|w| w.contains("GF_KANTOOR") && w.contains("afgeleid")));
+
+    let gevel = bg.zones[0].gevels.iter().find(|g| g.id == "b2").unwrap();
+    let b: Vec<Obstruction> = gevel.ramen.iter().map(|r| r.belemmering).collect();
+    assert_eq!(b[0], Obstruction::Full);
+    // NTA 8800 §17.3.1: h_o = hoogteverschil / horizontale afstand = 1,20 / 2,00.
+    assert_eq!(b[1], Obstruction::Overhang { h_o: 0.6 });
+    assert_eq!(b[2], Obstruction::Other { overhang_h_o: Some(0.6) });
+}
+
+/// Keten tot en met de toets. Handberekening, NTA 8800 §6.7.2/§6.7.3 en Bbl
+/// tabel 4.148A + art. 4.149 lid 2:
+/// - A_ls = 0,7 · 120 (vloer op grond) + 1,0 · 40 (gevel) = 124 m²;
+///   A_ls/A_g = 124 / 120 = 1,033 (≤ 1,8 → voetnoot 6, vlakke basiswaarden).
+/// - BENG1: bijeenkomst overig 90, kantoor 90 → gewogen 90.
+/// - BENG2: (80 · 60 + 40 · 40) / 120 = 53,33.
+/// - BENG3: (80 · 30 + 40 · 30) / 120 = 30.
+#[test]
+fn utility_building_gets_weighted_bbl_limits() {
+    let imp = import_uniec3(&synthetic_utility_uniec3()).unwrap();
+    let r = openaec_project_shared::compute_beng(&imp.project).expect("compute_beng utiliteit");
+    assert!((r.a_ls_m2 - 124.0).abs() < 1e-9, "A_ls = {}", r.a_ls_m2);
+    assert!((r.beng1.limit.unwrap() - 90.0).abs() < 1e-9);
+    assert!((r.beng2.limit.unwrap() - 53.333_333).abs() < 1e-5);
+    assert!((r.beng3.limit.unwrap() - 30.0).abs() < 1e-9);
 }

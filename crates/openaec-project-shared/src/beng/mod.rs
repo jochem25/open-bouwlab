@@ -68,6 +68,7 @@ use nta8800_demand::model::{InternalGains, ThermalMassInput};
 use crate::energy::{
     DhwGeneratorType, EnergyInput, HeatGeneratorType, ValueSource, ValueSourceKind,
 };
+use crate::beng_geometry::{F_LS_EXTERN, F_LS_GROND_KRUIPRUIMTE, F_LS_INTERN};
 use crate::geometry::{BoundaryKind, SharedGeometry};
 use crate::nta8800_view::{geometry_to_nta8800, map_usage_function, orientation_from_degrees};
 use crate::project::ProjectV2;
@@ -314,6 +315,9 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
     let mut beng_thermal_mass = None;
     let mut beng_internal_gains = None;
     let mut zone_plan: Vec<ZonePlan> = Vec::new();
+    // A_ls (§6.7.2) rechtstreeks uit de BENG-geometrie: de brug naar
+    // SharedGeometry verliest het onderscheid kruipruimte/AOR dat f_ls nodig heeft.
+    let mut beng_a_ls: Option<f64> = None;
 
     let bridged;
     let project = match project.beng_geometry.as_ref() {
@@ -322,6 +326,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
             let a_g_total: f64 = bg.zones.iter().map(|z| z.a_g_m2).sum();
             let n_gevels: usize = bg.zones.iter().map(|z| z.gevels.len()).sum();
             let usage_for_dynamics = map_usage_function(&project.shared.building_type);
+            beng_a_ls = Some(bg.loss_surface_area_m2());
             let multi = bg.zones.len() > 1;
 
             // C3b — interne warmtewinst woningbouw (formule 7.21). Uniform over de
@@ -490,7 +495,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
     if a_g <= 0.0 {
         return Err(BengError::EmptyProject);
     }
-    let a_ls = loss_surface_area_m2(&project.geometry);
+    let a_ls = beng_a_ls.unwrap_or_else(|| loss_surface_area_m2(&project.geometry));
     let als_ag = a_ls / a_g;
 
     // ---- Demand-tak via de gevalideerde TO-juli-keten ----
@@ -719,19 +724,46 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         ep.ep_renewable_share,
     );
 
-    let limits = match usage {
-        UsageFunction::Woonfunctie => Some(BengLimits::for_woonfunctie(als_ag)),
-        other => {
-            let l = BengLimits::for_utiliteit(other);
-            if l.is_none() {
-                notes.push(
-                    "Utiliteits-BENG-grenswaarden zijn nog niet geverifieerd (F5) — alleen \
-                     indicatorwaarden gerapporteerd."
-                        .into(),
-                );
+    // Gebruiksfuncties per rekenzone (Uniec UNIT-RZ-GF / beng-import) gaan voor
+    // het gebouwtype: Bbl tabel 4.148A per functie, bij meer functies gewogen
+    // naar gebruiksoppervlak (Bbl art. 4.149 lid 2).
+    let aandelen: Vec<(nta8800_ep::BblGebruiksfunctie, f64)> = project
+        .beng_geometry
+        .iter()
+        .flat_map(|bg| bg.zones.iter())
+        .flat_map(|z| z.gebruiksfuncties.iter())
+        .map(|gf| (gf.functie, gf.a_g_m2))
+        .collect();
+    let limits = if aandelen.is_empty() {
+        match usage {
+            UsageFunction::Woonfunctie => Some(BengLimits::for_woonfunctie(als_ag)),
+            other => {
+                let l = BengLimits::for_utiliteit(other, als_ag);
+                if l.is_none() {
+                    notes.push(
+                        "Geen BENG-grenswaarden: de gebruiksfunctie is in Bbl tabel 4.148A \
+                         niet eenduidig (subtype ontbreekt) of kent geen eis — alleen \
+                         indicatorwaarden gerapporteerd."
+                            .into(),
+                    );
+                }
+                l
             }
-            l
         }
+    } else {
+        let l = nta8800_ep::weighted_limits(&aandelen, als_ag);
+        notes.push(match &l {
+            Some(_) => format!(
+                "BENG-grenswaarden uit Bbl tabel 4.148A voor {} gebruiksfunctie(s) per \
+                 rekenzone{}, A_ls/A_g = {als_ag:.2}.",
+                aandelen.len(),
+                if aandelen.len() > 1 { ", naar gebruiksoppervlak gewogen (art. 4.149 lid 2)" } else { "" },
+            ),
+            None => "Geen BENG-grenswaarden: geen van de opgegeven gebruiksfuncties kent \
+                     een eis in Bbl tabel 4.148A."
+                .into(),
+        });
+        l
     };
     let assessment = limits.map(|l| BengAssessment::assess(&indicators, &l));
 
@@ -1010,24 +1042,29 @@ fn primary_kwh_m2(primary_mj: f64, a_g: f64) -> f64 {
     primary_mj / a_g / MJ_PER_KWH
 }
 
-/// Verliesoppervlak A_ls [m²]: som van alle schil-constructies met een
-/// warmteverlies-grens (buiten, grond, open water, onverwarmde ruimte).
-/// Aangrenzende verwarmde ruimtes tellen niet mee (netto-transmissie ≈ 0).
+/// Verliesoppervlak A_ls [m²] van de ruimte-georiënteerde geometrie, NTA 8800
+/// §6.7.2 formule (6.3) met `f_ls` uit §6.7.3: grond 0,7; buiten, open water en
+/// onverwarmde ruimte 1; aangrenzende ruimte of gebouw 0.
+///
+/// Beperking: [`BoundaryKind::UnheatedSpace`] maakt geen onderscheid tussen een
+/// kruipruimte (0,7) en een AOR (1); hij telt hier als AOR. De BENG-geometrie
+/// ([`crate::beng_geometry::BengGeometry::loss_surface_area_m2`]) heeft dat
+/// onderscheid wel en gaat voor.
 fn loss_surface_area_m2(geometry: &SharedGeometry) -> f64 {
     geometry
         .spaces
         .iter()
         .flat_map(|s| s.constructions.iter())
-        .filter(|c| {
-            matches!(
-                c.boundary,
-                BoundaryKind::Exterior
-                    | BoundaryKind::Ground
-                    | BoundaryKind::OpenWater
-                    | BoundaryKind::UnheatedSpace
-            )
+        .map(|c| {
+            let f_ls = match c.boundary {
+                BoundaryKind::Exterior | BoundaryKind::OpenWater | BoundaryKind::UnheatedSpace => {
+                    F_LS_EXTERN
+                }
+                BoundaryKind::Ground => F_LS_GROND_KRUIPRUIMTE,
+                BoundaryKind::AdjacentRoom | BoundaryKind::AdjacentBuilding => F_LS_INTERN,
+            };
+            f_ls * c.area_m2
         })
-        .map(|c| c.area_m2)
         .sum()
 }
 

@@ -327,6 +327,7 @@ fn multizone_beng_geometry(a_g_zone1: f64, a_g_zone2: f64) -> BengGeometry {
         bouwwijze_vloer: Some("CONSTRM_FL_26".into()),
         bouwwijze_wand: Some("CONSTRM_W_11".into()),
         woningtype: Some("TWON_VRIJ_K".into()),
+        gebruiksfuncties: Vec::new(),
         gevels: vec![floor(&format!("{id}-vloer"), a_g), wall(&format!("{id}-gevel-z"))],
     };
     BengGeometry {

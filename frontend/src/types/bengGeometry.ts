@@ -44,8 +44,17 @@ export type Orientation =
   | "noord_west"
   | "horizontaal";
 
-/** Externe belemmering/beschaduwing (serde snake_case). V1: alleen twee uiteinden. */
-export type Obstruction = "none" | "minimal";
+/**
+ * Externe belemmering (NTA 8800 §17.3.2, serde externally tagged):
+ * geen, minimaal (a), volledig (e), overstek evenwijdig aan het vlak (c,
+ * `h_o` = relatieve hoogte) of overig (g, met optioneel overstek).
+ */
+export type Obstruction =
+  | "none"
+  | "minimal"
+  | "full"
+  | { overhang: { h_o: number } }
+  | { other: { overhang_h_o?: number | null } };
 
 /** Bedieningsregime beweegbare zonwering (serde snake_case). */
 export type ShadingControl = "manual_residential" | "automatic";
@@ -110,6 +119,8 @@ export interface WindowDef {
   ggl?: number | null;
   /** Oppervlakte per exemplaar in m². Bijdrage = area_m2 · aantal. */
   area_m2: number;
+  /** Kozijnfractie F_fr (0..=1, NTA 8800 §7.6.6.2); afwezig = forfait 0,25. */
+  frame_fraction?: number | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -265,6 +276,8 @@ export interface BengZone {
   bouwwijze_wand?: string | null;
   /** Woningtype (Uniec `UNIT_TYPEWON`; vrij-veld). */
   woningtype?: string | null;
+  /** Gebruiksfuncties met gebruiksoppervlak (stuurt de Bbl-grenswaarden). */
+  gebruiksfuncties?: GebruiksfunctieAandeel[];
   /** De begrenzingsvlakken die de thermische schil van deze zone vormen. */
   gevels?: BengBoundary[];
 }
@@ -285,4 +298,28 @@ export interface BengGeometry {
   window_defs?: WindowDef[];
   /** Rekenzones (meestal één voor een grondgebonden woning). */
   zones?: BengZone[];
+}
+
+/** Gebruiksfunctie volgens Bbl tabel 4.148A (serde snake_case). */
+export type BblGebruiksfunctie =
+  | "andere_woonfunctie"
+  | "woongebouw"
+  | "bijeenkomst_kinderopvang"
+  | "bijeenkomst_overig"
+  | "celfunctie"
+  | "gezondheidszorg_met_bedgebied"
+  | "gezondheidszorg_overig"
+  | "industriefunctie"
+  | "kantoorfunctie"
+  | "logies_in_logiesgebouw"
+  | "logies_overig"
+  | "onderwijsfunctie"
+  | "sportfunctie"
+  | "winkelfunctie"
+  | "overige_gebruiksfunctie";
+
+/** Eén gebruiksfunctie in een rekenzone met haar gebruiksoppervlak. */
+export interface GebruiksfunctieAandeel {
+  functie: BblGebruiksfunctie;
+  a_g_m2: number;
 }

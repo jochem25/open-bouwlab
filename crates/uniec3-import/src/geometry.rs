@@ -13,7 +13,8 @@
 use std::collections::{HashMap, HashSet};
 
 use openaec_project_shared::beng_geometry::{
-    BengAdjacency, BengBoundary, BengGeometry, BengWindowPlacement, BengZone, KozijnType,
+    BblGebruiksfunctie, BengAdjacency, BengBoundary, BengGeometry, BengWindowPlacement, BengZone,
+    GebruiksfunctieAandeel, KozijnType,
     OpaqueConstructionDef, RcOrU, VlakType, WindowDef,
 };
 use openaec_project_shared::{MovableSunShading, Obstruction, Orientation};
@@ -71,6 +72,7 @@ pub fn map_geometry(idx: &EntityIndex, warnings: &mut Vec<String>) -> Result<Ben
                 u_w_per_m2k: lib.u,
                 ggl: lib.ggl,
                 area_m2: area,
+                frame_fraction: None,
             });
             window_ids.insert(id.clone());
         }
@@ -108,6 +110,7 @@ fn map_opaque_defs(idx: &EntityIndex, warnings: &mut Vec<String>) -> Vec<OpaqueC
             Some("LIBVLAK_DAK") => VlakType::Dak,
             Some("LIBVLAK_KELDERWAND") => VlakType::Kelderwand,
             Some("LIBVLAK_BODEM") => VlakType::Bodem,
+            Some("LIBVLAK_VLOER_BOVBUI") => VlakType::VloerBovenBuitenlucht,
             other => {
                 warnings.push(format!(
                     "LIBCONSTRD {}: onbekend type {:?} → Gevel aangenomen",
@@ -237,9 +240,18 @@ fn map_zone(
 ) -> Result<BengZone> {
     let rz = unit_rz.prop("UNIT-RZID").and_then(|id| idx.get(id));
 
-    let a_g = unit_rz.num("UNIT-RZAG").ok_or_else(|| {
-        Uniec3ImportError::MissingGeometry("UNIT-RZ mist gebruiksoppervlak (UNIT-RZAG)".to_string())
-    })?;
+    let gebruiksfuncties = map_gebruiksfuncties(idx, unit_rz, warnings);
+    // Woningbouw draagt A_g op de rekenzone (`UNIT-RZAG`); utiliteit per
+    // gebruiksfunctie (`UNIT-RZ-GFAG`) — dan is A_g;zi de som daarvan.
+    let a_g_functies: f64 = gebruiksfuncties.iter().map(|gf| gf.a_g_m2).sum();
+    let a_g = unit_rz
+        .num("UNIT-RZAG")
+        .or((a_g_functies > 0.0).then_some(a_g_functies))
+        .ok_or_else(|| {
+            Uniec3ImportError::MissingGeometry(
+                "UNIT-RZ mist gebruiksoppervlak (UNIT-RZAG of UNIT-RZ-GFAG)".to_string(),
+            )
+        })?;
 
     // Bouwwijze-codes met pre-3.2-terugval: als de gesplitste `_VL`/`_W` ontbreken
     // (oude exports), lees het ongesplitste `RZ_BOUWW` en dupliceer (analyse §6).
@@ -274,8 +286,92 @@ fn map_zone(
         bouwwijze_vloer,
         bouwwijze_wand,
         woningtype: unit.prop("UNIT_TYPEWON").map(str::to_string),
+        gebruiksfuncties,
         gevels: map_boundaries(idx, unit_rz, ctx, warnings),
     })
+}
+
+/// `UNIT-RZ-GF`-children (gebruiksfunctie + gebruiksoppervlak per rekenzone)
+/// → [`GebruiksfunctieAandeel`]. Onherkende codes worden overgeslagen met een
+/// waarschuwing: zonder functie geen grenswaarde, geen gok.
+fn map_gebruiksfuncties(
+    idx: &EntityIndex,
+    unit_rz: &Entity,
+    warnings: &mut Vec<String>,
+) -> Vec<GebruiksfunctieAandeel> {
+    let mut out = Vec::new();
+    for gf in idx.children_of(unit_rz, "UNIT-RZ-GF") {
+        let Some(code) = gf.prop("UNIT-RZ-GFID") else {
+            continue;
+        };
+        let Some(a_g) = gf.num("UNIT-RZ-GFAG").filter(|&a| a > 0.0) else {
+            warnings.push(format!("UNIT-RZ-GF {code}: geen gebruiksoppervlak → overgeslagen"));
+            continue;
+        };
+        match gebruiksfunctie_from_code(code) {
+            Some((functie, zeker)) => {
+                if !zeker {
+                    warnings.push(format!(
+                        "gebruiksfunctie {code} afgeleid uit de codenaam als {functie:?} → controleren"
+                    ));
+                }
+                out.push(GebruiksfunctieAandeel { functie, a_g_m2: a_g });
+            }
+            None => warnings.push(format!(
+                "onbekende gebruiksfunctie {code} → geen BENG-grenswaarde voor dit deel"
+            )),
+        }
+    }
+    out
+}
+
+/// Uniec-gebruiksfunctiecode → [`BblGebruiksfunctie`] plus of de code bekend
+/// is (`true`) of uit de naam is afgeleid (`false`). Bekend uit een echte
+/// export: `GF_BIJEENOVER`. De overige volgen het codepatroon `GF_<functie>`.
+pub(crate) fn gebruiksfunctie_from_code(code: &str) -> Option<(BblGebruiksfunctie, bool)> {
+    use BblGebruiksfunctie as F;
+    if code == "GF_BIJEENOVER" {
+        return Some((F::BijeenkomstOverig, true));
+    }
+    let c = code.to_ascii_uppercase();
+    let f = if c.contains("BIJEEN") {
+        if c.contains("KIND") {
+            F::BijeenkomstKinderopvang
+        } else {
+            F::BijeenkomstOverig
+        }
+    } else if c.contains("GEZ") {
+        if c.contains("BED") {
+            F::GezondheidszorgMetBedgebied
+        } else {
+            F::GezondheidszorgOverig
+        }
+    } else if c.contains("LOG") {
+        if c.contains("GEB") {
+            F::LogiesInLogiesgebouw
+        } else {
+            F::LogiesOverig
+        }
+    } else if c.contains("CEL") {
+        F::Celfunctie
+    } else if c.contains("IND") {
+        F::Industriefunctie
+    } else if c.contains("KANT") {
+        F::Kantoorfunctie
+    } else if c.contains("ONDERW") {
+        F::Onderwijsfunctie
+    } else if c.contains("SPORT") {
+        F::Sportfunctie
+    } else if c.contains("WINK") {
+        F::Winkelfunctie
+    } else if c.contains("WOONGEB") {
+        F::Woongebouw
+    } else if c.contains("WON") || c.contains("WOON") {
+        F::AndereWoonfunctie
+    } else {
+        return None;
+    };
+    Some((f, false))
 }
 
 // ---------------------------------------------------------------------------
@@ -378,7 +474,13 @@ fn map_adjacency(
     warnings: &mut Vec<String>,
 ) -> BengAdjacency {
     match vlak_type {
-        VlakType::Vloer | VlakType::VloerBovenBuitenlucht | VlakType::Bodem => {
+        // Vloer boven buitenlucht (`VLAK_VLOER_BOVBUI`) draagt geen BEGR_VLOER-
+        // code: hij grenst per definitie aan buitenlucht, horizontaal. Zonder
+        // deze tak viel hij op de grond-terugval (met verplichte omtrek P).
+        VlakType::VloerBovenBuitenlucht => BengAdjacency::Buitenlucht {
+            orientatie: Orientation::Horizontaal,
+        },
+        VlakType::Vloer | VlakType::Bodem => {
             match begr.prop("BEGR_VLOER") {
                 Some("VL_MV_KR") => BengAdjacency::VloerOpMaaiveldBovenKruipruimte,
                 Some("VL_MV_GRSP") => BengAdjacency::VloerOpMaaiveldBovenGrond,
@@ -480,26 +582,7 @@ fn map_windows(
             continue;
         };
 
-        let belemmering = match constrt.prop("CONSTRT_BESCH") {
-            None => Obstruction::None,
-            Some("BELEMTYPE_MIN") => Obstruction::Minimal,
-            Some(code) if code.starts_with("BELEMTYPE_ZIJ") => {
-                warnings.push(format!(
-                    "CONSTRT {}: zijbelemmering {} → benaderd als 'minimal' (Obstruction-V1 kent geen zij)",
-                    &constrt.data_id[..8.min(constrt.data_id.len())],
-                    code
-                ));
-                Obstruction::Minimal
-            }
-            Some(other) => {
-                warnings.push(format!(
-                    "CONSTRT {}: onbekende belemmering {} → 'minimal'",
-                    &constrt.data_id[..8.min(constrt.data_id.len())],
-                    other
-                ));
-                Obstruction::Minimal
-            }
-        };
+        let belemmering = map_obstruction(idx, constrt, warnings);
 
         let zonwering = map_shading(constrt, warnings);
 
@@ -515,6 +598,84 @@ fn map_windows(
         });
     }
     ramen
+}
+
+/// Toegestane afwijking tussen `h_o` uit hoogte/afstand en `tan(hoek)` voordat
+/// de importer waarschuwt (Uniec rondt de hoek af op hele graden).
+const H_O_HOEK_TOLERANTIE: f64 = 0.03;
+
+/// `CONSTRT_BESCH` (+ `BELEMMERING`-child) → [`Obstruction`], NTA 8800 §17.3.2.
+///
+/// - `BELEMTYPE_MIN` → minimale belemmering (a).
+/// - `BELEMTYPE_VOLLEDIG` → volledige belemmering (e).
+/// - `BELEMTYPE_CO_EN_ZIJ` (constant overstek, met eventuele zijbelemmering):
+///   overstek (c) met `h_o = BELEMM_HOOGTE_OVERST / BELEMM_HOR_A_OVERST`
+///   (relatieve hoogte, §17.3.1); zijn er ook zijbelemmeringen ingevuld, dan
+///   overige belemmering (g) met dat overstek.
+/// - `BELEMTYPE_OVERIG` → overige belemmering (g), zonder overstek.
+/// - `BELEMTYPE_ZIJ*` → zijbelemmering (d) is niet gemodelleerd; benaderd als
+///   minimaal (ongewijzigd t.o.v. V1), met waarschuwing.
+fn map_obstruction(idx: &EntityIndex, constrt: &Entity, warnings: &mut Vec<String>) -> Obstruction {
+    let short = &constrt.data_id[..8.min(constrt.data_id.len())];
+    match constrt.prop("CONSTRT_BESCH") {
+        None | Some("n.v.t.") => Obstruction::None,
+        Some("BELEMTYPE_MIN") => Obstruction::Minimal,
+        Some("BELEMTYPE_VOLLEDIG") => Obstruction::Full,
+        Some("BELEMTYPE_OVERIG") => Obstruction::Other { overhang_h_o: None },
+        Some("BELEMTYPE_CO_EN_ZIJ") => {
+            let belem = idx.child_of(constrt, "BELEMMERING");
+            let h_o = belem.and_then(|b| overhang_h_o(b, short, warnings));
+            let zij = belem.is_some_and(|b| {
+                ["BELEMM_HOR_A_LINKS", "BELEMM_HOR_A_RECHTS", "BELEMM_HOEK_LINKS", "BELEMM_HOEK_RECHTS"]
+                    .iter()
+                    .any(|k| b.num(k).is_some_and(|v| v > 0.0))
+            });
+            match (h_o, zij) {
+                (Some(h_o), false) => Obstruction::Overhang { h_o },
+                (h_o, _) => {
+                    warnings.push(format!(
+                        "CONSTRT {short}: overstek met zijbelemmering of zonder overstekmaten → \
+                         overige belemmering (§17.3.2 g)"
+                    ));
+                    Obstruction::Other { overhang_h_o: h_o }
+                }
+            }
+        }
+        Some(code) if code.starts_with("BELEMTYPE_ZIJ") => {
+            warnings.push(format!(
+                "CONSTRT {short}: zijbelemmering {code} → benaderd als 'minimal' \
+                 (§17.3.2 d / tabel 17.10-17.11 niet gemodelleerd)"
+            ));
+            Obstruction::Minimal
+        }
+        Some(other) => {
+            warnings.push(format!("CONSTRT {short}: onbekende belemmering {other} → 'minimal'"));
+            Obstruction::Minimal
+        }
+    }
+}
+
+/// Relatieve overstekhoogte `h_o` uit een `BELEMMERING`-entiteit: hoogte /
+/// horizontale afstand; zonder maten `tan(BELEMM_HOEK_OVERST)`. Bij beide
+/// aanwezig en strijdig volgt een waarschuwing (de maten gaan voor).
+fn overhang_h_o(belem: &Entity, short: &str, warnings: &mut Vec<String>) -> Option<f64> {
+    let uit_maten = match (belem.num("BELEMM_HOOGTE_OVERST"), belem.num("BELEMM_HOR_A_OVERST")) {
+        // Afgerond op 0,001: de bronmaten hebben twee decimalen.
+        (Some(h), Some(a)) if h > 0.0 && a > 0.0 => Some((h / a * 1000.0).round() / 1000.0),
+        _ => None,
+    };
+    let uit_hoek = belem
+        .num("BELEMM_HOEK_OVERST")
+        .filter(|&deg| deg > 0.0 && deg < 90.0)
+        .map(|deg| deg.to_radians().tan());
+    if let (Some(m), Some(h)) = (uit_maten, uit_hoek) {
+        if (m - h).abs() > H_O_HOEK_TOLERANTIE {
+            warnings.push(format!(
+                "CONSTRT {short}: overstek h_o uit maten {m:.3} wijkt af van tan(hoek) {h:.3} → maten aangehouden"
+            ));
+        }
+    }
+    uit_maten.or(uit_hoek)
 }
 
 /// Resolve de kozijn-referentie van één plaatsing en retourneer de te gebruiken
@@ -573,6 +734,7 @@ fn resolve_window_ref(
             u_w_per_m2k: u,
             ggl,
             area_m2: per_exemplaar,
+            frame_fraction: None,
         });
     }
     Some(synth_id)

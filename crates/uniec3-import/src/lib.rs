@@ -49,7 +49,8 @@ mod results;
 pub use error::{Result, Uniec3ImportError};
 pub use results::Uniec3CertifiedResults;
 
-use openaec_project_shared::shared::{BuildingTypeShared, ResidentialType};
+use openaec_project_shared::beng_geometry::BengGeometry;
+use openaec_project_shared::shared::{BuildingTypeShared, ResidentialType, UtilityType};
 use openaec_project_shared::ProjectV2;
 
 /// Het resultaat van een `.uniec3`-import.
@@ -87,16 +88,24 @@ pub fn import_uniec3(bytes: &[u8]) -> Result<Uniec3Import> {
         ));
     }
 
-    // Utiliteit-guard: het entity-model is generiek, maar utiliteit-import is
-    // onbeproefd (geen sample-export). Woningtypen dragen `WON`/`WOON` in
-    // GEB_TYPEGEB — `TGEB_GRWON` (grondgebonden) én `TGEB_WOONBB` (woonark/
-    // drijvende woning) zijn woningbouw; alleen echte utiliteitscodes weren we.
-    if let Some(tgeb) = raw.summary.get("GEB_TYPEGEB").and_then(|v| v.as_str()) {
-        let u = tgeb.to_ascii_uppercase();
-        if !(u.contains("WON") || u.contains("WOON")) {
-            return Err(Uniec3ImportError::UtilityUnsupported(tgeb.to_string()));
+    // Woningtypen dragen `WON`/`WOON` in GEB_TYPEGEB — `TGEB_GRWON`
+    // (grondgebonden) én `TGEB_WOONBB` (woonark/drijvende woning). Utiliteit
+    // (`TGEB_UTILIT`) wordt sinds 12-10-2026 ingelezen: de gebruiksfuncties per
+    // rekenzone (`UNIT-RZ-GF`) sturen de Bbl-grenswaarden. Andere codes blijven
+    // geweigerd.
+    let utiliteit = match raw.summary.get("GEB_TYPEGEB").and_then(|v| v.as_str()) {
+        Some(tgeb) => {
+            let u = tgeb.to_ascii_uppercase();
+            if u.contains("WON") || u.contains("WOON") {
+                false
+            } else if u.contains("UTIL") {
+                true
+            } else {
+                return Err(Uniec3ImportError::UtilityUnsupported(tgeb.to_string()));
+            }
         }
-    }
+        None => false,
+    };
 
     let project_name = raw
         .summary
@@ -116,16 +125,24 @@ pub fn import_uniec3(bytes: &[u8]) -> Result<Uniec3Import> {
     let certified = results::extract_results(&raw.summary, &idx, &raw.meta);
 
     let gross_floor_area: f64 = beng_geometry.zones.iter().map(|z| z.a_g_m2).sum();
-    let subtype = residential_subtype(
-        beng_geometry
-            .zones
-            .first()
-            .and_then(|z| z.woningtype.as_deref()),
-        &mut warnings,
-    );
+    let building_type = if utiliteit {
+        BuildingTypeShared::Utiliteit {
+            subtype: utility_subtype(&beng_geometry, &mut warnings),
+        }
+    } else {
+        BuildingTypeShared::Woning {
+            subtype: residential_subtype(
+                beng_geometry
+                    .zones
+                    .first()
+                    .and_then(|z| z.woningtype.as_deref()),
+                &mut warnings,
+            ),
+        }
+    };
 
     let mut project = ProjectV2::new(project_name);
-    project.shared.building_type = BuildingTypeShared::Woning { subtype };
+    project.shared.building_type = building_type;
     project.shared.gross_floor_area_m2 = Some(gross_floor_area);
     project.shared.q_v10_spec_dm3_s_m2 = q_v10;
     project.beng_geometry = Some(beng_geometry);
@@ -136,6 +153,37 @@ pub fn import_uniec3(bytes: &[u8]) -> Result<Uniec3Import> {
         certified,
         warnings,
     })
+}
+
+/// Utiliteitstype van het project uit de gebruiksfunctie met het grootste
+/// gebruiksoppervlak (stuurt de forfaits van de demand-keten). De
+/// BENG-grenswaarden komen niet hieruit maar uit alle gebruiksfuncties per
+/// rekenzone. Geen herkende functie → `Other` + waarschuwing.
+fn utility_subtype(geo: &BengGeometry, warnings: &mut Vec<String>) -> UtilityType {
+    use openaec_project_shared::beng_geometry::BblGebruiksfunctie as F;
+    let grootste = geo
+        .zones
+        .iter()
+        .flat_map(|z| z.gebruiksfuncties.iter())
+        .max_by(|a, b| a.a_g_m2.total_cmp(&b.a_g_m2));
+    let Some(gf) = grootste else {
+        warnings.push(
+            "utiliteit zonder herkende gebruiksfunctie → type 'overig', geen BENG-grenswaarden"
+                .to_string(),
+        );
+        return UtilityType::Other;
+    };
+    match gf.functie {
+        F::Kantoorfunctie => UtilityType::Office,
+        F::Onderwijsfunctie => UtilityType::Education,
+        F::BijeenkomstKinderopvang | F::BijeenkomstOverig => UtilityType::Assembly,
+        F::GezondheidszorgMetBedgebied | F::GezondheidszorgOverig => UtilityType::Healthcare,
+        F::LogiesInLogiesgebouw | F::LogiesOverig => UtilityType::Lodging,
+        F::Sportfunctie => UtilityType::Sport,
+        F::Winkelfunctie => UtilityType::Retail,
+        F::Industriefunctie => UtilityType::Industrial,
+        _ => UtilityType::Other,
+    }
 }
 
 /// Map de Uniec `UNIT_TYPEWON`-code op een [`ResidentialType`] (stuurt het

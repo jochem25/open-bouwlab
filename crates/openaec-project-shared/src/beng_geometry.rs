@@ -46,6 +46,7 @@
 //! het is puur invoer-DTO + validatie. De vertaling naar de rekenzone-geometrie
 //! van de service-crates (de F2b-orchestrator-brug) is fase 2.
 
+pub use nta8800_ep::BblGebruiksfunctie;
 use nta8800_model::{
     location::Orientation, MovableSunShading, ModelError, ModelResult, Obstruction,
 };
@@ -131,6 +132,17 @@ impl BengGeometry {
             zone.validate(self)?;
         }
         Ok(())
+    }
+
+    /// Verliesoppervlakte `A_ls` in m², NTA 8800 §6.7.2 formule (6.3):
+    /// `Σ f_ls · A_T` over alle begrenzingsvlakken van alle rekenzones.
+    #[must_use]
+    pub fn loss_surface_area_m2(&self) -> f64 {
+        self.zones
+            .iter()
+            .flat_map(|z| z.gevels.iter())
+            .map(|g| g.f_ls() * g.bruto_buiten_opp_m2)
+            .sum()
     }
 
     /// Zoek een opake constructie-definitie op id. `None` als afwezig.
@@ -244,6 +256,12 @@ pub struct WindowDef {
     /// Oppervlakte **per exemplaar** in m² (Uniec kozijnmerk-`oppervlakte`). De
     /// totale bijdrage aan een gevel is `area_m2 · aantal` van de plaatsing.
     pub area_m2: f64,
+
+    /// Kozijnfractie `F_fr` (0..=1) van dit kozijnmerk, NTA 8800 §7.6.6.2
+    /// methode A (formule 7.44, `F_fr = 1 − A_gl/A_w`). `None` = forfait 0,25
+    /// (methode B). Voedt de zontoetreding via de demand-keten.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frame_fraction: Option<f64>,
 }
 
 impl WindowDef {
@@ -268,6 +286,15 @@ impl WindowDef {
                 context: format!("WindowDef[{}].area_m2", self.id),
                 reason: "moet > 0 en eindig zijn".into(),
             });
+        }
+        if let Some(f) = self.frame_fraction {
+            if !f.is_finite() || !(0.0..=1.0).contains(&f) {
+                return Err(ModelError::OutOfRange {
+                    field: format!("WindowDef[{}].frame_fraction", self.id),
+                    range: "0.0..=1.0".into(),
+                    value: format!("{f}"),
+                });
+            }
         }
         Ok(())
     }
@@ -324,6 +351,22 @@ pub struct BengZone {
     /// (Uniec `Begrenzing`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub gevels: Vec<BengBoundary>,
+
+    /// Gebruiksfuncties in deze rekenzone met hun gebruiksoppervlak (Uniec
+    /// `UNIT-RZ-GF`). Stuurt de BENG-grenswaarden (Bbl tabel 4.148A, bij meer
+    /// functies gewogen naar gebruiksoppervlak, Bbl art. 4.149 lid 2). Leeg =
+    /// de functie volgt uit het gebouwtype van het project.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub gebruiksfuncties: Vec<GebruiksfunctieAandeel>,
+}
+
+/// Eén gebruiksfunctie binnen een rekenzone met haar gebruiksoppervlak.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, JsonSchema)]
+pub struct GebruiksfunctieAandeel {
+    /// Gebruiksfunctie volgens de indeling van Bbl tabel 4.148A.
+    pub functie: BblGebruiksfunctie,
+    /// Gebruiksoppervlak van deze functie in m² (> 0).
+    pub a_g_m2: f64,
 }
 
 impl BengZone {
@@ -333,6 +376,14 @@ impl BengZone {
                 context: format!("BengZone[{}].a_g_m2", self.id),
                 reason: "moet > 0 en eindig zijn".into(),
             });
+        }
+        for (i, gf) in self.gebruiksfuncties.iter().enumerate() {
+            if !gf.a_g_m2.is_finite() || gf.a_g_m2 <= 0.0 {
+                return Err(ModelError::InvalidInput {
+                    context: format!("BengZone[{}].gebruiksfuncties[{i}].a_g_m2", self.id),
+                    reason: "moet > 0 en eindig zijn".into(),
+                });
+            }
         }
         // Gevel-id-uniekheid wordt globaal (over alle zones) getoetst in
         // [`BengGeometry::validate`]; hier alleen de per-gevel-validatie.
@@ -371,9 +422,17 @@ pub struct BengBoundary {
     /// [`BengAdjacency`].
     pub grenst_aan: BengAdjacency,
 
-    /// Bruto **buiten**-oppervlak in m² (Uniec begrenzing-`opp`). Dit is de
-    /// kern-heroriëntatie: buiten-oppervlak per gevel, niet binnen-oppervlak per
-    /// kamer.
+    /// Geprojecteerde oppervlakte `A_T` in m² (Uniec begrenzing-`opp`), bruto
+    /// (inclusief ramen en deuren), per gevelvlak van de rekenzone.
+    ///
+    /// **Meetconventie: NTA 8800 bijlage K.1.2 met de afsnijvlakken van K.1.4**
+    /// (via §6.9.1/§6.9.2). Ondanks de veldnaam is dat GEEN buitenmaat: de
+    /// afsnijvlakken liggen op de binnenwerkse vlakken van de schil (gevel vanaf
+    /// vloerpeil begane grond, dak tot het snijpunt met het binnenoppervlak van
+    /// de gevel), en verdiepingsvloeren onderbreken de gevel niet. Een vloer op
+    /// grond of boven een kruipruimte is binnenwerks (§6.9.3). De naam blijft
+    /// staan voor de 1-op-1-aansluiting op Uniec en het beng-import-contract.
+    /// Zie `docs/2026-10-12-beng-meetconventie-a-t.md`.
     pub bruto_buiten_opp_m2: f64,
 
     /// Helling in graden t.o.v. horizontaal (Uniec `BEGR_HEL`; 90 = gevel,
@@ -396,7 +455,27 @@ pub struct BengBoundary {
     pub ramen: Vec<BengWindowPlacement>,
 }
 
+/// `f_ls` voor scheidingsconstructies naar een aangrenzende verwarmde ruimte,
+/// andere rekenzone of op de perceelsgrens (NTA 8800 §6.7.3 a).
+pub const F_LS_INTERN: f64 = 0.0;
+/// `f_ls` naar buitenlucht, water, AOR, AOS of sterk geventileerd (§6.7.3 b).
+pub const F_LS_EXTERN: f64 = 1.0;
+/// `f_ls` naar de grond of een kruipruimte (§6.7.3 c).
+pub const F_LS_GROND_KRUIPRUIMTE: f64 = 0.7;
+
 impl BengBoundary {
+    /// Weegfactor `f_ls` van dit vlak (NTA 8800 §6.7.3). Een kelderwand
+    /// scheidt de zone van de grond (c, 0,7), ongeacht de aangrenzing; voor de
+    /// overige vlakken volgt hij uit [`BengAdjacency::f_ls`].
+    #[must_use]
+    pub fn f_ls(&self) -> f64 {
+        if self.vlak_type == VlakType::Kelderwand {
+            F_LS_GROND_KRUIPRUIMTE
+        } else {
+            self.grenst_aan.f_ls()
+        }
+    }
+
     fn validate(&self, geo: &BengGeometry) -> ModelResult<()> {
         if !self.bruto_buiten_opp_m2.is_finite() || self.bruto_buiten_opp_m2 <= 0.0 {
             return Err(ModelError::InvalidInput {
@@ -552,6 +631,33 @@ impl BengAdjacency {
         }
     }
 
+    /// Weegfactor `f_ls` voor de verliesoppervlakte, NTA 8800 §6.7.3:
+    ///
+    /// - a) aangrenzende verwarmde ruimte (en perceelsgrens/andere rekenzone): 0;
+    /// - b) buitenlucht, water, AOR, AOS, sterk geventileerde ruimte: 1;
+    ///   een onverwarmde kelder is een AOR, dus ook 1;
+    /// - c) grond en kruipruimte: 0,7.
+    ///
+    /// Een kelderwand grenst aan de grond; die weging zit in
+    /// [`BengBoundary::f_ls`], niet hier.
+    #[must_use]
+    pub fn f_ls(&self) -> f64 {
+        match self {
+            BengAdjacency::AangrenzendeVerwarmdeRuimte => F_LS_INTERN,
+            BengAdjacency::VloerOpMaaiveldBovenKruipruimte
+            | BengAdjacency::VloerOpMaaiveldBovenGrond
+            | BengAdjacency::VloerOnderMaaiveldBovenKruipruimte
+            | BengAdjacency::VloerOnderMaaiveldBovenGrond => F_LS_GROND_KRUIPRUIMTE,
+            BengAdjacency::VloerOpMaaiveldBovenOnverwarmdeKelder
+            | BengAdjacency::VloerOnderMaaiveldBovenOnverwarmdeKelder
+            | BengAdjacency::Buitenlucht { .. }
+            | BengAdjacency::SterkGeventileerd
+            | BengAdjacency::Water
+            | BengAdjacency::AosForfaitair { .. }
+            | BengAdjacency::AorForfaitair => F_LS_EXTERN,
+        }
+    }
+
     /// `true` voor de vloer-op-grond-begrenzingen die de P/A-methode gebruiken
     /// en dus een omtrek P vereisen (grond/spouw-contact, z ≤ 0,3). De
     /// buffer-varianten (kruipruimte/kelder) lopen via een temperatuurcorrectie
@@ -591,10 +697,9 @@ pub struct BengWindowPlacement {
     /// [`Obstruction::None`]; bij de default niet geserialiseerd zodat JSON
     /// byte-identiek blijft.
     ///
-    /// Let op: `nta8800-model::Obstruction` modelleert in V1 alleen
-    /// `None`/`Minimal`; Uniecs rijkere belemmeringsvarianten (zijbelemmering,
-    /// overstek met hoogtehoek) zijn V2 en worden voorlopig op `Minimal`
-    /// benaderd.
+    /// `nta8800-model::Obstruction` kent de situaties a), c), e) en g) van
+    /// §17.3.2 (minimaal, overstek, volledig, overig); zijbelemmering (d) en
+    /// belemmering met constante hoogte (b) niet.
     #[serde(default, skip_serializing_if = "Obstruction::is_none")]
     pub belemmering: Obstruction,
 
@@ -623,6 +728,8 @@ impl BengWindowPlacement {
                 id: self.kozijn_ref.clone(),
             });
         }
+        self.belemmering
+            .validate(&format!("BengWindowPlacement[{}].belemmering", self.kozijn_ref))?;
         Ok(())
     }
 }
@@ -672,6 +779,7 @@ mod tests {
                 u_w_per_m2k: 1.3,
                 ggl: Some(0.40),
                 area_m2: 4.12,
+                frame_fraction: None,
             }],
             zones: vec![BengZone {
                 id: "rz-woning".into(),
@@ -680,6 +788,7 @@ mod tests {
                 bouwwijze_vloer: None,
                 bouwwijze_wand: None,
                 woningtype: None,
+                gebruiksfuncties: Vec::new(),
                 gevels: vec![BengBoundary {
                     id: "gevel-o".into(),
                     omschrijving: "Wand".into(),

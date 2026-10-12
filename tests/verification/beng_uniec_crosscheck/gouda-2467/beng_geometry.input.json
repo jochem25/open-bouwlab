@@ -66,12 +66,12 @@
           "helling_deg": 90.0,
           "constructie_ref": "def-gevel",
           "ramen": [
-            { "kozijn_ref": "merk-d",      "_note": "Uniec BELEMTYPE_CO_EN_ZIJ (constante overstek & zijbelemmering) → V1 benaderd als minimal.", "belemmering": "minimal" },
+            { "kozijn_ref": "merk-d",      "_note": "Uniec BELEMTYPE_CO_EN_ZIJ, alleen overstek ingevuld: h_o = hoogte/afstand (NTA 8800 §17.3.5).", "belemmering": { "overhang": { "h_o": 0.341 } } },
             { "kozijn_ref": "merk-e",      "belemmering": "minimal" },
             { "kozijn_ref": "merk-f" },
             { "kozijn_ref": "merk-f-glas", "belemmering": "minimal" },
             { "kozijn_ref": "merk-g" },
-            { "kozijn_ref": "merk-j",      "_note": "Uniec BELEMTYPE_VOLLEDIG (volledige belemmering) → V1 benaderd als minimal.", "belemmering": "minimal" }
+            { "kozijn_ref": "merk-j",      "_note": "Uniec BELEMTYPE_VOLLEDIG (volledige belemmering, NTA 8800 §17.3.7).", "belemmering": "full" }
           ]
         },
         {
@@ -98,10 +98,10 @@
           "constructie_ref": "def-gevel",
           "ramen": [
             { "kozijn_ref": "merk-b",      "belemmering": "minimal" },
-            { "kozijn_ref": "merk-c",      "_note": "BELEMTYPE_CO_EN_ZIJ → minimal.", "belemmering": "minimal" },
-            { "kozijn_ref": "merk-i",      "_note": "BELEMTYPE_VOLLEDIG → minimal.", "belemmering": "minimal" },
+            { "kozijn_ref": "merk-c",      "_note": "BELEMTYPE_CO_EN_ZIJ, overstek.", "belemmering": { "overhang": { "h_o": 0.591 } } },
+            { "kozijn_ref": "merk-i",      "_note": "BELEMTYPE_CO_EN_ZIJ, overstek (de eerdere notitie VOLLEDIG klopte niet met de bron).", "belemmering": { "overhang": { "h_o": 0.242 } } },
             { "kozijn_ref": "merk-k" },
-            { "kozijn_ref": "merk-k-glas", "_note": "BELEMTYPE_CO_EN_ZIJ → minimal.", "belemmering": "minimal" }
+            { "kozijn_ref": "merk-k-glas", "_note": "BELEMTYPE_CO_EN_ZIJ, overstek.", "belemmering": { "overhang": { "h_o": 0.591 } } }
           ]
         },
         {

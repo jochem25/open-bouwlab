@@ -737,6 +737,7 @@ fn uniec_measure_bridged() {
         r_base.als_ag_ratio, r_bridge.als_ag_ratio
     );
     row("BENG1", r_base.beng1.value, r_bridge.beng1.value, e.beng1_kwh_m2_jr, fx.tolerance.beng1_pct);
+    println!("  BENG1-grens  vóór={:?}  ná={:?}  cert={:.2}", r_base.beng1.limit, r_bridge.beng1.limit, e.beng1_limit_kwh_m2_jr);
     row("BENG2", r_base.beng2.value, r_bridge.beng2.value, e.beng2_kwh_m2_jr, fx.tolerance.beng2_pct);
     println!(
         "  BENG3  vóór={:8.2} ({:+.1}pp)  ná={:8.2} ({:+.1}pp)  cert={:.2}",
@@ -869,6 +870,7 @@ fn gouda_measure_bridged() {
         r_base.als_ag_ratio, r_bridge.als_ag_ratio
     );
     row("BENG1", r_base.beng1.value, r_bridge.beng1.value, e.beng1_kwh_m2_jr, fx.tolerance.beng1_pct);
+    println!("  BENG1-grens  vóór={:?}  ná={:?}  cert={:.2}", r_base.beng1.limit, r_bridge.beng1.limit, e.beng1_limit_kwh_m2_jr);
     row("BENG2", r_base.beng2.value, r_bridge.beng2.value, e.beng2_kwh_m2_jr, fx.tolerance.beng2_pct);
     println!(
         "  BENG3  vóór={:8.2} ({:+.1}pp)  ná={:8.2} ({:+.1}pp)  cert={:.2}",

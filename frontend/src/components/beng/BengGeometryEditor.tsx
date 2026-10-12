@@ -116,10 +116,35 @@ const ADJACENCY_KINDS: Array<{ value: BengAdjacencyKind; label: string }> = [
   { value: "aor_forfaitair", label: "AOR forfaitair (onverwarmde ruimte)" },
 ];
 
-const OBSTRUCTIONS: Array<{ value: Obstruction; label: string }> = [
+type ObstructionKind = "none" | "minimal" | "full" | "overhang" | "other";
+
+const OBSTRUCTIONS: Array<{ value: ObstructionKind; label: string }> = [
   { value: "none", label: "Geen belemmering" },
   { value: "minimal", label: "Minimale belemmering" },
+  { value: "overhang", label: "Overstek (h_o)" },
+  { value: "full", label: "Volledige belemmering" },
+  { value: "other", label: "Overige belemmering" },
 ];
+
+/** Soort belemmering uit de (externally tagged) serde-vorm. */
+function obstructionKind(o: Obstruction | undefined): ObstructionKind {
+  if (o == null || o === "none") return "none";
+  if (o === "minimal" || o === "full") return o;
+  return "overhang" in o ? "overhang" : "other";
+}
+
+/** Relatieve overstekhoogte h_o, als de belemmering er een heeft. */
+function obstructionHo(o: Obstruction | undefined): number | null {
+  if (o == null || typeof o === "string") return null;
+  return "overhang" in o ? o.overhang.h_o : (o.other.overhang_h_o ?? null);
+}
+
+/** Bouw de serde-vorm uit soort + h_o (overstek zonder h_o krijgt 1,0). */
+function toObstruction(kind: ObstructionKind, hO: number | null): Obstruction {
+  if (kind === "overhang") return { overhang: { h_o: hO ?? 1.0 } };
+  if (kind === "other") return { other: hO == null ? {} : { overhang_h_o: hO } };
+  return kind;
+}
 
 const SHADING_CONTROLS: Array<{ value: ShadingControl; label: string }> = [
   { value: "manual_residential", label: "Handbediend (woningbouw)" },
@@ -845,10 +870,26 @@ function WindowPlacementRow({
         />
         <SelectField
           label={t("beng.geometry.belemmering", "Belemmering")}
-          value={raam.belemmering ?? "none"}
+          value={obstructionKind(raam.belemmering)}
           options={OBSTRUCTIONS}
-          onChange={(v) => onChange({ ...raam, belemmering: v })}
+          onChange={(v) =>
+            onChange({ ...raam, belemmering: toObstruction(v, obstructionHo(raam.belemmering)) })
+          }
         />
+        {(obstructionKind(raam.belemmering) === "overhang" ||
+          obstructionKind(raam.belemmering) === "other") && (
+          <NumberField
+            label={t("beng.geometry.overstek_h_o", "Overstek h_o")}
+            step={0.01}
+            value={obstructionHo(raam.belemmering)}
+            onChange={(v) =>
+              onChange({
+                ...raam,
+                belemmering: toObstruction(obstructionKind(raam.belemmering), v),
+              })
+            }
+          />
+        )}
         <Button variant="danger" size="sm" onClick={onRemove}>
           {t("beng.geometry.remove", "Verwijder")}
         </Button>

@@ -81,8 +81,8 @@ pub mod result;
 pub mod tojuli;
 
 pub use beng::{
-    beng1_limit_woonfunctie_grondgebonden, BengAssessment, BengIndicators, BengLimits,
-    IndicatorAssessment,
+    beng1_limit_woonfunctie_grondgebonden, weighted_limits, BblGebruiksfunctie, BengAssessment,
+    BengIndicators, BengLimits, IndicatorAssessment,
 };
 pub use tojuli::{
     tojuli_orientation, tojuli_zone, TojuliOrientationInput, TojuliOrientationResult,
