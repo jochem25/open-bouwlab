@@ -72,13 +72,15 @@ pub enum ShadingControl {
 /// warmte en koeling: de norm hanteert aparte tabellen 17.4 (verwarming) en
 /// 17.5 (koeling).
 ///
-/// V1 modelleert alleen de twee uiteinden van de situatiekeuze uit §17.3.2:
-/// geen belemmering ([`Obstruction::None`], factor 1,0) en de "minimale
-/// belemmering" ([`Obstruction::Minimal`], §17.3.2 onder a) — de conservatieve
-/// referentiewaarde die de BENG-voorbeeldconcepten hanteren. De overige
-/// varianten (overstek, zijbelemmering, belemmering met hoogtehoek — §17.3.4
-/// e.v.) zijn V2.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize, JsonSchema)]
+/// Gemodelleerd zijn de situaties a), c), e) en g) uit §17.3.2 (tabel 17.3):
+/// geen belemmering ([`Obstruction::None`], factor 1,0), minimale belemmering
+/// ([`Obstruction::Minimal`], a), overstek evenwijdig aan het vlak
+/// ([`Obstruction::Overhang`], c), volledige belemmering ([`Obstruction::Full`],
+/// e) en overige belemmering ([`Obstruction::Other`], g). Belemmering met
+/// constante hoogte (b), zijbelemmering (d) en dakranden (f, alleen PV) zijn
+/// niet gemodelleerd; voor verwarming en koeling is g) daar de altijd
+/// toegestane, conservatieve keuze.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum Obstruction {
     /// Geen externe belemmering — `F_sh;obst;mi = 1,0` in elke maand.
@@ -88,6 +90,25 @@ pub enum Obstruction {
     /// belemmeringen > 20° belemmeringshoek en zonder overstekken < 45°.
     /// De maandfactoren volgen uit tabel 17.4 (warmte) resp. 17.5 (koeling).
     Minimal,
+    /// Overstek met constante hoogte evenwijdig aan een verticaal vlak
+    /// (§17.3.2 onder c, §17.3.5): tabel 17.8 (warmte) en 17.9 (koeling).
+    Overhang {
+        /// Relatieve hoogte `h_o;⊥` van het overstek, loodrecht op het vlak
+        /// gemeten (hoogteverschil / horizontale afstand, §17.3.1). > 0.
+        h_o: f64,
+    },
+    /// Volledige belemmering (§17.3.2 onder e, §17.3.7): tabel 17.13
+    /// (warmte) en 17.14 (koeling).
+    Full,
+    /// Overige belemmering (§17.3.2 onder g): voor warmte de tabel van e)
+    /// (17.13); voor koeling de tabel van c) (17.9) als er een overstek bij is,
+    /// anders a) (17.5).
+    Other {
+        /// Relatieve hoogte van het overstek als er een bij de belemmeringen
+        /// zit; `None` als er geen overstek is.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        overhang_h_o: Option<f64>,
+    },
 }
 
 impl Obstruction {
@@ -96,6 +117,25 @@ impl Obstruction {
     #[must_use]
     pub fn is_none(&self) -> bool {
         matches!(self, Obstruction::None)
+    }
+
+    /// Controleer de relatieve overstekhoogte (eindig en > 0).
+    ///
+    /// # Errors
+    /// [`ModelError::InvalidInput`] bij een niet-eindige of niet-positieve `h_o`.
+    pub fn validate(&self, context: &str) -> ModelResult<()> {
+        let h_o = match self {
+            Obstruction::Overhang { h_o } => Some(*h_o),
+            Obstruction::Other { overhang_h_o } => *overhang_h_o,
+            _ => None,
+        };
+        match h_o {
+            Some(h) if !h.is_finite() || h <= 0.0 => Err(ModelError::InvalidInput {
+                context: format!("{context}.h_o"),
+                reason: "relatieve overstekhoogte moet > 0 en eindig zijn".into(),
+            }),
+            _ => Ok(()),
+        }
     }
 }
 
@@ -328,6 +368,30 @@ mod tests {
         let w: Window = serde_json::from_str(legacy).unwrap();
         assert_eq!(w.obstruction, Obstruction::None);
         assert!(w.movable_shading.is_none());
+    }
+
+    #[test]
+    fn obstruction_serde_shapes() {
+        assert_eq!(serde_json::to_string(&Obstruction::Minimal).unwrap(), "\"minimal\"");
+        assert_eq!(serde_json::to_string(&Obstruction::Full).unwrap(), "\"full\"");
+        assert_eq!(
+            serde_json::to_string(&Obstruction::Overhang { h_o: 0.8 }).unwrap(),
+            r#"{"overhang":{"h_o":0.8}}"#
+        );
+        assert_eq!(
+            serde_json::to_string(&Obstruction::Other { overhang_h_o: None }).unwrap(),
+            r#"{"other":{}}"#
+        );
+        let back: Obstruction = serde_json::from_str(r#"{"other":{"overhang_h_o":1.2}}"#).unwrap();
+        assert_eq!(back, Obstruction::Other { overhang_h_o: Some(1.2) });
+    }
+
+    #[test]
+    fn obstruction_rejects_non_positive_h_o() {
+        assert!(Obstruction::Overhang { h_o: 0.0 }.validate("w").is_err());
+        assert!(Obstruction::Other { overhang_h_o: Some(-1.0) }.validate("w").is_err());
+        assert!(Obstruction::Overhang { h_o: 0.6 }.validate("w").is_ok());
+        assert!(Obstruction::Full.validate("w").is_ok());
     }
 
     #[test]

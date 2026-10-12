@@ -21,6 +21,7 @@
 
 pub mod beng;
 pub mod beng_geometry;
+pub mod beng_import;
 pub mod calcs;
 pub mod energy;
 pub mod geometry;

@@ -11,6 +11,7 @@ serde = { version = "1", features = ["derive"] }
 # ULP off, wat de exacte-gelijkheid-assert in `result_serializes_to_json` breekt
 # zodra een BENG-waarde net op zo'n grens valt).
 serde_json = { version = "1", features = ["float_roundtrip"] }
+serde_path_to_error = "0.1"
 schemars = "0.8"
 thiserror = "2"
 isso51-core = { path = "../isso51-core" }

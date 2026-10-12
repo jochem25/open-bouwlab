@@ -17,13 +17,13 @@ mod vabi_tests {
             .join(filename)
     }
 
-    /// Test import of Voorweg 210a project.
+    /// Test import of Vabi reference project A (lokaal, gitignored).
     ///
     /// This is the main validation test against the known reference project.
     /// Expected values are from the 13-05 discovery session.
     #[test]
-    fn test_import_voorweg_210a() {
-        let vp_path = reference_path("Voorweg 210a - nieuw.vp");
+    fn test_import_vabi_ref_a() {
+        let vp_path = reference_path("vabi-ref-a.vp");
         let vp_path = vp_path.as_path();
 
         if !vp_path.exists() {

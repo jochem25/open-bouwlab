@@ -68,10 +68,14 @@ use nta8800_demand::model::{InternalGains, ThermalMassInput};
 use crate::energy::{
     DhwGeneratorType, EnergyInput, HeatGeneratorType, ValueSource, ValueSourceKind,
 };
+/// Grens voor de lichte-bouwwijze-toeslag, Bbl art. 4.149 lid 4 [kJ/(m²·K)].
+const LICHTE_BOUWWIJZE_DM_MAX_KJ_M2K: f64 = 180.0;
+
+use crate::beng_geometry::{F_LS_EXTERN, F_LS_GROND_KRUIPRUIMTE, F_LS_INTERN};
 use crate::geometry::{BoundaryKind, SharedGeometry};
 use crate::nta8800_view::{geometry_to_nta8800, map_usage_function, orientation_from_degrees};
 use crate::project::ProjectV2;
-use crate::shared::{HeatRecovery, VentilationSystemKind};
+use crate::shared::{BuildingTypeShared, HeatRecovery, ResidentialType, VentilationSystemKind};
 use crate::tojuli::{compute_tojuli_full, TojuliFullInputs, TojuliResult};
 
 use mapping::{
@@ -242,6 +246,11 @@ pub struct BengResult {
     /// (`skip_serializing_if`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub zeb_indicator: Option<zeb::ZebIndicator>,
+    /// `true` als de geometrie uit een import komt die nog niet geijkt is
+    /// (`beng_geometry.bron`, bv. de IFC-route via beng-import). De uitkomst is
+    /// dan indicatief en moet gecontroleerd worden; de reden staat in `notes`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub te_controleren: bool,
 }
 
 /// Fouten van de BENG-orchestrator.
@@ -314,6 +323,11 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
     let mut beng_thermal_mass = None;
     let mut beng_internal_gains = None;
     let mut zone_plan: Vec<ZonePlan> = Vec::new();
+    // A_ls (§6.7.2) rechtstreeks uit de BENG-geometrie: de brug naar
+    // SharedGeometry verliest het onderscheid kruipruimte/AOR dat f_ls nodig heeft.
+    let mut beng_a_ls: Option<f64> = None;
+    // Naar A_g gewogen D_m (tabel 7.10) voor de lichte-bouwwijze-toeslag.
+    let mut beng_d_m: Option<f64> = None;
 
     let bridged;
     let project = match project.beng_geometry.as_ref() {
@@ -322,6 +336,8 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
             let a_g_total: f64 = bg.zones.iter().map(|z| z.a_g_m2).sum();
             let n_gevels: usize = bg.zones.iter().map(|z| z.gevels.len()).sum();
             let usage_for_dynamics = map_usage_function(&project.shared.building_type);
+            beng_a_ls = Some(bg.loss_surface_area_m2());
+            beng_d_m = dynamics::weighted_specific_capacity(&bg.zones, usage_for_dynamics);
             let multi = bg.zones.len() > 1;
 
             // C3b — interne warmtewinst woningbouw (formule 7.21). Uniform over de
@@ -490,7 +506,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
     if a_g <= 0.0 {
         return Err(BengError::EmptyProject);
     }
-    let a_ls = loss_surface_area_m2(&project.geometry);
+    let a_ls = beng_a_ls.unwrap_or_else(|| loss_surface_area_m2(&project.geometry));
     let als_ag = a_ls / a_g;
 
     // ---- Demand-tak via de gevalideerde TO-juli-keten ----
@@ -719,20 +735,113 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         ep.ep_renewable_share,
     );
 
-    let limits = match usage {
-        UsageFunction::Woonfunctie => Some(BengLimits::for_woonfunctie(als_ag)),
-        other => {
-            let l = BengLimits::for_utiliteit(other);
-            if l.is_none() {
-                notes.push(
-                    "Utiliteits-BENG-grenswaarden zijn nog niet geverifieerd (F5) — alleen \
-                     indicatorwaarden gerapporteerd."
-                        .into(),
-                );
-            }
-            l
+    // Gebruiksfuncties per rekenzone (Uniec UNIT-RZ-GF / beng-import) gaan voor
+    // het gebouwtype: Bbl tabel 4.148A per functie, bij meer functies gewogen
+    // naar gebruiksoppervlak (Bbl art. 4.149 lid 2).
+    let aandelen: Vec<(nta8800_ep::BblGebruiksfunctie, f64)> = project
+        .beng_geometry
+        .iter()
+        .flat_map(|bg| bg.zones.iter())
+        .flat_map(|z| z.gebruiksfuncties.iter())
+        .map(|gf| (gf.functie, gf.a_g_m2))
+        .collect();
+    if !aandelen.is_empty() {
+        let zonder: Vec<&str> = project
+            .beng_geometry
+            .iter()
+            .flat_map(|bg| bg.zones.iter())
+            .filter(|z| z.gebruiksfuncties.is_empty())
+            .map(|z| z.id.as_str())
+            .collect();
+        // Functies zonder eis (industrie, overig) vallen uit de weging; meld
+        // welk deel van het gebruiksoppervlak dat is.
+        let a_totaal: f64 = aandelen.iter().map(|(_, a)| a.max(0.0)).sum();
+        let a_zonder_eis: f64 = aandelen
+            .iter()
+            .filter(|(f, _)| nta8800_ep::BengLimits::for_bbl_functie(*f, als_ag).is_none())
+            .map(|(_, a)| a.max(0.0))
+            .sum();
+        if a_zonder_eis > 0.0 && a_totaal > 0.0 {
+            notes.push(format!(
+                "{a_zonder_eis:.1} m² ({:.0} %) van het gebruiksoppervlak heeft een functie zonder BENG-eis in Bbl tabel 4.148A en telt niet mee in de weging.",
+                a_zonder_eis / a_totaal * 100.0
+            ));
         }
+        // Som van de functie-oppervlakken tegen A_g per zone.
+        for z in project.beng_geometry.iter().flat_map(|bg| bg.zones.iter()) {
+            let som: f64 = z.gebruiksfuncties.iter().map(|gf| gf.a_g_m2).sum();
+            if !z.gebruiksfuncties.is_empty() && (som - z.a_g_m2).abs() > 0.01 * z.a_g_m2 {
+                notes.push(format!(
+                    "Rekenzone {}: som gebruiksfuncties {som:.1} m² wijkt af van A_g {:.1} m²; de weging volgt de functie-oppervlakken.",
+                    z.id, z.a_g_m2
+                ));
+            }
+        }
+        if !zonder.is_empty() {
+            notes.push(format!(
+                "Rekenzone(s) zonder gebruiksfunctie tellen niet mee in de weging van de BENG-grenswaarden: {}.",
+                zonder.join(", ")
+            ));
+        }
+    }
+    let limits = if aandelen.is_empty() {
+        match usage {
+            UsageFunction::Woonfunctie => match &project.shared.building_type {
+                // Bbl tabel 4.148A: woonfunctie in een woongebouw = rij 1a.
+                BuildingTypeShared::Woning {
+                    subtype: ResidentialType::Porch | ResidentialType::Gallery | ResidentialType::Stacked,
+                } => BengLimits::for_bbl_functie(nta8800_ep::BblGebruiksfunctie::Woongebouw, als_ag),
+                _ => Some(BengLimits::for_woonfunctie(als_ag)),
+            },
+            other => {
+                let l = BengLimits::for_utiliteit(other, als_ag);
+                if l.is_none() {
+                    notes.push(
+                        "Geen BENG-grenswaarden: de gebruiksfunctie is in Bbl tabel 4.148A \
+                         niet eenduidig (subtype ontbreekt) of kent geen eis — alleen \
+                         indicatorwaarden gerapporteerd."
+                            .into(),
+                    );
+                }
+                l
+            }
+        }
+    } else {
+        let l = nta8800_ep::weighted_limits(&aandelen, als_ag);
+        notes.push(match &l {
+            Some(_) => format!(
+                "BENG-grenswaarden uit Bbl tabel 4.148A voor {} gebruiksfunctie(s) per \
+                 rekenzone{}, A_ls/A_g = {als_ag:.2}.",
+                aandelen.len(),
+                if aandelen.len() > 1 { ", naar gebruiksoppervlak gewogen (art. 4.149 lid 2)" } else { "" },
+            ),
+            None => "Geen BENG-grenswaarden: geen van de opgegeven gebruiksfuncties kent \
+                     een eis in Bbl tabel 4.148A."
+                .into(),
+        });
+        l
     };
+    // Bbl art. 4.149 lid 4: bij een gewogen D_m ≤ 180 kJ/(m²·K) gaat de
+    // BENG1-grens met 5 omhoog. Alleen voor de rijen waar lid 4 geldt
+    // (woonfunctie 1a/1e, logies 7b) en alleen als de bouwwijze bekend is.
+    let lid4_functies = aandelen.iter().all(|(f, _)| {
+        use nta8800_ep::BblGebruiksfunctie as F;
+        matches!(f, F::AndereWoonfunctie | F::Woongebouw | F::LogiesOverig)
+    });
+    let lid4_van_toepassing = if aandelen.is_empty() {
+        usage == UsageFunction::Woonfunctie
+    } else {
+        lid4_functies
+    };
+    let mut limits = limits;
+    if let (Some(l), Some(d_m), true) = (limits.as_mut(), beng_d_m, lid4_van_toepassing) {
+        if d_m <= LICHTE_BOUWWIJZE_DM_MAX_KJ_M2K {
+            l.beng1_max_kwh_per_m2 += nta8800_ep::beng::LICHTE_BOUWWIJZE_TOESLAG_KWH_M2;
+            notes.push(format!(
+                "Lichte-bouwwijze-toeslag toegepast (Bbl art. 4.149 lid 4): gewogen D_m = {d_m:.0} kJ/(m²·K) ≤ 180 → BENG1-grens + 5 kWh/(m²·jr)."
+            ));
+        }
+    }
     let assessment = limits.map(|l| BengAssessment::assess(&indicators, &l));
 
     let beng1 = indicator_report(indicators.beng1_kwh_per_m2, assessment.map(|a| a.beng1));
@@ -753,7 +862,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
                 .into(),
         );
     }
-    if usage == UsageFunction::Woonfunctie && beng_thermal_mass.is_none() {
+    if usage == UsageFunction::Woonfunctie && beng_d_m.is_none() {
         notes.push(
             "Lichte-bouwwijze-toeslag (Bbl 4.149 lid 4) niet automatisch toegepast — geen \
              bouwwijze-code in de invoer, C_m valt terug op de default lichte woning (F3)."
@@ -813,6 +922,14 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         None
     };
 
+    let bron = project.beng_geometry.as_ref().and_then(|bg| bg.bron.clone());
+    let te_controleren = bron.is_some();
+    if let Some(bron) = bron {
+        notes.push(format!(
+            "TE CONTROLEREN: de BENG-geometrie komt uit een import ({bron}) die nog niet tegen certified berekeningen is geijkt. Controleer de uitkomst voor gebruik."
+        ));
+    }
+
     Ok(BengResult {
         beng1,
         beng2,
@@ -828,6 +945,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         notes,
         value_sources,
         zeb_indicator,
+        te_controleren,
     })
 }
 
@@ -1010,24 +1128,29 @@ fn primary_kwh_m2(primary_mj: f64, a_g: f64) -> f64 {
     primary_mj / a_g / MJ_PER_KWH
 }
 
-/// Verliesoppervlak A_ls [m²]: som van alle schil-constructies met een
-/// warmteverlies-grens (buiten, grond, open water, onverwarmde ruimte).
-/// Aangrenzende verwarmde ruimtes tellen niet mee (netto-transmissie ≈ 0).
+/// Verliesoppervlak A_ls [m²] van de ruimte-georiënteerde geometrie, NTA 8800
+/// §6.7.2 formule (6.3) met `f_ls` uit §6.7.3: grond 0,7; buiten, open water en
+/// onverwarmde ruimte 1; aangrenzende ruimte of gebouw 0.
+///
+/// Beperking: [`BoundaryKind::UnheatedSpace`] maakt geen onderscheid tussen een
+/// kruipruimte (0,7) en een AOR (1); hij telt hier als AOR. De BENG-geometrie
+/// ([`crate::beng_geometry::BengGeometry::loss_surface_area_m2`]) heeft dat
+/// onderscheid wel en gaat voor.
 fn loss_surface_area_m2(geometry: &SharedGeometry) -> f64 {
     geometry
         .spaces
         .iter()
         .flat_map(|s| s.constructions.iter())
-        .filter(|c| {
-            matches!(
-                c.boundary,
-                BoundaryKind::Exterior
-                    | BoundaryKind::Ground
-                    | BoundaryKind::OpenWater
-                    | BoundaryKind::UnheatedSpace
-            )
+        .map(|c| {
+            let f_ls = match c.boundary {
+                BoundaryKind::Exterior | BoundaryKind::OpenWater | BoundaryKind::UnheatedSpace => {
+                    F_LS_EXTERN
+                }
+                BoundaryKind::Ground => F_LS_GROND_KRUIPRUIMTE,
+                BoundaryKind::AdjacentRoom | BoundaryKind::AdjacentBuilding => F_LS_INTERN,
+            };
+            f_ls * c.area_m2
         })
-        .map(|c| c.area_m2)
         .sum()
 }
 

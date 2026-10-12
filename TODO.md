@@ -1,5 +1,26 @@
 # TODO
 
+## BENG via IFC (2026-10-12, branch `feat/beng-ifc`, NIET gemerged)
+
+Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-fixes.md`, contract `docs/beng-import-v1-contract.md`.
+
+- [x] Contract beng-import v1 afgesproken met ifc-ruimtebalans (envelope met geneste `beng_geometry`, optionele blokken genegeerd in v1)
+- [x] Fix 1 f_ls (§6.7.3) · fix 2 kozijnfractie · fix 3 belemmering c/e/g · fix 4 utiliteit + Bbl 4.148A · fix 5 meetconventie A_T
+- [x] `POST /api/v1/import/beng` + schema + e2e op synthetische fixture
+- [ ] Akkoord Jochem voor merge en deploy
+- [ ] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`); typen zijn bijgewerkt
+- [ ] Onvolledige import aanvullen in OB (Rc uit de materiaalcatalogus op `opaque_defs_extra[].lagen`)
+- [ ] Zijbelemmering (§17.3.2 d, tabel 17.10/17.11) en belemmering met constante hoogte (b); Uniec `BELEMTYPE_ZIJ*` nu nog als minimal
+- [x] Review (Opus als tweede Claude + Ollama): lichte-bouwwijze-toeslag ontbrak (ankers nu exact op certified), KIND-match, woongebouw rij 1a, kelderwand AVR, validatie bij onvolledig
+- [x] Review 2 (Sonnet, 12-10): onbekende geneste sleutels geweigerd, GF-code op prefix, melding aandeel zonder eis, spaties in meldingen, h_o-afronding, niet-UTF-8, belemmeringsmelding bij onvolledig
+- [x] Vervolgpunten ifc-ruimtebalans: `kelderwand_grond` (f_ls 0,7), Uniec `VL_BTNL_ONDER` -> vloer boven buitenlucht; 'te controleren' in import- en BENG-uitkomst (R-3)
+- [ ] Review-restpunten (laag): `Obstruction::validate` ook op de SharedGeometry-route; editor zet leeg h_o op 1,0; drijvende woning (Bbl rij 1c/1d) ontbreekt; utiliteit zonder `GEB_TYPEGEB` wordt als woning gelezen; helling < 15 graden noord klemt naar de 0-graden-kolom (normtoets ontbreekt)
+- [ ] 'Te controleren' laten vervallen na een zuivere ijking van de IFC-route (R-3)
+- [ ] Belending (rb levert `aangrenzende_verwarmde_ruimte` met omschrijving 'belending') en catalogus uit de laagvingerafdrukken (rb-punten 3 en 4)
+- [ ] Uniec-gebruiksfunctiecodes naast `GF_BIJEENOVER` bevestigen met echte exports
+- [ ] Rekenkern utiliteit: BENG1-indicator wijkt fors af van certified op het utiliteitsproject (grenswaarden kloppen wel)
+- [ ] Optionele blokken lezen: `aansluitingen` (psi-koppeling), `vloeren_per_bouwlaag` (C5b), `pv_vlakken`
+
 ## Rapport-coverfoto (2026-10-08, branch `feat/rapport-coverfoto`)
 
 - [x] Backend vult `cover.image` aan uit `REPORT_DEFAULT_COVER_DIR/<tenant>.{jpg,png}`; 4xx van de Reports API met detail-tekst door
@@ -82,7 +103,7 @@
 - [ ] **R2 desktop-naverificatie [user]** — Tauri-build: open/save vanaf netwerkschijf, dubbelklik .ifcenergy, default-save Documenten, recent-file buiten scope (nette fallback), norm-wissel-backup buiten scope.
 - [x] **R3 Vabi-import ✅ (10-06)** — temperature_factor per boundary-type · grondvloer 0W→afgeleide GroundParameters+warnings · dwelling_class Tabel 2.8-afleiding · night_setback default false (geen Vabi-veld) · UnconditionedSpace-mapping · extractor custom_temperature+infiltration_method. cargo 197 + 15 tests, reviews ship.
 - [ ] **R3-besluit: Rust-mapper θ_i-veldkeuze [PM]** — mapper zet Vabi-ontwerptemp in internal_air_temperature (θ_a) maar custom_temperature=None → Rust-import gebruikt mogelijk tabel-θ_i waar Vabi eigen temps had (extractor doet het wél via custom_temperature). Gelijktrekken kan golden-fixtures verschuiven → eerst PM-analyse.
-- [ ] **R3-naverificatie [user/andere machine]** — vabi-importer v2_import-tests (voorweg_210a, 24221) draaien op machine mét de gitignored referentie-.vp's; daarna extractor-fixture-run.
+- [ ] **R3-naverificatie [user/andere machine]** — vabi-importer v2_import-tests (vabi_ref_a, 24221; lokale referentie-.vp hernoemen naar `vabi-ref-a.vp`) draaien op machine mét de gitignored referentie-.vp's; daarna extractor-fixture-run.
 - [x] **R4 rekenkern-normvalidatie ✅ (10-06, PM-geverifieerd tegen norm-PDF's op Z:)** — U_equiv 4.24 norm-vorm (oude vorm: omgekeerde monotonie + misread-ijking) reproduceert beide normvoorbeelden · Ū opwarmtoeslag incl. ΔU_TB+grondvloer · NEN8088 Tabel 10 compleet + ISSO53 Tabel 4.7 bevestigd (twee normen, bewust niet geconsolideerd) · Φ_T,iaBE ≥0-clamp. Geen golden-shift. Review ship.
 - [ ] **R4-besluit: isso53 Vabi-compat f_inf [PM, laag]** — compat-pad wijkt af van beide normen (bewust, DR-golden); gedocumenteerd, besluit Vabi-pariteit vs norm bij gelegenheid.
 - [x] **R5 ventilatie/BBL ✅ (10-06, Bbl 4.122 via iplo.nl + NEN 1087-PDF geverifieerd)** — per-persoon-eisen utiliteit (onderwijs 8,5 pp; was vlakke 4,0 = >2× onderschat) + indicatief-markering zonder bezetting · overstroomverdeling plugin-port · systeem C max(toevoer,afvoer) · NEN 1087-docverankering spleetformule. 219/219, review ship.
@@ -240,9 +261,9 @@
 
 ---
 
-## 🔍 ISSO 53 warmteverlies — ventilatie + onverwarmd (02-06, Reddingspost Kijkduin, 256 m² utiliteit)
+## 🔍 ISSO 53 warmteverlies — ventilatie + onverwarmd (02-06, utiliteitsproject 2786, 256 m²)
 
-> Context: gebruiker valideerde een ISSO 53-utiliteitsproject (reddingspost, kleedkamers/techniek/berging). 02-06 zijn 10 commits gemaakt (zie `sessions/warmteverlies_latest.md` in de orchestrator). Onderstaande items staan nog open; de oorspronkelijke 4 meldingen van 01-06 zijn opgelost of doorontwikkeld.
+> Context: gebruiker valideerde een ISSO 53-utiliteitsproject (kleedkamers/techniek/berging). 02-06 zijn 10 commits gemaakt (zie `sessions/warmteverlies_latest.md` in de orchestrator). Onderstaande items staan nog open; de oorspronkelijke 4 meldingen van 01-06 zijn opgelost of doorontwikkeld.
 
 ### ✅ Opgelost 02-06
 - Berekenen crashte (serde regime `9c2bb2b`); opslaan verloor ISSO 53-config (`3e29bf4`, nu `.heatloss.json` met norm+sidecars); ruimte zonder ventilatie-eis crashte (`d32d497`).
@@ -262,8 +283,8 @@
 - [ ] **supply-toggle opruimen** (`514bbf9`, `has_mechanical_supply`-gate) — overbodig geworden nu de vastgestelde q_v leidend is (leeg/0 = geen toevoer). Verwarrend in de UI voor ISSO 53.
 - [ ] **Chart adjacent_room: bruto-positief vs netto** — de chart sommeert alleen positieve bijdragen (1662W) terwijl de calc netto −772W oplevert (koude ruimtes winnen terug). Overweeg netto tonen of het label verduidelijken.
 - [ ] **`.ifcenergy`-export draagt ISSO 53-sidecars niet** — alleen `.heatloss.json` persisteert norm+sidecars. Bij opslaan als `.ifcenergy` gaat ISSO 53-config verloren.
-- [ ] **Infiltratie z-reporting inconsistentie** — `result.summary.infiltrationReductionFactorZ` toont `0.5` (oud ISSO 51-gebouwveld) terwijl de ISSO 53-calc de **per-ruimte** z gebruikt (default 1,0). Verwarrend in de samenvatting. Laat de gerapporteerde z matchen met wat de calc gebruikt (of verberg 'm bij isso53). 02-06 verifieerd op Reddingspost: infiltratie 5248W = q_is(0,00064)×A_u(231,6)×1200 met z=1,0 (impliciete factor exact 1,000 per ruimte) — rekenkundig correct, maar z=1,0 overal = conservatief.
-- [ ] **Ventilatie-feedthrough — GEDIAGNOSEERD 03-06: stale result, geen calc-bug.** Op `Reddingspost_kijkduin.heatloss.json` (03-06) phiV per ruimte exact terug te rekenen op de **personen-fallback** (q_v=None-pad: `floor_area×0,05×6,5/1000×1200×f_v×ΔT`) i.p.v. de ingevulde q_v (Instructie 125→35W, Ieeftuimte 150→77W, Politiepost 75→0W via supply-gate). Mapper (`isso53ProjectMapper.ts:227` `ventilation_rate/1000`, 0 blijft 0) én Rust (`calc/ventilation.rs:96` vastgestelde q_v overruled gate, getest) zijn **correct**; het opgeslagen result dateert van vóór de q_v-invoer. Verse Berekenen → verwacht Instructie ~900W / Ieeftuimte ~1080W / Politiepost ~540W, totaal ~2520W (systeem D + WTW 80%). **Open vraag:** waarom blijft het result stale terwijl transmissie wél vers is — onderzoek de recompute-trigger (`/calculate_v2`-aanroep vanuit Results/save): wordt ventilatie bij élke Berekenen herrekend, of mist er een invalidatie na een q_v-edit? Zo niet → echte trigger-bug.
+- [ ] **Infiltratie z-reporting inconsistentie** — `result.summary.infiltrationReductionFactorZ` toont `0.5` (oud ISSO 51-gebouwveld) terwijl de ISSO 53-calc de **per-ruimte** z gebruikt (default 1,0). Verwarrend in de samenvatting. Laat de gerapporteerde z matchen met wat de calc gebruikt (of verberg 'm bij isso53). 02-06 geverifieerd op 2786: infiltratie 5248W = q_is(0,00064)×A_u(231,6)×1200 met z=1,0 (impliciete factor exact 1,000 per ruimte) — rekenkundig correct, maar z=1,0 overal = conservatief.
+- [ ] **Ventilatie-feedthrough — GEDIAGNOSEERD 03-06: stale result, geen calc-bug.** Op het projectbestand van 2786 (03-06) phiV per ruimte exact terug te rekenen op de **personen-fallback** (q_v=None-pad: `floor_area×0,05×6,5/1000×1200×f_v×ΔT`) i.p.v. de ingevulde q_v (Instructie 125→35W, Ieeftuimte 150→77W, Politiepost 75→0W via supply-gate). Mapper (`isso53ProjectMapper.ts:227` `ventilation_rate/1000`, 0 blijft 0) én Rust (`calc/ventilation.rs:96` vastgestelde q_v overruled gate, getest) zijn **correct**; het opgeslagen result dateert van vóór de q_v-invoer. Verse Berekenen → verwacht Instructie ~900W / Ieeftuimte ~1080W / Politiepost ~540W, totaal ~2520W (systeem D + WTW 80%). **Open vraag:** waarom blijft het result stale terwijl transmissie wél vers is — onderzoek de recompute-trigger (`/calculate_v2`-aanroep vanuit Results/save): wordt ventilatie bij élke Berekenen herrekend, of mist er een invalidatie na een q_v-edit? Zo niet → echte trigger-bug.
 - [ ] **Rust `temperature_factor` `#[serde(default)]`** ontbreekt (`room.rs`); third-party clients zonder dit veld falen. Mapper vult het nu altijd, dus geen blocker.
 
 ---

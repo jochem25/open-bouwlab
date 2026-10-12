@@ -241,9 +241,9 @@ fn map_window(
         area_m2,
         u_value: def.u_w_per_m2k,
         g_value,
-        // `None` → de demand-keten hanteert de forfaitaire kozijnfractie 0,25
-        // (identiek aan de oes-converter).
-        frame_fraction: None,
+        // Kozijnfractie per kozijnmerk (§7.6.6.2 methode A); `None` → de
+        // demand-keten hanteert het forfait 0,25 (methode B).
+        frame_fraction: def.frame_fraction,
         // Beweegbare zonwering + externe belemmering zijn al `nta8800-model`-typen
         // op de plaatsing → 1-op-1 door.
         movable_shading: raam.zonwering,
@@ -285,7 +285,8 @@ fn boundary_kind(adjacency: &BengAdjacency) -> BoundaryKind {
         }
         // Grondcontact (grond/spouw, z ≤ 0,3) → grondmodel (§8.3).
         BengAdjacency::VloerOpMaaiveldBovenGrond
-        | BengAdjacency::VloerOnderMaaiveldBovenGrond => BoundaryKind::Ground,
+        | BengAdjacency::VloerOnderMaaiveldBovenGrond
+        | BengAdjacency::KelderwandGrond => BoundaryKind::Ground,
         // Onverwarmde buffers (kruipruimte, onverwarmde kelder, AOS/AOR) → §8.4
         // b-factor-tak.
         BengAdjacency::VloerOpMaaiveldBovenKruipruimte
@@ -371,6 +372,7 @@ mod tests {
 
     fn geo_with_one_gevel(ramen: Vec<BengWindowPlacement>, window_defs: Vec<WindowDef>) -> BengGeometry {
         BengGeometry {
+            bron: None,
             opaque_defs: vec![OpaqueConstructionDef {
                 id: "def-wand".into(),
                 omschrijving: "Wand".into(),
@@ -385,6 +387,7 @@ mod tests {
                 bouwwijze_vloer: None,
                 bouwwijze_wand: None,
                 woningtype: None,
+                gebruiksfuncties: Vec::new(),
                 gevels: vec![BengBoundary {
                     id: "gevel-z".into(),
                     omschrijving: "Wand".into(),
@@ -417,6 +420,7 @@ mod tests {
                 u_w_per_m2k: 1.3,
                 ggl: Some(0.40),
                 area_m2: 2.0,
+                frame_fraction: None,
             }],
         );
         let shared = beng_geometry_to_shared(&geo, &SharedGeometry::default()).unwrap();
@@ -451,6 +455,7 @@ mod tests {
                 u_w_per_m2k: 2.0,
                 ggl: Some(0.0),
                 area_m2: 1.84,
+                frame_fraction: None,
             }],
         );
         let shared = beng_geometry_to_shared(&geo, &SharedGeometry::default()).unwrap();
@@ -477,6 +482,7 @@ mod tests {
                 u_w_per_m2k: 1.3,
                 ggl: None,
                 area_m2: 2.0,
+                frame_fraction: None,
             }],
         );
         let err = beng_geometry_to_shared(&geo, &SharedGeometry::default()).unwrap_err();

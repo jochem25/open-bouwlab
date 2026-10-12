@@ -18,7 +18,7 @@ fn main() {
         eprintln!("Usage: {} <path_to_vp_file>", args[0]);
         eprintln!();
         eprintln!("Example:");
-        eprintln!("  cargo run --features vabi-import --example vabi_import -- \"tests/references/Voorweg 210a - nieuw.vp\"");
+        eprintln!("  cargo run --features vabi-import --example vabi_import -- \"tests/references/vabi-ref-a.vp\"");
         std::process::exit(1);
     }
 

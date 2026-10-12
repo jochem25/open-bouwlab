@@ -86,7 +86,7 @@ De 14 `nta8800-*`-crates (~30k LOC) zijn een **schone, goed-geteste bibliotheekl
 | Hoekwoning M (G11) | 133 | 1,87 | ≤ 66,2 | B1 59,2 · B2 28,2 · B3 62% · TOjuli 0 |
 | Vrijstaande L (G12) | 181 | 2,14 | ≤ 74,1 | (rijen p. 14) |
 
-Per type staan 15 concepten (5 opwekkers × 3 vent/iso-pakketten) in Bijlage 1 — volledige tabellen geëxtraheerd in het B1-agentrapport (scratchpad `rvo_full.txt`). Uniec-referenties: Gouda 2467 (B1 95,86 / B2 27,48 / B3 83,7% / A+++), Aalten 2522 (103,69 / 24,71 / 85,0%), Kijkduin 2786 utiliteit (115,90 / 57,98 / 62,6%).
+Per type staan 15 concepten (5 opwekkers × 3 vent/iso-pakketten) in Bijlage 1 — volledige tabellen geëxtraheerd in het B1-agentrapport (scratchpad `rvo_full.txt`). Uniec-referenties: Gouda 2467 (B1 95,86 / B2 27,48 / B3 83,7% / A+++), Aalten 2522 (103,69 / 24,71 / 85,0%),  2786 utiliteit (115,90 / 57,98 / 62,6%).
 
 ---
 
@@ -111,12 +111,12 @@ De betrouwbaarheid komt niet uit herbouw maar uit de **vangrail**: officiële ei
 | **F2 — Orchestrator** | `compute_beng(ProjectV2) → BengResult` in `openaec-project-shared`, naar het patroon van `compute_tojuli_full`: `geometry_to_nta8800` → demand → {heating, cooling, dhw, ventilation-aux, lighting, pv, automation} → EpInputs → ep + BENG-toets; manifest-resolver voor de Rekenzone-id-lijsten; volume→H_ve→τ-keten sluiten; additief `energy`-invoerblok op ProjectV2 (systemen: COP/η/WTW/SFP; PV: kWp/oriëntatie/tilt — structs spiegelen Johns `types.ts`) | to-juli-keten en isso-goldens blijven groen (`serde(default)` op alles) | F1 |
 | **F3 — Kalibratie & normanalyse** | goldens uit F0 activeren; per afwijking norm-analyse (NTA 8800:2025-PDF via PyMuPDF) i.p.v. fudge; stubs prioriteren op gemeten impact (verwachte verdachten: tables-bijlage-stubs, F_sh=1,0, forfait-η's heating, humidity); afwijkingen kwantitatief rapporteren | 5 goldens groen binnen gemotiveerde toleranties, of eerlijk gedocumenteerd null-gap (§6.2-precedent) | F0+F2 |
 | **F4 — API + frontend** | `POST /beng` route; `ActiveNorm::Beng`; invoerpaneel systemen/hernieuwbaar (UI-patronen uit open-energy-studio als referentie); resultatenpagina BENG 1/2/3 + TOjuli + label naast warmteverlies; graaddagen-schatter vervangen/degraderen | e2e vanuit de modeller-UI; rapport-integratie | F2 (parallel aan F3 mogelijk) |
-| **F5 — Verbreding** | utiliteit-pad (ISSO 75, verlichting H.14 al aanwezig; Kijkduin-golden activeren), peak-koellast-engine (v1.0-blokkade), Herten-case als negatief-golden (B1-overschrijding), humidity normatief maken, versie-delta 2020→2025 documenteren | Kijkduin-golden groen; `vabi_koellast_golden` ignore weg | F3 |
+| **F5 — Verbreding** | utiliteit-pad (ISSO 75, verlichting H.14 al aanwezig; 2786-golden activeren), peak-koellast-engine (v1.0-blokkade), Herten-case als negatief-golden (B1-overschrijding), humidity normatief maken, versie-delta 2020→2025 documenteren | 2786-golden groen; `vabi_koellast_golden` ignore weg | F3 |
 
 ### C2. Golden-validatiestrategie (samengevat)
 
 - **Laag 1 — RVO-eindwaarden** (officieel, 45 rijen beschikbaar): pass/fail-golden per concept, tolerantieband te motiveren (versie 2020↔2025 + niet-exacte geometrie). Start ruim (bijv. ±10%), aanscherpen naarmate F3 vordert; elke aanscherping is winst, elke verruiming verboden zonder normanalyse.
-- **Laag 2 — Certified Uniec-replay** (onafhankelijk): deterministische invoer, sub-totalen per dienst beschikbaar → diagnostisch veel sterker dan alleen eindwaarden. Woningen strak; Kijkduin pas na utiliteit-verlichting.
+- **Laag 2 — Certified Uniec-replay** (onafhankelijk): deterministische invoer, sub-totalen per dienst beschikbaar → diagnostisch veel sterker dan alleen eindwaarden. Woningen strak; 2786 pas na utiliteit-verlichting.
 - **Laag 3 — Bijlage AA xlsm**: al groen (0,07%); uitbreiden met extra ruimte-fixtures is gratis.
 - **Ontbrekend voor bit-exact:** officiële NTA 8800-validatietoolcases (BCRG/attestering) — pas relevant richting formele attestering (ISSO 54-testset, ~€1500, bewust "later").
 

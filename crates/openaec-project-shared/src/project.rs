@@ -153,6 +153,7 @@ mod tests {
         };
         let mut p = ProjectV2::new("Met BENG-geometrie");
         p.beng_geometry = Some(BengGeometry {
+            bron: None,
             opaque_defs: vec![OpaqueConstructionDef {
                 id: "def-vloer".into(),
                 omschrijving: "Vloer".into(),

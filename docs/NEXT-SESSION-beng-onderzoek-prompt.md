@@ -46,7 +46,7 @@ John Heikens. **Dat klopt niet.** De werkelijkheid — en jouw startpunt:
 3. **`C:\Github\derden\open-energy-studio`** — John's LGPL BENG-tool (Tauri + React +
    **TypeScript-engine**). Die engine is **~1-5% van gecertificeerde Uniec 3.3.7.0** op
    woningbouw (gemeten). In `training-data/*.oes.json` staan **3 projecten met
-   `meta.uniecReference`** (Gouda 2467, Aalten 2522, Kijkduin 2786 — BENG 1/2/3,
+   `meta.uniecReference`** (Gouda 2467, Aalten 2522, 2786 — BENG 1/2/3,
    limieten, label uit certified Uniec/BengCert). Er staat een vitest-vangrail op
    branch `feat/beng-validation-ci` (`src/core/energy/__tests__/bengValidation.test.ts`).
    **Dit is een cross-check/validatie-set, geen port-bron.**

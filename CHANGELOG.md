@@ -6,6 +6,14 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### ✨ Nieuw
 
+- **BENG-import v1** (`POST /api/v1/import/beng`, schema `schemas/v1/beng-import.schema.json`) — BENG-geometrie uit een externe bron (de IFC-route) direct naar `project.beng_geometry`. Antwoord `compleet` met geometrie of `onvolledig` met de ontbrekende Rc/U-paden; niets wordt stil ingevuld. Zie `docs/beng-import-v1-contract.md`
+- **BENG-grenswaarden utiliteit** — alle gebruiksfuncties uit Bbl tabel 4.148A, bij meer functies gewogen naar gebruiksoppervlak (art. 4.149 lid 2); gebruiksfuncties per rekenzone in `beng_geometry.zones[].gebruiksfuncties`
+- **BENG uit de IFC-route is 'te controleren'** — `/import/beng` antwoordt met `te_controleren: true` en een melding; de geometrie krijgt `bron`, en de BENG-uitkomst draagt dan `te_controleren` plus een rode banner op de BENG-pagina, tot de route geijkt is
+- **Wand tegen grond** (`grenst_aan: "kelderwand_grond"`, f_ls 0,7); de Uniec-import gebruikt hem voor een kelderwand zonder buitenlucht-code
+- **Melding bij gebruiksfuncties zonder BENG-eis** (industrie, overig) met hun aandeel, en bij een som van functie-oppervlakken die afwijkt van A_g
+- **Uniec-import leest utiliteit** (`TGEB_UTILIT`) — gebruiksfuncties en A_g per rekenzone uit `UNIT-RZ-GF`; onbekende functiecodes geven een waarschuwing, geen gok
+- **Belemmering: overstek, volledige en overige belemmering** (NTA 8800 §17.3.2 c/e/g, tabellen 17.8, 17.9, 17.13, 17.14), ook uit de Uniec-import (`BELEMTYPE_CO_EN_ZIJ`, `_VOLLEDIG`, `_OVERIG`)
+- **Kozijnfractie per kozijnmerk** (`window_defs[].frame_fraction`, NTA 8800 §7.6.6.2); zonder waarde het forfait 0,25
 - **Tabblad IFC-import** (`/ifc-import`, vervangt IFC-reconstructie bèta; `/ifc-reconstructie` stuurt door) — IFC uploaden (max 100 MB), samenvatting met modelcheck en QC-bevindingen, ruimtetabel met grensvlakken/openingen/constructies, per ruimte goedkeuren, overnemen via de bestaande thermal-import v1.2 (vervangen of annuleren bij een project met ruimten), daarna naar Vertrekken
 - **API `POST /api/v1/ifc/analyse`** — geeft de upload door aan de IFC-analyse-sidecar (`IFC_ANALYSE_URL`, `IFC_ANALYSE_TIMEOUT_S`); 503 `analyse_unavailable` als die ontbreekt, 422/502/504 bij sidecar-fouten
 - **Checklist "Nog in te vullen na IFC-import"** op Vertrekken en IFC-import: vlakken zonder U (tellen als 0 W/K), geschatte ruimtefuncties, gebruikte projectdefaults; live, met links
@@ -25,11 +33,20 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🐛 Bug fixes
 
+- **A_ls zonder f_ls-weging** — de verliesoppervlakte telde grond en kruipruimte voor 1 mee; nu 0,7 (NTA 8800 §6.7.3), aangrenzende verwarmde ruimte 0. Raakt de BENG1-grens, niet de indicator
+- **Lichte-bouwwijze-toeslag op de BENG1-grens** (Bbl art. 4.149 lid 4, +5 bij D_m ≤ 180) werd niet toegepast. Met f_ls samen zijn de Aalten- en Gouda-grenzen nu gelijk aan certified (123,39 en 96,40)
+- **Woongebouw** (portiek, galerij, gestapeld) kreeg de grens van een grondgebonden woning; nu Bbl tabel 4.148A rij 1a
+- **Vloer boven buitenlucht uit Uniec** viel op 'vloer op grond' en eiste een omtrek; nu buitenlucht, horizontaal. Geldt ook voor een gewone vloer met `BEGR_VLOER = VL_BTNL_ONDER`
+- **beng-import weigert onbekende velden binnen `beng_geometry`** (bv. `frame_fractie`); voorheen werden ze stil genegeerd en rekende de import met defaults. `_`-sleutels gelden als commentaar
+- **Uniec-gebruiksfunctiecode** matcht alleen nog op het begin van de naam na `GF_`, niet op een losse substring
+- **Overstek met h/a < 0,0005** gaf na afronding h_o = 0 en liet de hele Uniec-import falen; nu genegeerd
+- **beng-import: niet-UTF-8-body** gaf een platte-tekst-400; nu de JSON-fout `json_parse_error`
+- **Meetconventie A_T vastgelegd** (NTA 8800 K.1.2/K.1.4, binnenwerkse afsnijvlakken, doorlopend over verdiepingsvloeren): `docs/2026-10-12-beng-meetconventie-a-t.md`
 - **"Opgesteld door" in het colofon toonde het service-account** van de rapportproxy — de Reports API vult lege `adviseur_*`-velden met het profiel van de aanroeper, en dat is via de proxy het service-account. De proxy (`/report/generate` en `/constructie/rapport`) vult nu zelf `colofon.adviseur_naam` (weergavenaam, anders gebruikersnaam), `adviseur_bedrijf` (organisatienaam) en `adviseur_email` (e-mail van de gebruiker), alleen als de frontend ze leeg liet
 - **Bearer-tokens (ak-*) kregen geen groepen** — de groepen uit `users/me` werden niet gelezen, waardoor ook de constructie-entitlement via Bearer nooit werkte
 
 - **Materiaalkoppeling bij thermal-/IFC-import** — `Holz` en `cempanel` werden niet gekoppeld (laag telde als R = 0, U veel te hoog) en `glas` landde op Foamglas (glas als isolatie gerekend). Geldt ook voor de thermal-import-wizard
-- **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (2786-proef: 45,0 → 24,3 kW na matcher-fix)
+- **Herimport hergebruikte verouderde constructies** — `ensureProjectConstruction` matchte op naam alleen; nu ook op gelijke lagen (proef met een utiliteitsmodel: 45,0 → 24,3 kW na matcher-fix)
 
 ### 🗑️ Verwijderd
 

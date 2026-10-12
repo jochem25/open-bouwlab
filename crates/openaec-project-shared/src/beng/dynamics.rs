@@ -15,7 +15,9 @@
 use nta8800_demand::model::{InternalGains, ThermalMassInput};
 use nta8800_model::time::MonthlyProfile;
 use nta8800_model::zoning::UsageFunction;
-use nta8800_tables::thermal_capacity::{CeilingType, FloorMassClass, WallMassClass};
+use nta8800_tables::thermal_capacity::{
+    specific_heat_capacity, CeilingType, FloorMassClass, WallMassClass,
+};
 
 use crate::beng_geometry::BengZone;
 
@@ -84,6 +86,22 @@ pub fn derive_thermal_mass(zone: &BengZone, usage: UsageFunction) -> Option<Ther
     Some(ThermalMassInput::new(floor, wall, ceiling_type(usage)))
 }
 
+/// Naar gebruiksoppervlak gewogen specifieke interne warmtecapaciteit `D_m`
+/// [kJ/(m²·K)] over alle rekenzones (tabel 7.10), voor de lichte-bouwwijze-
+/// toeslag (Bbl art. 4.149 lid 4). `None` zodra één zone geen herkende
+/// bouwwijze heeft: dan is de toets niet te maken.
+#[must_use]
+pub fn weighted_specific_capacity(zones: &[BengZone], usage: UsageFunction) -> Option<f64> {
+    let mut som = 0.0;
+    let mut a_g = 0.0;
+    for zone in zones {
+        let tm = derive_thermal_mass(zone, usage)?;
+        som += specific_heat_capacity(tm.floor, tm.wall, tm.ceiling) * zone.a_g_m2;
+        a_g += zone.a_g_m2;
+    }
+    (a_g > 0.0).then(|| som / a_g)
+}
+
 // ---------------------------------------------------------------------------
 // C3b — interne warmtewinst woningbouw (NTA 8800 §7.5.2.1, formule 7.21)
 // ---------------------------------------------------------------------------
@@ -136,7 +154,6 @@ pub fn derive_internal_gains_woningbouw(a_g_m2: f64, n_woon: f64) -> InternalGai
 mod tests {
     use super::*;
     use nta8800_model::time::Month;
-    use nta8800_tables::thermal_capacity::specific_heat_capacity;
 
     fn zone_with(floor: Option<&str>, wall: Option<&str>) -> BengZone {
         BengZone {
@@ -146,6 +163,7 @@ mod tests {
             bouwwijze_vloer: floor.map(String::from),
             bouwwijze_wand: wall.map(String::from),
             woningtype: None,
+            gebruiksfuncties: Vec::new(),
             gevels: Vec::new(),
         }
     }

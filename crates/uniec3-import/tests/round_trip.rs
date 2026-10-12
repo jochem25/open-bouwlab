@@ -215,8 +215,8 @@ fn run_case(name: &str, uniec3_path: &str, fixture_path: &str) {
 fn aalten_round_trips_to_hand_fixture() {
     run_case(
         "aalten-2522",
-        "../../tests/verification/beng_uniec_crosscheck/aalten-2522/2522_woning-aalten_2024-11-22.uniec3",
-        "../../tests/verification/beng_uniec_crosscheck/aalten-2522/beng_geometry.input.json",
+        "../../tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/project.uniec3",
+        "../../tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/beng_geometry.input.json",
     );
 }
 
@@ -224,8 +224,8 @@ fn aalten_round_trips_to_hand_fixture() {
 fn gouda_round_trips_to_hand_fixture() {
     run_case(
         "gouda-2467",
-        "../../tests/verification/beng_uniec_crosscheck/gouda-2467/2467_goejanverwelledijk-85-gouda_2024-09-17.uniec3",
-        "../../tests/verification/beng_uniec_crosscheck/gouda-2467/beng_geometry.input.json",
+        "../../tests/fixtures.local/beng_uniec_crosscheck/gouda-2467/project.uniec3",
+        "../../tests/fixtures.local/beng_uniec_crosscheck/gouda-2467/beng_geometry.input.json",
     );
 }
 
@@ -237,13 +237,13 @@ fn certified_matches_expected_json() {
     let cases = [
         (
             "aalten-2522",
-            "../../tests/verification/beng_uniec_crosscheck/aalten-2522/2522_woning-aalten_2024-11-22.uniec3",
-            "../../tests/verification/beng_uniec_crosscheck/aalten-2522/expected.json",
+            "../../tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/project.uniec3",
+            "../../tests/fixtures.local/beng_uniec_crosscheck/aalten-2522/expected.json",
         ),
         (
             "gouda-2467",
-            "../../tests/verification/beng_uniec_crosscheck/gouda-2467/2467_goejanverwelledijk-85-gouda_2024-09-17.uniec3",
-            "../../tests/verification/beng_uniec_crosscheck/gouda-2467/expected.json",
+            "../../tests/fixtures.local/beng_uniec_crosscheck/gouda-2467/project.uniec3",
+            "../../tests/fixtures.local/beng_uniec_crosscheck/gouda-2467/expected.json",
         ),
     ];
     for (name, uniec3_path, expected_path) in cases {

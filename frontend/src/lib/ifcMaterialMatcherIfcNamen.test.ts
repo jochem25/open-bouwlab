@@ -2,29 +2,32 @@ import { describe, expect, it } from "vitest";
 
 import { matchIfcMaterial } from "./ifcMaterialMatcher";
 
-/** Materiaalnamen uit de 2786-engine-uitvoer (geen enkele laag levert lambda mee). */
+/**
+ * Materiaalnamen zoals een IFC-engine ze levert: codeprefix, Duitse of
+ * merknamen, geen lambda. Synthetisch, naar het patroon van echte exports.
+ */
 const CASES: ReadonlyArray<readonly [string, string | null]> = [
-  ["hout_vuren_generiek", "hout-naaldhout"],
+  ["a1_hout_vuren", "hout-naaldhout"],
   ["Holz", "hout-naaldhout"],
-  ["n7_isolatie_PIR", "isolatie-kunststof-pir"],
+  ["b2_isolatie_PIR", "isolatie-kunststof-pir"],
   ["luchtspouw", "spouw-spouw-niet-gevent-rd-0-17"],
-  ["f2_cempanel", "plaatmateriaal-cementgebonden-plaat"],
-  ["n7_isolatie_resol", "isolatie-kunststof-resolschuim-phenol"],
-  ["o1_glas_helder", "glas-glas-float"],
-  ["i4_beplating_multiplex", "hout-hardhout-multiplex"],
-  ["NLRS_h3_staal_verzinkt", "metaal-staal"],
+  ["c3_cempanel", "plaatmateriaal-cementgebonden-plaat"],
+  ["b2_isolatie_resol", "isolatie-kunststof-resolschuim-phenol"],
+  ["d4_glas_helder", "glas-glas-float"],
+  ["e5_beplating_multiplex", "hout-hardhout-multiplex"],
+  ["XX_f6_staal_verzinkt", "metaal-staal"],
   // Bewust geen match: kozijnprofiel / raam hebben geen databasemateriaal.
-  ["31_CWM_67x139", null],
-  ["2. Uitzetraam", null],
+  ["10_kozijnprofiel_67x139", null],
+  ["3. Uitzetraam", null],
 ];
 
-describe("matchIfcMaterial — 2786-materiaalnamen", () => {
+describe("matchIfcMaterial — materiaalnamen uit IFC-exports", () => {
   it.each(CASES)("%s -> %s", (name, id) => {
     expect(matchIfcMaterial(name).material?.id ?? null).toBe(id);
   });
 
   it("glas is beglazing, nooit Foamglas-isolatie", () => {
-    for (const n of ["glas", "Glas helder", "o1_glas_helder", "floatglas", "vensterglas"]) {
+    for (const n of ["glas", "Glas helder", "d4_glas_helder", "floatglas", "vensterglas"]) {
       const m = matchIfcMaterial(n).material;
       expect(m?.id, n).toBe("glas-glas-float");
       expect(m?.lambda).toBe(1);
