@@ -1,6 +1,6 @@
 # TODO
 
-## BENG via IFC (2026-10-12, LIVE: main 2762e39)
+## BENG via IFC (2026-10-12, LIVE: main 9ac06ee, sidecar ifc-ruimtebalans 248f561)
 
 Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-fixes.md`, contract `docs/beng-import-v1-contract.md`.
 
@@ -11,6 +11,8 @@ Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-f
 - [x] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`) - branch feat/beng-schil-viewer
 - [x] BENG-schil in de 3D-viewer van de IFC-import (schakelaar, legenda, vlakinfo, overnemen) - branch feat/beng-schil-viewer, synthetische fixture
 - [x] IFC-import naar projectniveau met bestemmingskeuze Warmteverlies/BENG (planner msg_ab7ca215c179) - branch feat/beng-schil-viewer
+- [x] Merge + deploy feat/beng-schil-viewer (go Jochem 12-10): OB 9ac06ee, sidecar 248f561 met `beng_ifc`; rooktest groen
+- [ ] Live UI-proef BENG-schil in de browser (rooktest was API + lader op live `beng_ifc`; browser-extensie niet beschikbaar)
 - [ ] Derde bestemming ventilatie (register `IMPORT_DESTINATIONS` in `frontend/src/lib/ifcImportDestinations.ts`)
 - [x] BENG-schil-viewer: contractfixture = tussenwoning van ifc-ruimtebalans 248f561 (sha in `bengShell.test.ts`); kleur per geplaatste geometrie (magenta belendingsdeel)
 - [x] Helling bij BENG: `I_sol` uit tabel 17.2 over de helling, zichtveld Zuid onder 15 graden (test `beng_helling_test.rs`)
