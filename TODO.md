@@ -8,7 +8,10 @@ Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-f
 - [x] Fix 1 f_ls (§6.7.3) · fix 2 kozijnfractie · fix 3 belemmering c/e/g · fix 4 utiliteit + Bbl 4.148A · fix 5 meetconventie A_T
 - [x] `POST /api/v1/import/beng` + schema + e2e op synthetische fixture
 - [x] Akkoord Jochem, merge en deploy (12-10; sidecar ifc-ruimtebalans 7e4e481 mee live)
-- [ ] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`); typen zijn bijgewerkt
+- [x] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`) - branch feat/beng-schil-viewer
+- [x] BENG-schil in de 3D-viewer van de IFC-import (schakelaar, legenda, vlakinfo, overnemen) - branch feat/beng-schil-viewer, synthetische fixture
+- [ ] BENG-schil-viewer: e2e tegen het echte `<naam>_beng.ifc` van ifc-ruimtebalans (B1b) en 2786; fixture vervangen door hun tussenwoning-model zodra geleverd
+- [ ] Tauri: `/import/beng` heeft nog geen command (desktop geeft een melding)
 - [ ] Onvolledige import aanvullen in OB (Rc uit de materiaalcatalogus op `opaque_defs_extra[].lagen`)
 - [ ] Zijbelemmering (§17.3.2 d, tabel 17.10/17.11) en belemmering met constante hoogte (b); Uniec `BELEMTYPE_ZIJ*` nu nog als minimal
 - [x] Review (Opus als tweede Claude + Ollama): lichte-bouwwijze-toeslag ontbrak (ankers nu exact op certified), KIND-match, woongebouw rij 1a, kelderwand AVR, validatie bij onvolledig

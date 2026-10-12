@@ -19,6 +19,10 @@
  *   statusregel meldt de gebruikte methode en het restverschil.
  * - Camera: isometrisch overzicht vanuit (1,1,1) met 15 % marge; knop "Overzicht".
  * - Het File-object leeft alleen in paginastate (prop), nooit in een store.
+ * - Schakelaar Warmteverlies / BENG-schil: de BENG-schil is het `<naam>_beng.ifc`
+ *   van ifc-ruimtebalans (`beng_ifc` in de respons), lazy geladen met web-ifc
+ *   (lib/bengShellLoader). Kleur uit het IFC, legenda per begrenzing en
+ *   orientatie (lib/bengShell), klik op een vlak geeft de Pset_KBA_BENG.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
@@ -38,6 +42,14 @@ import {
   type ViewSurface,
 } from "../../lib/ifcImportGeometry";
 import {
+  buildLegend,
+  crossCheckGevelIds,
+  type LegendEntry,
+  type ViewerMode,
+} from "../../lib/bengShell";
+import type { BengShellElement } from "../../lib/bengShellLoader";
+import { BengLegend, BengVlakInfoPanel, ViewerModeSwitch } from "./BengShellParts";
+import {
   FIT_MARGIN,
   alignByBboxMin,
   alignmentFromResponse,
@@ -56,6 +68,12 @@ interface Props {
   selectedRoomId: string | null;
   selectedSurfaceId: string | null;
   onSelectSurface: (surface: ViewSurface | null) => void;
+  /** BENG-schilmodel (`beng_ifc`, gedecodeerd); null als de analyse geen BENG had. */
+  bengShell?: Uint8Array | null;
+  /** Begin-modus van de schakelaar (BENG-schil bij 'te controleren'). */
+  initialMode?: ViewerMode;
+  /** beng-import-document uit dezelfde analyse, voor de gevel_id-controle. */
+  bengDoc?: unknown;
 }
 
 const WASM_PATH = "/wasm/";
@@ -69,6 +87,28 @@ const CLICK_MOVE_PX = 4;
 /** Boven dit bbox-restverschil is de exacte uitlijning verdacht (eenheid/frame-fout). */
 const EXACT_MAX_RESIDUAL_M = 50;
 const WATER_COLOR = "#1a6b8a"; // = BOUNDARY_CONDITION_COLORS.water in FloorCanvas3D
+const BENG_EDGE_COLOR = 0x1f2937;
+/** Vanaf deze hoek (graden) tekent EdgesGeometry een rand: alleen echte omtrekken. */
+const BENG_EDGE_ANGLE_DEG = 30;
+const BENG_EDGE_OPACITY_TRANSPARENT = 0.4;
+
+interface BengEntry {
+  el: BengShellElement;
+  mesh: THREE.Mesh;
+  base: THREE.Color;
+}
+
+type BengState =
+  | { phase: "idle" }
+  | { phase: "loading" }
+  | {
+      phase: "ready";
+      ms: number;
+      count: number;
+      legend: { entries: LegendEntry[]; mixedColors: string[] };
+      check: { alleenModel: string[]; alleenDocument: string[] } | null;
+    }
+  | { phase: "error"; message: string };
 
 const CATEGORY_VAR: Record<SurfaceCategory, [string, string]> = {
   exterior: ["--domain-boundary-exterior", "#2563eb"],
@@ -138,6 +178,9 @@ export function IfcImportViewer3D({
   selectedRoomId,
   selectedSurfaceId,
   onSelectSurface,
+  bengShell = null,
+  initialMode = "warmteverlies",
+  bengDoc,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const componentsRef = useRef<OBC.Components | null>(null);
@@ -150,8 +193,11 @@ export function IfcImportViewer3D({
   const downPos = useRef<{ x: number; y: number } | null>(null);
   const surfacesBox = useRef<THREE.Box3 | null>(null);
   const alignMatrix = useRef(new THREE.Matrix4());
+  const bengGroup = useRef(new THREE.Group());
+  const bengEntries = useRef<BengEntry[]>([]);
+  const bengBox = useRef<THREE.Box3 | null>(null);
   const applyGroupMatrix = (m: THREE.Matrix4) => {
-    for (const g of [surfaceGroup.current, openingGroup.current]) {
+    for (const g of [surfaceGroup.current, openingGroup.current, bengGroup.current]) {
       g.matrixAutoUpdate = false;
       g.matrix.copy(m);
       g.matrixWorldNeedsUpdate = true;
@@ -164,6 +210,15 @@ export function IfcImportViewer3D({
   const [showOpenings, setShowOpenings] = useState(true);
   const [buildMs, setBuildMs] = useState<number | null>(null);
   const [modelState, setModelState] = useState<ModelState>({ phase: "idle" });
+  const [mode, setMode] = useState<ViewerMode>(bengShell ? initialMode : "warmteverlies");
+  const [bengState, setBengState] = useState<BengState>({ phase: "idle" });
+  const [bengSelId, setBengSelId] = useState<number | null>(null);
+  // De BENG-status komt na de eerste render binnen: volg initialMode tot de
+  // gebruiker zelf schakelt.
+  const userSwitched = useRef(false);
+  useEffect(() => {
+    if (!userSwitched.current && bengShell) setMode(initialMode);
+  }, [initialMode, bengShell]);
 
   const colors = useRef<{ cat: Record<SurfaceCategory, THREE.Color>; danger: THREE.Color } | undefined>(undefined);
 
@@ -202,6 +257,7 @@ export function IfcImportViewer3D({
     scene.add(d2);
     scene.add(surfaceGroup.current);
     scene.add(openingGroup.current);
+    scene.add(bengGroup.current);
 
     colors.current = {
       cat: Object.fromEntries(
@@ -215,11 +271,15 @@ export function IfcImportViewer3D({
 
     const sGroup = surfaceGroup.current;
     const oGroup = openingGroup.current;
+    const bGroup = bengGroup.current;
     return () => {
       sGroup.removeFromParent();
       oGroup.removeFromParent();
+      bGroup.removeFromParent();
       disposeGroup(sGroup);
       disposeGroup(oGroup);
+      disposeGroup(bGroup);
+      bengEntries.current = [];
       components.dispose();
       componentsRef.current = null;
       worldRef.current = null;
@@ -313,13 +373,89 @@ export function IfcImportViewer3D({
     fitBox(surfacesBox.current, false);
   }, [model, fitBox]);
 
+  // --- BENG-schil (lazy bij de eerste keer BENG-modus) ---------------------
+  const bengRequested = useRef(false);
+  useEffect(() => {
+    if (mode !== "beng" || !bengShell || bengRequested.current) return;
+    bengRequested.current = true;
+    setBengState({ phase: "loading" });
+    const t0 = performance.now();
+    void (async () => {
+      try {
+        const { loadBengShell } = await import("../../lib/bengShellLoader");
+        const els = await loadBengShell(bengShell, { wasmPath: WASM_PATH });
+        const group = bengGroup.current;
+        disposeGroup(group);
+        bengEntries.current = [];
+        const box = new THREE.Box3();
+        for (const el of els) {
+          if (el.indices.length === 0) continue;
+          const g = new THREE.BufferGeometry();
+          g.setAttribute("position", new THREE.BufferAttribute(el.positions, 3));
+          g.setIndex(new THREE.BufferAttribute(el.indices, 1));
+          g.computeVertexNormals();
+          g.computeBoundingBox();
+          const base = new THREE.Color(el.color);
+          const opaque = el.opacity >= 1;
+          const mat = new THREE.MeshStandardMaterial({
+            color: base,
+            side: THREE.DoubleSide,
+            transparent: !opaque,
+            opacity: el.opacity,
+            depthWrite: opaque,
+          });
+          const mesh = new THREE.Mesh(g, mat);
+          group.add(mesh);
+          group.add(
+            new THREE.LineSegments(
+              new THREE.EdgesGeometry(g, BENG_EDGE_ANGLE_DEG),
+              new THREE.LineBasicMaterial({
+                color: BENG_EDGE_COLOR,
+                transparent: !opaque,
+                opacity: opaque ? 1 : BENG_EDGE_OPACITY_TRANSPARENT,
+              }),
+            ),
+          );
+          // Belending en overige elementen tellen niet mee voor het camerakader.
+          if (el.info?.gevel_id && g.boundingBox) box.union(g.boundingBox);
+          bengEntries.current.push({ el, mesh, base });
+        }
+        bengBox.current = box.isEmpty() ? null : box.clone().applyMatrix4(group.matrix);
+        const legend = buildLegend(els.map((e) => ({ info: e.info, color: e.color })));
+        const check = bengDoc ? crossCheckGevelIds(els.map((e) => e.info), bengDoc) : null;
+        const ms = performance.now() - t0;
+        console.info(`[IfcImportViewer3D] BENG-schil: ${els.length} elementen in ${ms.toFixed(0)} ms`);
+        setBengState({ phase: "ready", ms, count: els.length, legend, check });
+        fitBox(bengBox.current, false);
+      } catch (err) {
+        bengRequested.current = false;
+        setBengState({
+          phase: "error",
+          message: err instanceof Error ? err.message : "BENG-schil laden mislukt",
+        });
+      }
+    })();
+  }, [mode, bengShell, bengDoc, fitBox]);
+
   // --- Laag-zichtbaarheid ---------------------------------------------------
+  const isBeng = mode === "beng";
   useEffect(() => {
-    surfaceGroup.current.visible = showSurfaces;
-  }, [showSurfaces]);
+    surfaceGroup.current.visible = showSurfaces && !isBeng;
+  }, [showSurfaces, isBeng]);
   useEffect(() => {
-    openingGroup.current.visible = showOpenings;
-  }, [showOpenings]);
+    openingGroup.current.visible = showOpenings && !isBeng;
+  }, [showOpenings, isBeng]);
+  useEffect(() => {
+    bengGroup.current.visible = isBeng;
+  }, [isBeng]);
+
+  // --- Selectie BENG-schil --------------------------------------------------
+  useEffect(() => {
+    for (const e of bengEntries.current) {
+      const mat = e.mesh.material as THREE.MeshStandardMaterial;
+      mat.color.copy(e.el.expressId === bengSelId ? new THREE.Color(SELECT_COLOR) : e.base);
+    }
+  }, [bengSelId, bengState]);
   useEffect(() => {
     if (ifcModelRef.current) ifcModelRef.current.object.visible = showModel;
   }, [showModel, modelState]);
@@ -443,16 +579,30 @@ export function IfcImportViewer3D({
   }, [showModel, file, response]);
 
   // --- Picking --------------------------------------------------------------
-  const pick = (clientX: number, clientY: number): ViewSurface | null => {
+  const setRay = (clientX: number, clientY: number): boolean => {
     const container = containerRef.current;
     const cam = worldRef.current?.camera.three;
-    if (!container || !cam || !showSurfaces) return null;
+    if (!container || !cam) return false;
     const rect = container.getBoundingClientRect();
     const mouse = new THREE.Vector2(
       ((clientX - rect.left) / rect.width) * 2 - 1,
       -((clientY - rect.top) / rect.height) * 2 + 1,
     );
     raycaster.current.setFromCamera(mouse, cam);
+    return true;
+  };
+
+  const pickBeng = (clientX: number, clientY: number): number | null => {
+    if (!setRay(clientX, clientY)) return null;
+    const hit = raycaster.current.intersectObjects(
+      bengEntries.current.map((e) => e.mesh),
+      false,
+    )[0];
+    return bengEntries.current.find((e) => e.mesh === hit?.object)?.el.expressId ?? null;
+  };
+
+  const pick = (clientX: number, clientY: number): ViewSurface | null => {
+    if (!showSurfaces || !setRay(clientX, clientY)) return null;
     const meshes = entries.current
       .filter((e) => (e.mesh.material as THREE.Material).opacity > DIMMED_OPACITY || !selectedRoomId)
       .map((e) => e.mesh);
@@ -467,14 +617,28 @@ export function IfcImportViewer3D({
   return (
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-on-surface-secondary">
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showSurfaces} onChange={(e) => setShowSurfaces(e.target.checked)} />
-          Berekende vlakken
-        </label>
-        <label className="flex items-center gap-1">
-          <input type="checkbox" checked={showOpenings} onChange={(e) => setShowOpenings(e.target.checked)} />
-          Openingen
-        </label>
+        <ViewerModeSwitch
+          mode={mode}
+          bengAvailable={!!bengShell}
+          onChange={(m) => {
+            userSwitched.current = true;
+            setMode(m);
+            setBengSelId(null);
+            fitBox(m === "beng" ? bengBox.current : surfacesBox.current);
+          }}
+        />
+        {!isBeng && (
+          <>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={showSurfaces} onChange={(e) => setShowSurfaces(e.target.checked)} />
+              Berekende vlakken
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={showOpenings} onChange={(e) => setShowOpenings(e.target.checked)} />
+              Openingen
+            </label>
+          </>
+        )}
         <label
           className={`flex items-center gap-1 ${modelAvailable ? "" : "opacity-50"}`}
           title={modelAvailable ? undefined : "Het originele model is niet beschikbaar na herladen: upload het IFC opnieuw."}
@@ -496,7 +660,21 @@ export function IfcImportViewer3D({
         {modelState.phase === "error" && (
           <span className="text-red-400">Model laden mislukt: {modelState.message}</span>
         )}
+        {isBeng && bengState.phase === "loading" && <span>BENG-schil laden…</span>}
+        {isBeng && bengState.phase === "error" && (
+          <span className="text-red-400">BENG-schil laden mislukt: {bengState.message}</span>
+        )}
       </div>
+      {isBeng && bengState.phase === "ready" && bengState.check &&
+        (bengState.check.alleenModel.length > 0 || bengState.check.alleenDocument.length > 0) && (
+          <p role="status" className="text-xs text-amber-500">
+            Model en beng.json lopen uiteen:
+            {bengState.check.alleenModel.length > 0 &&
+              ` alleen in het model ${bengState.check.alleenModel.join(", ")};`}
+            {bengState.check.alleenDocument.length > 0 &&
+              ` alleen in beng.json ${bengState.check.alleenDocument.join(", ")}.`}
+          </p>
+        )}
       {modelState.phase === "ready" && modelState.note && (
         <p role="status" className="text-xs text-amber-500">
           {modelState.note}
@@ -514,7 +692,8 @@ export function IfcImportViewer3D({
           downPos.current = null;
           if (!d || e.button !== 0) return;
           if (Math.hypot(e.clientX - d.x, e.clientY - d.y) > CLICK_MOVE_PX) return;
-          onSelectSurface(pick(e.clientX, e.clientY));
+          if (isBeng) setBengSelId(pickBeng(e.clientX, e.clientY));
+          else onSelectSurface(pick(e.clientX, e.clientY));
         }}
       >
         <div className="absolute right-2 top-2 z-10 rounded bg-surface-alt/95 p-1.5 text-[10px] leading-tight shadow">
@@ -527,7 +706,16 @@ export function IfcImportViewer3D({
           >
             {legendOpen ? "Legenda ▾" : "Legenda ▸"}
           </button>
-          {legendOpen && (<div className="pointer-events-none mt-1 flex flex-col gap-0.5">
+          {legendOpen && isBeng && (
+            <div className="pointer-events-none mt-1">
+              {bengState.phase === "ready" ? (
+                <BengLegend entries={bengState.legend.entries} mixedColors={bengState.legend.mixedColors} />
+              ) : (
+                <span>BENG-schil nog niet geladen</span>
+              )}
+            </div>
+          )}
+          {legendOpen && !isBeng && (<div className="pointer-events-none mt-1 flex flex-col gap-0.5">
           {(Object.keys(CATEGORY_LABEL) as SurfaceCategory[]).map((k) => (
             <div key={k} className="flex items-center gap-1.5">
               <span className="h-2 w-3 rounded-sm" style={{ backgroundColor: legend[k] }} />
@@ -554,15 +742,35 @@ export function IfcImportViewer3D({
           type="button"
           onPointerDown={(e) => e.stopPropagation()}
           className="absolute left-2 top-2 z-10 rounded bg-surface-alt/95 px-2 py-0.5 text-[11px] shadow hover:underline"
-          onClick={() => fitBox(surfacesBox.current)}
+          onClick={() => fitBox(isBeng ? bengBox.current : surfacesBox.current)}
         >
           Overzicht
         </button>
         <div className="pointer-events-none absolute bottom-1 left-2 z-10 text-[10px] text-on-surface-muted">
-          {buildMs != null && `Vlakken opgebouwd in ${buildMs.toFixed(0)} ms`}
+          {isBeng
+            ? bengState.phase === "ready" &&
+              `BENG-schil: ${bengState.count} elementen in ${bengState.ms.toFixed(0)} ms`
+            : buildMs != null && `Vlakken opgebouwd in ${buildMs.toFixed(0)} ms`}
           {modelState.phase === "ready" && ` · origineel model ${(modelState.ms / 1000).toFixed(1)} s`}
         </div>
       </div>
+      {isBeng && (
+        <BengSelection
+          entry={bengEntries.current.find((e) => e.el.expressId === bengSelId) ?? null}
+          onClose={() => setBengSelId(null)}
+        />
+      )}
     </div>
   );
+}
+
+function BengSelection({ entry, onClose }: { entry: BengEntry | null; onClose: () => void }) {
+  if (!entry) {
+    return (
+      <p className="text-xs text-on-surface-muted">
+        Klik op een vlak voor gevel_id, zone, begrenzing, A_T en herkomst.
+      </p>
+    );
+  }
+  return <BengVlakInfoPanel info={entry.el.info} name={entry.el.name} onClose={onClose} />;
 }

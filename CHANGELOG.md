@@ -6,6 +6,9 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### ✨ Nieuw
 
+- **BENG-schil in de 3D-controle van de IFC-import** — schakelaar Warmteverlies / BENG-schil. Met het keuzevak "Ook BENG-schil" vraagt de analyse ook beng-import en het schilmodel van ifc-ruimtebalans (`uitvoer=thermal,beng`, respons `beng` + `beng_ifc`). Kleur uit het model, legenda per begrenzing en orientatie (met aantal en A_T), klik op een vlak toont gevel_id, zone, grenst_aan, orientatie, helling, A_T, constructie en herkomst; gevel_id's die niet in beng.json staan worden gemeld. Is de BENG-import 'te controleren', dan opent de viewer op de BENG-schil. Knop "BENG-geometrie overnemen" zet de geometrie in het project
+- **Knop "Importeer BENG-geometrie (.beng.json)"** op de BENG-pagina (client voor `/import/beng`): compleet vervangt de BENG-geometrie (met bevestiging), onvolledig overschrijft niets en toont de ontbrekende paden
+- **API `POST /api/v1/ifc/analyse` accepteert `uitvoer`** (`thermal`, `beng`) en geeft alleen die bekende waarden door aan de sidecar; anders 400 `invalid_uitvoer`
 - **BENG-import v1** (`POST /api/v1/import/beng`, schema `schemas/v1/beng-import.schema.json`) — BENG-geometrie uit een externe bron (de IFC-route) direct naar `project.beng_geometry`. Antwoord `compleet` met geometrie of `onvolledig` met de ontbrekende Rc/U-paden; niets wordt stil ingevuld. Zie `docs/beng-import-v1-contract.md`
 - **BENG-grenswaarden utiliteit** — alle gebruiksfuncties uit Bbl tabel 4.148A, bij meer functies gewogen naar gebruiksoppervlak (art. 4.149 lid 2); gebruiksfuncties per rekenzone in `beng_geometry.zones[].gebruiksfuncties`
 - **BENG uit de IFC-route is 'te controleren'** — `/import/beng` antwoordt met `te_controleren: true` en een melding; de geometrie krijgt `bron`, en de BENG-uitkomst draagt dan `te_controleren` plus een rode banner op de BENG-pagina, tot de route geijkt is

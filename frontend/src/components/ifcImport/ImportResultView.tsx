@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 
-import type { IfcAnalyseResponse, QcFinding } from "../../lib/ifcAnalyse";
+import { decodeEmbeddedIfc, type IfcAnalyseResponse, type QcFinding } from "../../lib/ifcAnalyse";
+import { bengImportSummary, type BengCheck } from "../../lib/bengImport";
+import { defaultViewerMode } from "../../lib/bengShell";
 import { filterApprovedRooms, type FilteredImport } from "../../lib/ifcImportFilter";
 import {
   ORIENTATION_LABEL,
@@ -51,6 +53,9 @@ interface Props {
   /** Het geuploade IFC (alleen voor de 3D-weergave); null na herladen. */
   ifcFile?: File | null;
   onImport: (filtered: FilteredImport, approvedIds: string[]) => void;
+  /** Status van de BENG-import uit dezelfde analyse (alleen met BENG-uitvoer). */
+  bengCheck?: BengCheck | null;
+  onTakeOverBeng?: () => void;
 }
 
 export function ImportResultView({
@@ -59,6 +64,8 @@ export function ImportResultView({
   existingRoomCount,
   ifcFile = null,
   onImport,
+  bengCheck = null,
+  onTakeOverBeng,
 }: Props) {
   const { thermal, qc } = response;
   const rooms = useMemo(() => realRooms(thermal), [thermal]);
@@ -71,6 +78,14 @@ export function ImportResultView({
   const [viewerOpen, setViewerOpen] = useState(true);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   const [selectedSurface, setSelectedSurface] = useState<ViewSurface | null>(null);
+  const bengShell = useMemo(
+    () => (response.beng_ifc ? decodeEmbeddedIfc(response.beng_ifc) : null),
+    [response.beng_ifc],
+  );
+  const initialViewerMode = defaultViewerMode({
+    hasBengShell: !!bengShell,
+    teControleren: bengCheck?.phase === "ready" && bengCheck.result.te_controleren,
+  });
   const viewModel = useMemo(
     () => buildViewModel(thermal, qc.findings, importResult.construction_catalog),
     [thermal, qc.findings, importResult.construction_catalog],
@@ -251,6 +266,7 @@ export function ImportResultView({
       </Card>
 
       <div className="2xl:sticky 2xl:top-4 2xl:self-start">
+        {bengCheck && <BengCheckStrip check={bengCheck} hasShell={!!bengShell} onTakeOver={onTakeOverBeng} />}
         <Card title="3D-controle">
           <button
             type="button"
@@ -269,6 +285,9 @@ export function ImportResultView({
                 selectedRoomId={selectedRoomId}
                 selectedSurfaceId={selectedSurface?.id ?? null}
                 onSelectSurface={selectSurfaceFrom3d}
+                bengShell={bengShell}
+                initialMode={initialViewerMode}
+                bengDoc={response.beng}
               />
             </Suspense>
           )}
@@ -593,5 +612,61 @@ function RoomDetail({
         ))}
       </tbody>
     </table>
+  );
+}
+
+const MAX_MELDINGEN = 5;
+
+/** BENG uit dezelfde analyse: status, meldingen en overnemen. */
+export function BengCheckStrip({
+  check,
+  hasShell,
+  onTakeOver,
+}: {
+  check: BengCheck;
+  hasShell: boolean;
+  onTakeOver?: () => void;
+}) {
+  if (check.phase === "loading") {
+    return <p className="mb-3 text-sm text-on-surface-muted">BENG-import controleren…</p>;
+  }
+  if (check.phase === "error") {
+    return (
+      <p role="alert" className="mb-3 rounded-md border border-red-400 px-3 py-2 text-sm text-red-400">
+        BENG-import uit dit IFC mislukt: {check.message}
+      </p>
+    );
+  }
+  const r = check.result;
+  return (
+    <div
+      data-testid="beng-check"
+      className={`mb-3 rounded-md border px-3 py-2 text-sm ${
+        r.te_controleren || r.status === "onvolledig" ? "border-amber-500" : "border-green-500"
+      }`}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span>
+          <strong>BENG-schil:</strong> {r.status}
+          {r.te_controleren ? " (te controleren)" : ""} - {bengImportSummary(r)}
+        </span>
+        {r.status === "compleet" && onTakeOver && (
+          <button type="button" className="rounded bg-primary px-2 py-0.5 text-xs text-on-accent" onClick={onTakeOver}>
+            BENG-geometrie overnemen
+          </button>
+        )}
+      </div>
+      {!hasShell && (
+        <p className="mt-1 text-xs text-on-surface-muted">Geen 3D-schilmodel in deze analyse.</p>
+      )}
+      {r.meldingen.length > 0 && (
+        <ul className="mt-1 list-disc pl-5 text-xs text-on-surface-secondary">
+          {r.meldingen.slice(0, MAX_MELDINGEN).map((m) => (
+            <li key={m}>{m}</li>
+          ))}
+          {r.meldingen.length > MAX_MELDINGEN && <li>en {r.meldingen.length - MAX_MELDINGEN} meer</li>}
+        </ul>
+      )}
+    </div>
   );
 }

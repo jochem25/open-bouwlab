@@ -22,6 +22,9 @@ tests/references/*.vp
 *.ifczip
 *_thermisch.ifc
 *_vlakken.ifc
+# Uitzondering: synthetische fixture (geen klantdata), gegenereerd door
+# scripts/generate_beng_schil_synthetisch.py
+!frontend/src/lib/__fixtures__/beng-schil-synthetisch.ifc
 
 # Klant-/projectdocumenten (privacy)
 *.docx

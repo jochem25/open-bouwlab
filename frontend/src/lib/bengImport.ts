@@ -31,6 +31,12 @@ export interface BengImportResult {
   source: string;
 }
 
+/** Uitkomst van `/import/beng` op het `beng`-document uit een IFC-analyse. */
+export type BengCheck =
+  | { phase: "loading" }
+  | { phase: "ready"; result: BengImportResult }
+  | { phase: "error"; message: string };
+
 export class BengImportError extends Error {
   readonly status: number;
   constructor(message: string, status: number) {

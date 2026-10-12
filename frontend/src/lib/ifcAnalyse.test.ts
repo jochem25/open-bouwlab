@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { analyseIfc, mapIfcAnalyseError, stripAnalyse, type AnalyseProgress } from "./ifcAnalyse";
+import {
+  analyseIfc,
+  decodeEmbeddedIfc,
+  mapIfcAnalyseError,
+  stripAnalyse,
+  type AnalyseProgress,
+} from "./ifcAnalyse";
 import { SessionExpiredError } from "./backend";
 import { ifcAnalyseMock } from "./__fixtures__/ifcAnalyseMock";
 
@@ -19,6 +25,22 @@ describe("stripAnalyse", () => {
     expect(stored.rooms_extra).toBe(full.rooms_extra);
     expect(stored.thermal_sha256).toBe(full.thermal_sha256);
     expect(stored.engine.commit).toBe(full.engine.commit);
+  });
+
+  it("laat ook beng en beng_ifc weg (groot, niet in het project)", () => {
+    const stored = stripAnalyse({
+      ...ifcAnalyseMock,
+      beng: { format: "beng-import" },
+      beng_ifc: { filename: "m_beng.ifc", bytes: 3, base64: "SVNP" },
+    });
+    expect(stored).not.toHaveProperty("beng");
+    expect(stored).not.toHaveProperty("beng_ifc");
+  });
+});
+
+describe("decodeEmbeddedIfc", () => {
+  it("decodeert base64 naar bytes", () => {
+    expect([...decodeEmbeddedIfc({ filename: "x.ifc", bytes: 3, base64: "SVNP" })]).toEqual([73, 83, 79]);
   });
 });
 
@@ -118,6 +140,23 @@ describe("analyseIfc", () => {
     expect(seen).toEqual([{ phase: "upload", fraction: 0.5 }, { phase: "analyse" }]);
     expect(x.open).toHaveBeenCalledWith("POST", "/api/v1/ifc/analyse");
     expect(x.withCredentials).toBe(true);
+  });
+
+  it("stuurt uitvoer=thermal,beng alleen mee als BENG gevraagd is", async () => {
+    vi.stubGlobal("XMLHttpRequest", FakeXhr);
+    const ok = { engine: { name: "e", version: "1" }, thermal: {}, qc: { verdict: "ok", findings: [] } };
+    const p1 = analyseIfc(file, undefined, { beng: true });
+    const form1 = FakeXhr.last.send.mock.calls[0]![0] as FormData;
+    FakeXhr.last.respond(200, ok);
+    await p1;
+    expect(form1.get("uitvoer")).toBe("thermal,beng");
+    expect(form1.get("file")).toBeInstanceOf(File);
+
+    const p2 = analyseIfc(file);
+    const form2 = FakeXhr.last.send.mock.calls[0]![0] as FormData;
+    FakeXhr.last.respond(200, ok);
+    await p2;
+    expect(form2.has("uitvoer")).toBe(false);
   });
 
   it("mapt een 503 naar de nette melding", async () => {

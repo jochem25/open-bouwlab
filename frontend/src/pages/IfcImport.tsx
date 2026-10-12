@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { applyThermalImport } from "../lib/applyThermalImport";
+import { BengImportError, importBengDocument, type BengCheck } from "../lib/bengImport";
 import {
   analyseIfc,
   stripAnalyse,
@@ -35,6 +36,9 @@ export function IfcImport() {
   const [progress, setProgress] = useState<AnalyseProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [withBeng, setWithBeng] = useState(false);
+  const [bengCheck, setBengCheck] = useState<BengCheck | null>(null);
+  const setBengGeometry = useProjectStore((s) => s.setBengGeometry);
 
   const existingRoomCount = useProjectStore((s) => s.project.rooms.length);
   const replaceRoomsFromImport = useProjectStore((s) => s.replaceRoomsFromImport);
@@ -49,19 +53,47 @@ export function IfcImport() {
     setBusy(true);
     setError(null);
     setLoaded(null);
+    setBengCheck(null);
     setProgress({ phase: "upload", fraction: 0 });
     try {
-      const response = await analyseIfc(file, setProgress);
+      const response = await analyseIfc(file, setProgress, { beng: withBeng });
       // Hergebruik de echte mapping + catalogus van de bestaande thermal-import.
       const importResult = await importThermal(response.thermal);
       setLoaded({ response, importResult, file });
+      if (response.beng) {
+        // Status (compleet/onvolledig, te controleren) bepaalt o.a. de begin-
+        // weergave van de 3D-viewer; overnemen gebeurt pas op de knop.
+        setBengCheck({ phase: "loading" });
+        importBengDocument(response.beng).then(
+          (result) => setBengCheck({ phase: "ready", result }),
+          (e: unknown) =>
+            setBengCheck({
+              phase: "error",
+              message: e instanceof BengImportError || e instanceof Error ? e.message : String(e),
+            }),
+        );
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "IFC-analyse mislukt");
     } finally {
       setBusy(false);
       setProgress(null);
     }
-  }, []);
+  }, [withBeng]);
+
+  const handleTakeOverBeng = useCallback(() => {
+    if (bengCheck?.phase !== "ready" || !bengCheck.result.beng_geometry) return;
+    const hasGeometry = !!useProjectStore.getState().bengGeometry;
+    if (
+      hasGeometry &&
+      !window.confirm("De BENG-geometrie van dit project vervangen door die uit het IFC?")
+    ) {
+      return;
+    }
+    setBengGeometry(bengCheck.result.beng_geometry);
+    addToast("BENG-geometrie overgenomen uit het IFC (te controleren)", "success");
+    navigate("/beng");
+  }, [bengCheck, setBengGeometry, addToast, navigate]);
 
   const handleImport = useCallback(
     (filtered: FilteredImport, approvedIds: string[]) => {
@@ -137,7 +169,14 @@ export function IfcImport() {
             nog niet overgenomen analyse: pas tonen als die is overgenomen of gewist. */}
         {!loaded && origin && <IfcImportOriginNote origin={origin} />}
         {!loaded && <IfcImportChecklistPanel />}
-        <UploadPanel busy={busy} progress={progress} error={error} onFile={handleFile} />
+        <UploadPanel
+          busy={busy}
+          progress={progress}
+          error={error}
+          onFile={handleFile}
+          beng={withBeng}
+          onBengChange={setWithBeng}
+        />
         {loaded && (
           <ImportResultView
             key={loaded.response.source_filename + loaded.response.thermal.exported_at}
@@ -146,6 +185,8 @@ export function IfcImport() {
             ifcFile={loaded.file}
             existingRoomCount={existingRoomCount}
             onImport={handleImport}
+            bengCheck={bengCheck}
+            onTakeOverBeng={handleTakeOverBeng}
           />
         )}
       </div>
