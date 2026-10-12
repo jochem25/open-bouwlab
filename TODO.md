@@ -1,13 +1,13 @@
 # TODO
 
-## BENG via IFC (2026-10-12, branch `feat/beng-ifc`, NIET gemerged)
+## BENG via IFC (2026-10-12, LIVE: main 2762e39)
 
 Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-fixes.md`, contract `docs/beng-import-v1-contract.md`.
 
 - [x] Contract beng-import v1 afgesproken met ifc-ruimtebalans (envelope met geneste `beng_geometry`, optionele blokken genegeerd in v1)
 - [x] Fix 1 f_ls (§6.7.3) · fix 2 kozijnfractie · fix 3 belemmering c/e/g · fix 4 utiliteit + Bbl 4.148A · fix 5 meetconventie A_T
 - [x] `POST /api/v1/import/beng` + schema + e2e op synthetische fixture
-- [ ] Akkoord Jochem voor merge en deploy
+- [x] Akkoord Jochem, merge en deploy (12-10; sidecar ifc-ruimtebalans 7e4e481 mee live)
 - [ ] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`); typen zijn bijgewerkt
 - [ ] Onvolledige import aanvullen in OB (Rc uit de materiaalcatalogus op `opaque_defs_extra[].lagen`)
 - [ ] Zijbelemmering (§17.3.2 d, tabel 17.10/17.11) en belemmering met constante hoogte (b); Uniec `BELEMTYPE_ZIJ*` nu nog als minimal
