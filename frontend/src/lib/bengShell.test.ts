@@ -19,6 +19,9 @@ import {
 import { loadBengShell } from "./bengShellLoader";
 
 const FIXTURE = fileURLToPath(new URL("./__fixtures__/beng-schil-synthetisch.ifc", import.meta.url));
+/** Echte uitvoer van ifc-ruimtebalans (synthetische tussenwoning, B1b 12-10-2026). */
+const RB_IFC = fileURLToPath(new URL("./__fixtures__/rb-tussenwoning_beng.ifc", import.meta.url));
+const RB_DOC = fileURLToPath(new URL("./__fixtures__/rb-tussenwoning.beng.json", import.meta.url));
 
 function pset(name: string, props: Record<string, unknown>): RawPropertySet {
   return {
@@ -89,6 +92,7 @@ describe("orientatie en legenda", () => {
       "aangrenzende_verwarmde_ruimte:deels",
     );
     expect(legendKey({ extra: {}, window_def: "wd-A", gevel_id: "g-1" })).toBe("raam");
+    expect(legendKey({ extra: { soort: "deur" }, window_def: "wd-B", gevel_id: "g-1" })).toBe("raam");
     expect(legendKey({ extra: {}, vlak_type: "belending" })).toBe("belending");
     expect(legendKey(null)).toBe("overig");
     expect(legendLabel("buitenlucht:ZW")).toBe("Buitenlucht zuidwest");
@@ -102,15 +106,19 @@ describe("orientatie en legenda", () => {
       { info: { ...gevelZ, gevel_id: "g-2", A_T_m2: 2 }, color: "#F05433" },
       { info: { ...gevelZ, grenst_aan: "water" }, color: "#1a6b8a" },
       { info: { extra: {}, window_def: "wd-A", A_T_m2: 4.8 }, color: "#99d9ff" },
+      { info: { extra: {}, window_def: "wd-B", A_T_m2: 2 }, color: "#2e86c1" },
+      { info: { extra: {}, window_def: "wd-A", A_T_m2: 2 }, color: "#99d9ff" },
       { info: { ...gevelZ, gevel_id: "g-3", orientatie: "N" }, color: "#000000" },
     ]);
     expect(entries.map((e) => [e.key, e.count, e.a_t_m2])).toEqual([
       ["buitenlucht:N", 2, 56],
       ["buitenlucht:Z", 2, 30],
       ["water", 1, 28],
-      ["raam", 1, 0],
+      ["raam", 3, 0],
     ]);
+    // Ramen: kleur per kozijnmerk is bedoeld, geen afwijking.
     expect(mixedColors).toEqual(["buitenlucht:N"]);
+    expect(entries.find((e) => e.key === "raam")?.merken).toBe(2);
   });
 });
 
@@ -224,5 +232,30 @@ describe("loadBengShell (web-ifc, synthetische tussenwoning)", () => {
     const xs = [...zuid.positions].filter((_, i) => i % 3 === 0);
     expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(5, 6);
     for (const v of zuid.positions) expect(Math.abs(v)).toBeLessThan(10);
+  });
+});
+
+describe("contract met ifc-ruimtebalans (hun tussenwoning-uitvoer)", () => {
+  it("vlakken, raam en belendingen; gevel_id's en som A_T kloppen met beng.json", async () => {
+    const els = await loadBengShell(new Uint8Array(readFileSync(RB_IFC)));
+    const doc = JSON.parse(readFileSync(RB_DOC, "utf-8")) as {
+      beng_geometry: { zones: Array<{ gevels: Array<{ id: string; bruto_buiten_opp_m2: number }> }> };
+    };
+    const soort = (k: string) => els.filter((e) => elementKind(e.info) === k).length;
+    expect([soort("vlak"), soort("raam"), soort("belending"), soort("overig")]).toEqual([6, 1, 2, 0]);
+    expect(crossCheckGevelIds(els.map((e) => e.info), doc)).toEqual({ alleenModel: [], alleenDocument: [] });
+
+    const gevels = doc.beng_geometry.zones.flatMap((z) => z.gevels);
+    const somDoc = gevels.reduce((n, g) => n + g.bruto_buiten_opp_m2, 0);
+    const somModel = els.filter((e) => elementKind(e.info) === "vlak").reduce((n, e) => n + (e.info?.A_T_m2 ?? 0), 0);
+    expect(somModel).toBeCloseTo(somDoc, 6);
+
+    const legend = buildLegend(els.map((e) => ({ info: e.info, color: e.color })));
+    expect(legend.mixedColors).toEqual([]);
+    expect(legend.entries.map((e) => e.key)).toContain("aangrenzende_verwarmde_ruimte:deels");
+    for (const e of els.filter((x) => elementKind(x.info) === "vlak")) {
+      expect(e.info?.herkomst).toBeTruthy();
+      expect(e.info?.zone).toBe("rz-1");
+    }
   });
 });

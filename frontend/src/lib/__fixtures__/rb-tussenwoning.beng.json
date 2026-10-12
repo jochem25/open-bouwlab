@@ -1,0 +1,467 @@
+{
+  "format": "beng-import",
+  "version": "1.0",
+  "source": "ifc-ruimtebalans@22eb9078c2a14524113dbf5c70c0e0acaffb9267 (werkmap gewijzigd)",
+  "exported_at": "2026-10-12",
+  "project_name": "tussenwoning_belending_deels [maatregime=isso51-vertrek]",
+  "true_north_deg": 0.0,
+  "compleet": false,
+  "beng_geometry": {
+    "opaque_defs": [
+      {
+        "id": "od-0ad47305",
+        "omschrijving": "(geen typenaam)",
+        "kind": "gevel"
+      },
+      {
+        "id": "od-35b18517",
+        "omschrijving": "(geen typenaam)",
+        "kind": "dak"
+      },
+      {
+        "id": "od-648b14cb",
+        "omschrijving": "(geen typenaam)",
+        "kind": "gevel"
+      },
+      {
+        "id": "od-a724f75b",
+        "omschrijving": "(geen typenaam)",
+        "kind": "vloer"
+      }
+    ],
+    "window_defs": [
+      {
+        "id": "wd-09269ade",
+        "omschrijving": "raam",
+        "kind": "raam",
+        "area_m2": 1.8
+      }
+    ],
+    "zones": [
+      {
+        "id": "rz-1",
+        "naam": "gebouw",
+        "a_g_m2": 80.0,
+        "gevels": [
+          {
+            "id": "g-rz-1-01",
+            "vlak_type": "vloer",
+            "grenst_aan": "vloer_op_maaiveld_boven_grond",
+            "bruto_buiten_opp_m2": 40.0,
+            "constructie_ref": "od-a724f75b",
+            "omtrek_p_m": 13.95
+          },
+          {
+            "id": "g-rz-1-02",
+            "vlak_type": "gevel",
+            "grenst_aan": "aangrenzende_verwarmde_ruimte",
+            "bruto_buiten_opp_m2": 66.28,
+            "constructie_ref": "od-648b14cb",
+            "omschrijving": "belending",
+            "helling_deg": 90.0
+          },
+          {
+            "id": "g-rz-1-03",
+            "vlak_type": "gevel",
+            "grenst_aan": {
+              "buitenlucht": {
+                "orientatie": "noord"
+              }
+            },
+            "bruto_buiten_opp_m2": 27.5,
+            "constructie_ref": "od-0ad47305",
+            "helling_deg": 90.0
+          },
+          {
+            "id": "g-rz-1-04",
+            "vlak_type": "gevel",
+            "grenst_aan": {
+              "buitenlucht": {
+                "orientatie": "oost"
+              }
+            },
+            "bruto_buiten_opp_m2": 21.72,
+            "constructie_ref": "od-648b14cb",
+            "helling_deg": 90.0
+          },
+          {
+            "id": "g-rz-1-05",
+            "vlak_type": "gevel",
+            "grenst_aan": {
+              "buitenlucht": {
+                "orientatie": "zuid"
+              }
+            },
+            "bruto_buiten_opp_m2": 27.5,
+            "constructie_ref": "od-0ad47305",
+            "helling_deg": 90.0,
+            "ramen": [
+              {
+                "kozijn_ref": "wd-09269ade",
+                "aantal": 1
+              }
+            ]
+          },
+          {
+            "id": "g-rz-1-06",
+            "vlak_type": "dak",
+            "grenst_aan": {
+              "buitenlucht": {
+                "orientatie": "horizontaal"
+              }
+            },
+            "bruto_buiten_opp_m2": 40.0,
+            "constructie_ref": "od-35b18517",
+            "helling_deg": 0.0
+          }
+        ]
+      }
+    ]
+  },
+  "herkomst": [
+    {
+      "pad": "/beng_geometry/zones/0/a_g_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NEN 2580 GO benaderd: vereniging van de IfcSpace-doorsneden op vloerpeil, gesloten over spleten tot 0.40 m (binnenwanden); geen aftrek schachten/vides"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/0/bruto_buiten_opp_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 K.1.2/K.1.4 binnenwerks; zie docs/beng-import.md"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/0/omtrek_p_m",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 8.3.2.2: lengte van de randen van de onderste bouwlaag waar de wand aan buitenlucht of een onverwarmde ruimte grenst"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/1/bruto_buiten_opp_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 K.1.2/K.1.4 binnenwerks; zie docs/beng-import.md"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/2/bruto_buiten_opp_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 K.1.2/K.1.4 binnenwerks; zie docs/beng-import.md"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/3/bruto_buiten_opp_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 K.1.2/K.1.4 binnenwerks; zie docs/beng-import.md"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/4/bruto_buiten_opp_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 K.1.2/K.1.4 binnenwerks; zie docs/beng-import.md"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/5/bruto_buiten_opp_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "NTA 8800 K.1.2/K.1.4 binnenwerks; zie docs/beng-import.md"
+    },
+    {
+      "pad": "/beng_geometry/zones/0/gevels/4/ramen",
+      "bron": "ifc_afgeleid",
+      "methode": "thermal openings[] per host-constructie; belemmering niet bepaald (OB-default none)"
+    },
+    {
+      "pad": "/beng_geometry/window_defs/0/area_m2",
+      "bron": "ifc_afgeleid",
+      "methode": "breedte x hoogte van de opening (kozijnbuitenmaat, op het vlak geclipt)"
+    },
+    {
+      "pad": "/beng_geometry/window_defs/0/u_w_per_m2k",
+      "bron": "ontbreekt"
+    },
+    {
+      "pad": "/beng_geometry/window_defs/0/ggl",
+      "bron": "ontbreekt"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/0",
+      "bron": "ifc_afgeleid",
+      "methode": "een definitie per laagopbouw (materiaal, dikte) en vlaktype"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/0/thermal",
+      "bron": "ontbreekt",
+      "methode": "Rc/U komen niet uit IFC (B-05)"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/1",
+      "bron": "ifc_afgeleid",
+      "methode": "een definitie per laagopbouw (materiaal, dikte) en vlaktype"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/1/thermal",
+      "bron": "ontbreekt",
+      "methode": "Rc/U komen niet uit IFC (B-05)"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/2",
+      "bron": "ifc_afgeleid",
+      "methode": "een definitie per laagopbouw (materiaal, dikte) en vlaktype"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/2/thermal",
+      "bron": "ontbreekt",
+      "methode": "Rc/U komen niet uit IFC (B-05)"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/3",
+      "bron": "ifc_afgeleid",
+      "methode": "een definitie per laagopbouw (materiaal, dikte) en vlaktype"
+    },
+    {
+      "pad": "/beng_geometry/opaque_defs/3/thermal",
+      "bron": "ontbreekt",
+      "methode": "Rc/U komen niet uit IFC (B-05)"
+    }
+  ],
+  "zones_extra": [
+    {
+      "zone_id": "rz-1",
+      "ruimten": [
+        "room-0000000000000000000008",
+        "room-000000000000000000000A",
+        "room-000000000000000000000C"
+      ],
+      "bouwlagen": [
+        {
+          "vloer_z_m": 0.0,
+          "ruimten": 2,
+          "plattegrond_m2": 40.0,
+          "ruimten_m2": 39.5,
+          "spleet_m2": 0.5
+        },
+        {
+          "vloer_z_m": 2.9,
+          "ruimten": 1,
+          "plattegrond_m2": 40.0,
+          "ruimten_m2": 40.0,
+          "spleet_m2": 0.0
+        }
+      ],
+      "zone_bron": "standaard: een zone"
+    }
+  ],
+  "gevels_extra": [
+    {
+      "gevel_id": "g-rz-1-01",
+      "binnen_opp_m2": 39.5,
+      "constructies": [
+        "c-3b2c457fe5fb1db7",
+        "c-b51bf9632545544c"
+      ],
+      "azimut_deg": null,
+      "rand_m": null
+    },
+    {
+      "gevel_id": "g-rz-1-02",
+      "binnen_opp_m2": 62.27,
+      "constructies": [
+        "c-47acbb2dadd5d52b",
+        "c-9705fb4a997786d7",
+        "c-a745b5ff2047e1ea",
+        "c-be1ab458ba9af8d2",
+        "c-c3d105de2b5b0e25"
+      ],
+      "azimut_deg": 209.5,
+      "rand_m": 24.101
+    },
+    {
+      "gevel_id": "g-rz-1-03",
+      "binnen_opp_m2": 26.0,
+      "constructies": [
+        "c-32c80d831ca5211f",
+        "c-a3ffa9d9cc08a15c"
+      ],
+      "azimut_deg": 170.2,
+      "rand_m": 10.0
+    },
+    {
+      "gevel_id": "g-rz-1-04",
+      "binnen_opp_m2": 20.41,
+      "constructies": [
+        "c-94b8c32d63c25972",
+        "c-a745b5ff2047e1ea"
+      ],
+      "azimut_deg": 90.0,
+      "rand_m": 7.899
+    },
+    {
+      "gevel_id": "g-rz-1-05",
+      "binnen_opp_m2": 26.0,
+      "constructies": [
+        "c-2b958734f904ad88",
+        "c-4d2ba172f0d6f8ae"
+      ],
+      "azimut_deg": 180.0,
+      "rand_m": 10.0
+    },
+    {
+      "gevel_id": "g-rz-1-06",
+      "binnen_opp_m2": 40.0,
+      "constructies": [
+        "c-86f0aa2206a2ee23"
+      ],
+      "azimut_deg": null,
+      "rand_m": null
+    }
+  ],
+  "opaque_defs_extra": [
+    {
+      "id": "od-0ad47305",
+      "lagen": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 100.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        },
+        {
+          "material": "n7_isolatie_PIR",
+          "thickness_mm": 100.0,
+          "type": "solid",
+          "distance_from_interior_mm": 100.0
+        }
+      ],
+      "typenamen": [
+        "(geen typenaam)"
+      ]
+    },
+    {
+      "id": "od-35b18517",
+      "lagen": [
+        {
+          "material": "n7_isolatie_PIR",
+          "thickness_mm": 300.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "typenamen": [
+        "(geen typenaam)"
+      ]
+    },
+    {
+      "id": "od-648b14cb",
+      "lagen": [
+        {
+          "material": "kalkzandsteen",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        }
+      ],
+      "typenamen": [
+        "(geen typenaam)"
+      ]
+    },
+    {
+      "id": "od-a724f75b",
+      "lagen": [
+        {
+          "material": "beton",
+          "thickness_mm": 200.0,
+          "type": "solid",
+          "distance_from_interior_mm": 0.0
+        },
+        {
+          "material": "n7_isolatie_PIR",
+          "thickness_mm": 100.0,
+          "type": "solid",
+          "distance_from_interior_mm": 200.0
+        }
+      ],
+      "typenamen": [
+        "(geen typenaam)"
+      ]
+    }
+  ],
+  "window_defs_extra": [
+    {
+      "id": "wd-09269ade",
+      "openingen": [
+        "o-000000000000000000000U"
+      ],
+      "width_mm": 1200.0,
+      "height_mm": 1500.0,
+      "ifc_type": "window"
+    }
+  ],
+  "meldingen": [
+    {
+      "code": "BENG-KOZIJN-ONVOLLEDIG",
+      "ernst": "blokkerend",
+      "tekst": "U_w (en voor ramen ggl) niet bekend: niet in thermal.json en geen regel in beng.kozijnen; OB weigert deze definities",
+      "window_defs": [
+        "wd-09269ade"
+      ]
+    },
+    {
+      "code": "BENG-RC-ONTBREEKT",
+      "ernst": "blokkerend",
+      "tekst": "Rc/U onbekend (B-05: de engine rekent niet); vul beng.constructies in de projectconfig of laat OB ze uit de materiaalcatalogus halen",
+      "opaque_defs": [
+        "od-0ad47305",
+        "od-35b18517",
+        "od-648b14cb",
+        "od-a724f75b"
+      ]
+    },
+    {
+      "code": "BENG-VLOER-OP-MAAIVELD",
+      "ernst": "info",
+      "tekst": "vloer zonder ruimte eronder, onderkant hooguit beng.vloer_spouw_max_m boven maaiveld: vloer op maaiveld boven grond (Uniec VL_MV_GRSP), niet boven buitenlucht",
+      "vlakken": [
+        "{\"boven_maaiveld_m\": -0.15, \"constructie\": \"c-3b2c457fe5fb1db7\"}",
+        "{\"boven_maaiveld_m\": -0.15, \"constructie\": \"c-b51bf9632545544c\"}"
+      ]
+    },
+    {
+      "code": "BENG-BELENDING",
+      "ernst": "info",
+      "tekst": "buitenwanden met een belending erachter: aangrenzend gebouw (f_ls 0), geleverd als aangrenzende_verwarmde_ruimte",
+      "vlakken": [
+        {
+          "constructie": "c-47acbb2dadd5d52b",
+          "bedekt": 1.0,
+          "route": "model"
+        },
+        {
+          "constructie": "c-c3d105de2b5b0e25",
+          "bedekt": 1.0,
+          "route": "model"
+        },
+        {
+          "constructie": "c-be1ab458ba9af8d2",
+          "bedekt": 1.0,
+          "route": "model"
+        },
+        {
+          "constructie": "c-a745b5ff2047e1ea",
+          "bedekt": 0.5062,
+          "route": "model"
+        },
+        {
+          "constructie": "c-9705fb4a997786d7",
+          "bedekt": 1.0,
+          "route": "model"
+        }
+      ]
+    },
+    {
+      "code": "BENG-BELENDING-DEELS",
+      "ernst": "waarschuwing",
+      "tekst": "wand deels achter een belending; het onbedekte deel blijft buitengevel. Is het buurgebouw daar niet getekend, dan is A_ls te hoog",
+      "vlakken": [
+        {
+          "constructie": "c-a745b5ff2047e1ea",
+          "bedekt": 0.5062,
+          "route": "model"
+        }
+      ]
+    }
+  ]
+}

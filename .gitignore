@@ -25,6 +25,8 @@ tests/references/*.vp
 # Uitzondering: synthetische fixture (geen klantdata), gegenereerd door
 # scripts/generate_beng_schil_synthetisch.py
 !frontend/src/lib/__fixtures__/beng-schil-synthetisch.ifc
+# Synthetische tussenwoning van ifc-ruimtebalans (B1b, 12-10-2026), contractfixture
+!frontend/src/lib/__fixtures__/rb-tussenwoning_beng.ifc
 
 # Klant-/projectdocumenten (privacy)
 *.docx

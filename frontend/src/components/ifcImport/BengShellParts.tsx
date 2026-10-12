@@ -67,7 +67,8 @@ export function BengLegend({ entries, mixedColors }: { entries: LegendEntry[]; m
           <span>{e.label}</span>
           <span className="text-on-surface-muted">
             ({e.count}
-            {e.a_t_m2 > 0 ? `, ${fmt.format(e.a_t_m2)} m2` : ""})
+            {e.a_t_m2 > 0 ? `, ${fmt.format(e.a_t_m2)} m2` : ""}
+            {e.merken ? `, ${e.merken} kozijnmerken, kleur per merk` : ""})
           </span>
         </div>
       ))}

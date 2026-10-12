@@ -182,7 +182,7 @@ export function legendKey(info: BengVlakInfo | null): string {
 }
 
 export function legendLabel(key: string): string {
-  if (key === "raam") return "Raam (uitgesneden)";
+  if (key === "raam") return "Ramen en deuren (uitgesneden)";
   if (key === "belending") return "Belending (gebouw ernaast)";
   if (key === "overig") return "Overig element";
   const [ga, sub] = key.split(":");
@@ -207,6 +207,8 @@ export interface LegendEntry {
   count: number;
   /** Som A_T (m2) van de vlakken in deze groep. */
   a_t_m2: number;
+  /** Alleen bij ramen: aantal kozijnmerken (elk merk een eigen kleur). */
+  merken?: number;
 }
 
 function legendRank(key: string): number {
@@ -221,22 +223,28 @@ function legendRank(key: string): number {
  * Legenda uit de geladen elementen. Een groep krijgt de kleur van het eerste
  * element; een tweede kleur binnen dezelfde groep telt als afwijking
  * (`mixedColors`), zodat een verschil met de legenda van ifc-ruimtebalans opvalt.
+ * Uitzondering: ramen hebben een kleur per kozijnmerk (window_def); daar telt
+ * de legenda de merken.
  */
 export function buildLegend(items: LegendInput[]): { entries: LegendEntry[]; mixedColors: string[] } {
   const map = new Map<string, LegendEntry>();
   const mixed = new Set<string>();
+  const merken = new Set<string>();
   for (const it of items) {
     const key = legendKey(it.info);
+    if (key === "raam" && it.info?.window_def) merken.add(it.info.window_def);
     const e = map.get(key);
     const a = elementKind(it.info) === "vlak" ? (it.info?.A_T_m2 ?? 0) : 0;
     if (e) {
       e.count += 1;
       e.a_t_m2 += a;
-      if (e.color.toLowerCase() !== it.color.toLowerCase()) mixed.add(key);
+      if (key !== "raam" && e.color.toLowerCase() !== it.color.toLowerCase()) mixed.add(key);
     } else {
       map.set(key, { key, label: legendLabel(key), color: it.color, count: 1, a_t_m2: a });
     }
   }
+  const raam = map.get("raam");
+  if (raam) raam.merken = merken.size;
   const entries = [...map.values()].sort(
     (x, y) => legendRank(x.key) - legendRank(y.key) || x.key.localeCompare(y.key),
   );
