@@ -7,11 +7,12 @@ Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-f
 - [x] Contract beng-import v1 afgesproken met ifc-ruimtebalans (envelope met geneste `beng_geometry`, optionele blokken genegeerd in v1)
 - [x] Fix 1 f_ls (§6.7.3) · fix 2 kozijnfractie · fix 3 belemmering c/e/g · fix 4 utiliteit + Bbl 4.148A · fix 5 meetconventie A_T
 - [x] `POST /api/v1/import/beng` + schema + e2e op synthetische fixture
-- [ ] Review (Sonnet of dual) en akkoord Jochem voor merge en deploy
+- [ ] Akkoord Jochem voor merge en deploy
 - [ ] Frontend: knop 'BENG-geometrie importeren' op de BENG-pagina (client voor `/import/beng`); typen zijn bijgewerkt
 - [ ] Onvolledige import aanvullen in OB (Rc uit de materiaalcatalogus op `opaque_defs_extra[].lagen`)
 - [ ] Zijbelemmering (§17.3.2 d, tabel 17.10/17.11) en belemmering met constante hoogte (b); Uniec `BELEMTYPE_ZIJ*` nu nog als minimal
-- [ ] f_ls 0,7 toetsen tegen een woning-export uit Uniec 3.4+ (Aalten/Gouda zijn Uniec 3.3 en passen bij ~0,8)
+- [x] Review (Opus als tweede Claude + Ollama): lichte-bouwwijze-toeslag ontbrak (ankers nu exact op certified), KIND-match, woongebouw rij 1a, kelderwand AVR, validatie bij onvolledig
+- [ ] Review-restpunten (laag): `Obstruction::validate` ook op de SharedGeometry-route; onbekende sleutels dieper in beng-import worden genegeerd; editor zet leeg h_o op 1,0; drijvende woning (Bbl rij 1c/1d) ontbreekt
 - [ ] Uniec-gebruiksfunctiecodes naast `GF_BIJEENOVER` bevestigen met echte exports
 - [ ] Rekenkern utiliteit: BENG1-indicator wijkt fors af van certified op het utiliteitsproject (grenswaarden kloppen wel)
 - [ ] Optionele blokken lezen: `aansluitingen` (psi-koppeling), `vloeren_per_bouwlaag` (C5b), `pv_vlakken`

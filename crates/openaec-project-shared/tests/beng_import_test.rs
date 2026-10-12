@@ -236,3 +236,12 @@ fn schema_laat_thermal_en_u_w_optioneel() {
     assert!(req("WindowDef").contains(&"area_m2".to_string()));
     assert_eq!(s["additionalProperties"], Value::Bool(false));
 }
+
+#[test]
+fn onvolledig_document_met_ongeldige_inhoud_is_een_validatiefout() {
+    let mut doc = fixture();
+    doc["compleet"] = Value::Bool(false);
+    doc["beng_geometry"]["opaque_defs"][0].as_object_mut().unwrap().remove("thermal");
+    doc["beng_geometry"]["zones"][0]["gevels"][1]["constructie_ref"] = Value::String("weg".into());
+    assert!(matches!(import_beng(&doc), Err(BengImportError::Validatie(_))));
+}

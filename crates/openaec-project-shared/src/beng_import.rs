@@ -204,6 +204,12 @@ pub fn import_beng(doc: &Value) -> Result<BengImportResult, BengImportError> {
         let mut probe = doc.clone();
         vul_ontbrekend_voor_controle(&mut probe);
         let typed = parse_typed(&probe)?;
+        // Ook de inhoud (referenties, oppervlakken) nu al toetsen; de vervanger
+        // zelf (U = 1,0) doorstaat de validatie altijd.
+        typed
+            .beng_geometry
+            .validate()
+            .map_err(|e| BengImportError::Validatie(e.to_string()))?;
         let mut result = basis_resultaat(&typed, obj);
         result.status = BengImportStatus::Onvolledig;
         result.ontbrekend = ontbrekend;

@@ -225,3 +225,12 @@ fn zontoetreding_schaalt_met_1_min_f_fr() {
         assert!((ratio - 1.2).abs() < 1e-9, "{m:?}: {ratio}");
     }
 }
+
+/// Kelderwand naar een aangrenzende verwarmde ruimte: §6.7.3 a geldt (0),
+/// niet c. A_ls = 207 − 0,7·10 = 200 m².
+#[test]
+fn kelderwand_naar_avr_weegt_nul() {
+    let mut geo = geo_alle_begrenzingen();
+    geo.zones[0].gevels[4].grenst_aan = BengAdjacency::AangrenzendeVerwarmdeRuimte;
+    assert!((geo.loss_surface_area_m2() - 200.0).abs() < 1e-9);
+}

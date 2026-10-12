@@ -58,6 +58,14 @@ De Gouda-fixture had overstek en volledig als minimal; die is gecorrigeerd
 naar de bron. Merk I stond in de oude notitie als VOLLEDIG; de bron zegt
 overstek.
 
+## 4b. Woongebouw en lichte bouwwijze
+
+- Woningtypen portiek, galerij en gestapeld krijgen zonder gebruiksfuncties de
+  grens van Bbl tabel 4.148A rij 1a (woongebouw) in plaats van 1e.
+- Lichte-bouwwijze-toeslag (art. 4.149 lid 4) op de BENG1-grens als de
+  gewogen D_m (tabel 7.10, uit de bouwwijze-codes) ≤ 180 is. Alleen voor de
+  rijen waar lid 4 geldt (1a, 1e, 7b); niet bij onbekende bouwwijze.
+
 ## 4. Utiliteit
 
 - `TGEB_UTILIT` wordt ingelezen. A_g per rekenzone is de som van de
@@ -86,15 +94,17 @@ voor (main 806513a) en na (deze branch):
 |---|---|---|---|---|
 | Aalten | BENG1 | 97,58 (−5,9 %) | 97,58 (−5,9 %) | 103,69 |
 | Aalten | A_ls | 245,7 | 225,6 | 232,3 (terugrekening) |
-| Aalten | BENG1-grens | 133,39 | 118,39 | 123,39 |
+| Aalten | BENG1-grens | 133,39 | 123,39 | 123,39 |
 | Gouda | BENG1 | 82,98 (−13,4 %) | 81,69 (−14,8 %) | 95,86 |
-| Gouda | BENG1-grens | 99,37 | 91,40 | 96,40 |
+| Gouda | BENG1-grens | 99,37 | 96,40 | 96,40 |
 
 - De Aalten-afwijking op BENG1 verandert niet: f_ls raakt alleen de grens, de
   Aalten-fixture heeft geen overstek of volledige belemmering.
-- De grens kwam boven certified uit en komt nu eronder. Certified (Uniec 3.3,
-  2024) past bij een weging van ongeveer 0,8 op de grondvloer; de huidige norm
-  zegt 0,7. Vermoedelijk een oudere normversie in die Uniec; niet vastgesteld.
+- De grens is nu op beide ankers gelijk aan certified. Daarvoor waren twee
+  dingen nodig: f_ls 0,7 en de lichte-bouwwijze-toeslag (Bbl art. 4.149 lid 4,
+  +5 bij een gewogen D_m ≤ 180 kJ/(m²·K); beide ankers D_m = 180). De toeslag
+  werd nergens toegepast. Gevonden in de review: beide ankers weken na de
+  f_ls-fix exact 5,00 af.
 - Gouda BENG1 zakt 1,3 procentpunt; alleen de belemmering in de fixture is
   veranderd (nu gelijk aan de bron). De afwijking zelf zit in
   de rekenkern (bekend, zie TODO).
@@ -104,6 +114,4 @@ voor (main 806513a) en na (deze branch):
 
 - Zijbelemmering (§17.3.2 d, tabel 17.10/17.11) en belemmering met constante
   hoogte (b).
-- f_ls 0,7 tegen de Uniec 3.3-fixtures: toetsen op een woning-export uit Uniec
-  3.4 of later.
 - Gebruiksfunctiecodes buiten `GF_BIJEENOVER` bevestigen met echte exports.

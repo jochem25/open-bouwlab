@@ -30,7 +30,9 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🐛 Bug fixes
 
-- **A_ls zonder f_ls-weging** — de verliesoppervlakte telde grond en kruipruimte voor 1 mee; nu 0,7 (NTA 8800 §6.7.3), aangrenzende verwarmde ruimte 0. Raakt de BENG1-grens, niet de indicator (Aalten-grens 133,4 → 118,4)
+- **A_ls zonder f_ls-weging** — de verliesoppervlakte telde grond en kruipruimte voor 1 mee; nu 0,7 (NTA 8800 §6.7.3), aangrenzende verwarmde ruimte 0. Raakt de BENG1-grens, niet de indicator
+- **Lichte-bouwwijze-toeslag op de BENG1-grens** (Bbl art. 4.149 lid 4, +5 bij D_m ≤ 180) werd niet toegepast. Met f_ls samen zijn de Aalten- en Gouda-grenzen nu gelijk aan certified (123,39 en 96,40)
+- **Woongebouw** (portiek, galerij, gestapeld) kreeg de grens van een grondgebonden woning; nu Bbl tabel 4.148A rij 1a
 - **Vloer boven buitenlucht uit Uniec** viel op 'vloer op grond' en eiste een omtrek; nu buitenlucht, horizontaal
 - **Meetconventie A_T vastgelegd** (NTA 8800 K.1.2/K.1.4, binnenwerkse afsnijvlakken, doorlopend over verdiepingsvloeren): `docs/2026-10-12-beng-meetconventie-a-t.md`
 - **"Opgesteld door" in het colofon toonde het service-account** van de rapportproxy — de Reports API vult lege `adviseur_*`-velden met het profiel van de aanroeper, en dat is via de proxy het service-account. De proxy (`/report/generate` en `/constructie/rapport`) vult nu zelf `colofon.adviseur_naam` (weergavenaam, anders gebruikersnaam), `adviseur_bedrijf` (organisatienaam) en `adviseur_email` (e-mail van de gebruiker), alleen als de frontend ze leeg liet

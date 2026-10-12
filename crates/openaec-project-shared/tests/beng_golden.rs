@@ -1226,3 +1226,14 @@ fn uniec_aalten_2522() {
 }
 
 
+
+/// Aalten-grens met f_ls (NTA 8800 §6.7.3) en de lichte-bouwwijze-toeslag
+/// (Bbl art. 4.149 lid 4; D_m = 180 uit CONSTRM_FL_26/W_11, tabel 7.10):
+/// A_ls/A_g = 225,64 / 67 = 3,3678 → 100 + 50·0,3678 + 5 = 123,39 = certified.
+#[test]
+fn aalten_beng1_grens_gelijk_aan_certified() {
+    let fx: UniecExpected = serde_json::from_str(UNIEC_AALTEN_EXPECTED).unwrap();
+    let r = compute_beng(&aalten_project_with_beng_geometry()).unwrap();
+    let lim = r.beng1.limit.unwrap();
+    assert!((lim - fx.expected.beng1_limit_kwh_m2_jr).abs() < 0.01, "grens {lim}");
+}

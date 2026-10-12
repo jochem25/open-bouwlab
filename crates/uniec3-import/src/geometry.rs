@@ -334,7 +334,10 @@ pub(crate) fn gebruiksfunctie_from_code(code: &str) -> Option<(BblGebruiksfuncti
         return Some((F::BijeenkomstOverig, true));
     }
     let c = code.to_ascii_uppercase();
-    let f = if c.contains("BIJEEN") {
+    let f = if c.contains("KIND") {
+        // Vóór de IND-test: "KIND" bevat "IND".
+        F::BijeenkomstKinderopvang
+    } else if c.contains("BIJEEN") {
         if c.contains("KIND") {
             F::BijeenkomstKinderopvang
         } else {
@@ -757,5 +760,23 @@ fn map_shading(
             ));
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod gebruiksfunctie_tests {
+    use super::*;
+
+    #[test]
+    fn kind_wordt_geen_industrie() {
+        assert_eq!(
+            gebruiksfunctie_from_code("GF_KINDEROPV").map(|(f, _)| f),
+            Some(BblGebruiksfunctie::BijeenkomstKinderopvang)
+        );
+        assert_eq!(
+            gebruiksfunctie_from_code("GF_INDUSTRIE").map(|(f, _)| f),
+            Some(BblGebruiksfunctie::Industriefunctie)
+        );
+        assert_eq!(gebruiksfunctie_from_code("GF_BIJEENOVER"), Some((BblGebruiksfunctie::BijeenkomstOverig, true)));
     }
 }

@@ -68,11 +68,14 @@ use nta8800_demand::model::{InternalGains, ThermalMassInput};
 use crate::energy::{
     DhwGeneratorType, EnergyInput, HeatGeneratorType, ValueSource, ValueSourceKind,
 };
+/// Grens voor de lichte-bouwwijze-toeslag, Bbl art. 4.149 lid 4 [kJ/(m²·K)].
+const LICHTE_BOUWWIJZE_DM_MAX_KJ_M2K: f64 = 180.0;
+
 use crate::beng_geometry::{F_LS_EXTERN, F_LS_GROND_KRUIPRUIMTE, F_LS_INTERN};
 use crate::geometry::{BoundaryKind, SharedGeometry};
 use crate::nta8800_view::{geometry_to_nta8800, map_usage_function, orientation_from_degrees};
 use crate::project::ProjectV2;
-use crate::shared::{HeatRecovery, VentilationSystemKind};
+use crate::shared::{BuildingTypeShared, HeatRecovery, ResidentialType, VentilationSystemKind};
 use crate::tojuli::{compute_tojuli_full, TojuliFullInputs, TojuliResult};
 
 use mapping::{
@@ -318,6 +321,8 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
     // A_ls (§6.7.2) rechtstreeks uit de BENG-geometrie: de brug naar
     // SharedGeometry verliest het onderscheid kruipruimte/AOR dat f_ls nodig heeft.
     let mut beng_a_ls: Option<f64> = None;
+    // Naar A_g gewogen D_m (tabel 7.10) voor de lichte-bouwwijze-toeslag.
+    let mut beng_d_m: Option<f64> = None;
 
     let bridged;
     let project = match project.beng_geometry.as_ref() {
@@ -327,6 +332,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
             let n_gevels: usize = bg.zones.iter().map(|z| z.gevels.len()).sum();
             let usage_for_dynamics = map_usage_function(&project.shared.building_type);
             beng_a_ls = Some(bg.loss_surface_area_m2());
+            beng_d_m = dynamics::weighted_specific_capacity(&bg.zones, usage_for_dynamics);
             let multi = bg.zones.len() > 1;
 
             // C3b — interne warmtewinst woningbouw (formule 7.21). Uniform over de
@@ -734,9 +740,30 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         .flat_map(|z| z.gebruiksfuncties.iter())
         .map(|gf| (gf.functie, gf.a_g_m2))
         .collect();
+    if !aandelen.is_empty() {
+        let zonder: Vec<&str> = project
+            .beng_geometry
+            .iter()
+            .flat_map(|bg| bg.zones.iter())
+            .filter(|z| z.gebruiksfuncties.is_empty())
+            .map(|z| z.id.as_str())
+            .collect();
+        if !zonder.is_empty() {
+            notes.push(format!(
+                "Rekenzone(s) zonder gebruiksfunctie tellen niet mee in de weging van de                  BENG-grenswaarden: {}.",
+                zonder.join(", ")
+            ));
+        }
+    }
     let limits = if aandelen.is_empty() {
         match usage {
-            UsageFunction::Woonfunctie => Some(BengLimits::for_woonfunctie(als_ag)),
+            UsageFunction::Woonfunctie => match &project.shared.building_type {
+                // Bbl tabel 4.148A: woonfunctie in een woongebouw = rij 1a.
+                BuildingTypeShared::Woning {
+                    subtype: ResidentialType::Porch | ResidentialType::Gallery | ResidentialType::Stacked,
+                } => BengLimits::for_bbl_functie(nta8800_ep::BblGebruiksfunctie::Woongebouw, als_ag),
+                _ => Some(BengLimits::for_woonfunctie(als_ag)),
+            },
             other => {
                 let l = BengLimits::for_utiliteit(other, als_ag);
                 if l.is_none() {
@@ -765,6 +792,27 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
         });
         l
     };
+    // Bbl art. 4.149 lid 4: bij een gewogen D_m ≤ 180 kJ/(m²·K) gaat de
+    // BENG1-grens met 5 omhoog. Alleen voor de rijen waar lid 4 geldt
+    // (woonfunctie 1a/1e, logies 7b) en alleen als de bouwwijze bekend is.
+    let lid4_functies = aandelen.iter().all(|(f, _)| {
+        use nta8800_ep::BblGebruiksfunctie as F;
+        matches!(f, F::AndereWoonfunctie | F::Woongebouw | F::LogiesOverig)
+    });
+    let lid4_van_toepassing = if aandelen.is_empty() {
+        usage == UsageFunction::Woonfunctie
+    } else {
+        lid4_functies
+    };
+    let mut limits = limits;
+    if let (Some(l), Some(d_m), true) = (limits.as_mut(), beng_d_m, lid4_van_toepassing) {
+        if d_m <= LICHTE_BOUWWIJZE_DM_MAX_KJ_M2K {
+            l.beng1_max_kwh_per_m2 += nta8800_ep::beng::LICHTE_BOUWWIJZE_TOESLAG_KWH_M2;
+            notes.push(format!(
+                "Lichte-bouwwijze-toeslag toegepast (Bbl art. 4.149 lid 4): gewogen D_m =                  {d_m:.0} kJ/(m²·K) ≤ 180 → BENG1-grens + 5 kWh/(m²·jr)."
+            ));
+        }
+    }
     let assessment = limits.map(|l| BengAssessment::assess(&indicators, &l));
 
     let beng1 = indicator_report(indicators.beng1_kwh_per_m2, assessment.map(|a| a.beng1));
@@ -785,7 +833,7 @@ pub fn compute_beng(project: &ProjectV2) -> Result<BengResult, BengError> {
                 .into(),
         );
     }
-    if usage == UsageFunction::Woonfunctie && beng_thermal_mass.is_none() {
+    if usage == UsageFunction::Woonfunctie && beng_d_m.is_none() {
         notes.push(
             "Lichte-bouwwijze-toeslag (Bbl 4.149 lid 4) niet automatisch toegepast — geen \
              bouwwijze-code in de invoer, C_m valt terug op de default lichte woning (F3)."

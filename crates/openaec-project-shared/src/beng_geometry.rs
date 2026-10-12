@@ -469,7 +469,9 @@ impl BengBoundary {
     /// overige vlakken volgt hij uit [`BengAdjacency::f_ls`].
     #[must_use]
     pub fn f_ls(&self) -> f64 {
-        if self.vlak_type == VlakType::Kelderwand {
+        if self.vlak_type == VlakType::Kelderwand
+            && self.grenst_aan != BengAdjacency::AangrenzendeVerwarmdeRuimte
+        {
             F_LS_GROND_KRUIPRUIMTE
         } else {
             self.grenst_aan.f_ls()

@@ -61,5 +61,10 @@ import meldt het aantal zodat de gebruiker kiest.
 
 ## Versies
 
-Minor-versies voegen alleen optionele velden toe. Een nieuwe sha van het
-schema wordt aan ifc-ruimtebalans gemeld; zij pinnen het bestand.
+Een minor-versie voegt alleen optionele velden toe, maar OB accepteert alleen
+de versies die het kent en weigert onbekende sleutels op het hoogste niveau.
+Een nieuwe versie gaat dus eerst in OB, daarna bij de bron. Een nieuwe sha van
+het schema wordt aan ifc-ruimtebalans gemeld; zij pinnen het bestand.
+
+Bij `onvolledig` wordt de inhoud (referenties, oppervlakken) wel al getoetst:
+een fout daarin geeft 422.
