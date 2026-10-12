@@ -6,6 +6,11 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### ✨ Nieuw
 
+- **BENG-import v1** (`POST /api/v1/import/beng`, schema `schemas/v1/beng-import.schema.json`) — BENG-geometrie uit een externe bron (de IFC-route) direct naar `project.beng_geometry`. Antwoord `compleet` met geometrie of `onvolledig` met de ontbrekende Rc/U-paden; niets wordt stil ingevuld. Zie `docs/beng-import-v1-contract.md`
+- **BENG-grenswaarden utiliteit** — alle gebruiksfuncties uit Bbl tabel 4.148A, bij meer functies gewogen naar gebruiksoppervlak (art. 4.149 lid 2); gebruiksfuncties per rekenzone in `beng_geometry.zones[].gebruiksfuncties`
+- **Uniec-import leest utiliteit** (`TGEB_UTILIT`) — gebruiksfuncties en A_g per rekenzone uit `UNIT-RZ-GF`; onbekende functiecodes geven een waarschuwing, geen gok
+- **Belemmering: overstek, volledige en overige belemmering** (NTA 8800 §17.3.2 c/e/g, tabellen 17.8, 17.9, 17.13, 17.14), ook uit de Uniec-import (`BELEMTYPE_CO_EN_ZIJ`, `_VOLLEDIG`, `_OVERIG`)
+- **Kozijnfractie per kozijnmerk** (`window_defs[].frame_fraction`, NTA 8800 §7.6.6.2); zonder waarde het forfait 0,25
 - **Tabblad IFC-import** (`/ifc-import`, vervangt IFC-reconstructie bèta; `/ifc-reconstructie` stuurt door) — IFC uploaden (max 100 MB), samenvatting met modelcheck en QC-bevindingen, ruimtetabel met grensvlakken/openingen/constructies, per ruimte goedkeuren, overnemen via de bestaande thermal-import v1.2 (vervangen of annuleren bij een project met ruimten), daarna naar Vertrekken
 - **API `POST /api/v1/ifc/analyse`** — geeft de upload door aan de IFC-analyse-sidecar (`IFC_ANALYSE_URL`, `IFC_ANALYSE_TIMEOUT_S`); 503 `analyse_unavailable` als die ontbreekt, 422/502/504 bij sidecar-fouten
 - **Checklist "Nog in te vullen na IFC-import"** op Vertrekken en IFC-import: vlakken zonder U (tellen als 0 W/K), geschatte ruimtefuncties, gebruikte projectdefaults; live, met links
@@ -25,6 +30,9 @@ Belangrijke wijzigingen in Open Heatloss Studio. Volgt [Keep a Changelog](https:
 
 ### 🐛 Bug fixes
 
+- **A_ls zonder f_ls-weging** — de verliesoppervlakte telde grond en kruipruimte voor 1 mee; nu 0,7 (NTA 8800 §6.7.3), aangrenzende verwarmde ruimte 0. Raakt de BENG1-grens, niet de indicator (Aalten-grens 133,4 → 118,4)
+- **Vloer boven buitenlucht uit Uniec** viel op 'vloer op grond' en eiste een omtrek; nu buitenlucht, horizontaal
+- **Meetconventie A_T vastgelegd** (NTA 8800 K.1.2/K.1.4, binnenwerkse afsnijvlakken, doorlopend over verdiepingsvloeren): `docs/2026-10-12-beng-meetconventie-a-t.md`
 - **"Opgesteld door" in het colofon toonde het service-account** van de rapportproxy — de Reports API vult lege `adviseur_*`-velden met het profiel van de aanroeper, en dat is via de proxy het service-account. De proxy (`/report/generate` en `/constructie/rapport`) vult nu zelf `colofon.adviseur_naam` (weergavenaam, anders gebruikersnaam), `adviseur_bedrijf` (organisatienaam) en `adviseur_email` (e-mail van de gebruiker), alleen als de frontend ze leeg liet
 - **Bearer-tokens (ak-*) kregen geen groepen** — de groepen uit `users/me` werden niet gelezen, waardoor ook de constructie-entitlement via Bearer nooit werkte
 

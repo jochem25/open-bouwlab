@@ -1,6 +1,7 @@
 //! Request handlers for the ISSO 51 API.
 
 mod beng;
+mod beng_import;
 mod calculation;
 mod constructie;
 mod cooling;
@@ -13,6 +14,7 @@ mod uniec_import;
 mod user;
 
 pub use beng::beng_calculate;
+pub use beng_import::beng_import_handler;
 pub use uniec_import::import_uniec3_handler;
 pub use calculation::{calculate, calculate_v2, get_schema, health, list_schemas};
 pub use constructie::constructie_routes;

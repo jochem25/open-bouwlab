@@ -147,6 +147,7 @@ async fn main() {
         .route("/calculate_v2", post(handlers::calculate_v2))
         .route("/calculate/ifcx", post(handlers::calculate_ifcx_handler))
         .route("/import/thermal", post(handlers::thermal_import_handler))
+        .route("/import/beng", post(handlers::beng_import_handler))
         .route("/cooling/simplified", post(handlers::simplified_cooling))
         .route("/tojuli/calculate", post(handlers::tojuli_calculate))
         .route("/beng/calculate", post(handlers::beng_calculate))

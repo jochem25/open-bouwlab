@@ -1,0 +1,974 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "definitions": {
+    "BblGebruiksfunctie": {
+      "description": "Gebruiksfuncties zoals Bbl tabel 4.148A ze onderscheidt (subtypen van bijeenkomst-, gezondheidszorg- en logiesfunctie apart).\n\nWoonwagen en drijvende bouwwerken (rij 1b-1d) en \"bouwwerk geen gebouw zijnde\" (rij 12) zijn niet opgenomen.",
+      "oneOf": [
+        {
+          "description": "Bbl tabel 4.148A, rij 1e: andere woonfunctie (grondgebonden woning).",
+          "enum": [
+            "andere_woonfunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 1a: woongebouw.",
+          "enum": [
+            "woongebouw"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 2a: bijeenkomstfunctie voor kinderopvang.",
+          "enum": [
+            "bijeenkomst_kinderopvang"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 2b: andere bijeenkomstfunctie.",
+          "enum": [
+            "bijeenkomst_overig"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 3: celfunctie.",
+          "enum": [
+            "celfunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 4a: gezondheidszorgfunctie met bedgebied.",
+          "enum": [
+            "gezondheidszorg_met_bedgebied"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 4b: andere gezondheidszorgfunctie.",
+          "enum": [
+            "gezondheidszorg_overig"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 5: industriefunctie (geen BENG-eis).",
+          "enum": [
+            "industriefunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 6: kantoorfunctie.",
+          "enum": [
+            "kantoorfunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 7a: logiesfunctie in een logiesgebouw.",
+          "enum": [
+            "logies_in_logiesgebouw"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 7b: andere logiesfunctie.",
+          "enum": [
+            "logies_overig"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 8: onderwijsfunctie.",
+          "enum": [
+            "onderwijsfunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 9: sportfunctie.",
+          "enum": [
+            "sportfunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 10: winkelfunctie.",
+          "enum": [
+            "winkelfunctie"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bbl tabel 4.148A, rij 11: overige gebruiksfunctie (geen BENG-eis).",
+          "enum": [
+            "overige_gebruiksfunctie"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "BengAdjacency": {
+      "description": "Waar een begrenzingsvlak aan grenst (Uniec `BEGR_VLOER`/`BEGR_GEVEL`/ `BEGR_DAK` referentie-enums, §2 van de velden-inventarisatie).\n\nDeze typologie is preciezer dan [`crate::geometry::BoundaryKind`]: ze dekt de vloer-subtypes (op/onder maaiveld × kruipruimte/grond/kelder), de forfaitaire onverwarmde-buffer-begrenzingen (AOS/AOR), sterk geventileerd en water. Voor buitenlucht draagt de variant de **8-punts oriëntatie** mee ([`Orientation::Horizontaal`] = Uniecs `HOR` voor een plat dak) — dat is hoe Uniec de oriëntatie codeert (`GVL_BTNL_N` etc.), dus één bron van waarheid. Bij [`Self::AosForfaitair`] is de oriëntatie **optioneel**: Uniec kent zowel een gevel/dak-AOS *mét* richting als een vloer-AOS *zónder* richting (§2). We modelleren dat als één variant met `Option<Orientation>` (i.p.v. twee aparte varianten), zodat de JSON compact blijft — `None` serialiseert als `{\"aos_forfaitair\":{}}`. Gebruik [`Self::orientatie`] om de richting te lezen.",
+      "oneOf": [
+        {
+          "description": "Op/boven maaiveld, boven kruipruimte. Uniec `BEGR_VLOER`-optie.",
+          "enum": [
+            "vloer_op_maaiveld_boven_kruipruimte"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Op/boven maaiveld, boven grond/spouw (z ≤ 0,3). Uniec `VL_MV_GRSP`.",
+          "enum": [
+            "vloer_op_maaiveld_boven_grond"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Op/boven maaiveld, boven onverwarmde kelder. Uniec `BEGR_VLOER`-optie.",
+          "enum": [
+            "vloer_op_maaiveld_boven_onverwarmde_kelder"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Onder maaiveld, boven kruipruimte. Uniec `BEGR_VLOER`-optie.",
+          "enum": [
+            "vloer_onder_maaiveld_boven_kruipruimte"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Onder maaiveld, boven grond/spouw (z ≤ 0,3). Uniec `BEGR_VLOER`-optie.",
+          "enum": [
+            "vloer_onder_maaiveld_boven_grond"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Onder maaiveld, boven onverwarmde kelder. Uniec `BEGR_VLOER`-optie.",
+          "enum": [
+            "vloer_onder_maaiveld_boven_onverwarmde_kelder"
+          ],
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Buitenlucht met oriëntatie. Uniec `GVL_BTNL_{Z..NW}` / `DAK_BTNL_*` (`HOR` = [`Orientation::Horizontaal`]).",
+          "properties": {
+            "buitenlucht": {
+              "properties": {
+                "orientatie": {
+                  "allOf": [
+                    {
+                      "$ref": "#/definitions/Orientation"
+                    }
+                  ],
+                  "description": "Kompasrichting (of `Horizontaal` voor een plat dak)."
+                }
+              },
+              "required": [
+                "orientatie"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "buitenlucht"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Sterk geventileerde ruimte/spouw. Uniec `sterk geventileerd`.",
+          "enum": [
+            "sterk_geventileerd"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Open water. Uniec `water`.",
+          "enum": [
+            "water"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Aangrenzende verwarmde ruimte (AVR). Uniec `AVR`.",
+          "enum": [
+            "aangrenzende_verwarmde_ruimte"
+          ],
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Aangrenzende onverwarmde serre/ruimte (AOS), forfaitair. Uniec `AOS forfaitair; {richting}` (gevel/dak, mét richting) óf `AOS forfaitair` (vloer, zónder richting).",
+          "properties": {
+            "aos_forfaitair": {
+              "properties": {
+                "orientatie": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/definitions/Orientation"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Kompasrichting (of `Horizontaal`) van het AOS-vlak; `None` voor de vloer-AOS die geen oriëntatie draagt."
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "aos_forfaitair"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Aangrenzende onverwarmde ruimte (AOR), forfaitair. Uniec `AOR forfaitair`.",
+          "enum": [
+            "aor_forfaitair"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "BengBoundary": {
+      "description": "Eén begrenzingsvlak van de thermische schil (Uniec `Begrenzing` + `Constructies/{vlak}`) — de gevel-georiënteerde kern van dit blok.\n\nCombineert de begrenzing (vlak-type, grenst-aan, buiten-oppervlak, helling, omtrek) met de constructie-plaatsing (opake-ref + ramen). Uniec splitst dit over twee pagina's (`Begrenzing` en `Constructies/{id}`); wij houden het per vlak bij elkaar.",
+      "properties": {
+        "bruto_buiten_opp_m2": {
+          "description": "Geprojecteerde oppervlakte `A_T` in m² (Uniec begrenzing-`opp`), bruto (inclusief ramen en deuren), per gevelvlak van de rekenzone.\n\n**Meetconventie: NTA 8800 bijlage K.1.2 met de afsnijvlakken van K.1.4** (via §6.9.1/§6.9.2). Ondanks de veldnaam is dat GEEN buitenmaat: de afsnijvlakken liggen op de binnenwerkse vlakken van de schil (gevel vanaf vloerpeil begane grond, dak tot het snijpunt met het binnenoppervlak van de gevel), en verdiepingsvloeren onderbreken de gevel niet. Een vloer op grond of boven een kruipruimte is binnenwerks (§6.9.3). De naam blijft staan voor de 1-op-1-aansluiting op Uniec en het beng-import-contract. Zie `docs/2026-10-12-beng-meetconventie-a-t.md`.",
+          "format": "double",
+          "type": "number"
+        },
+        "constructie_ref": {
+          "description": "Referentie naar de opake constructie in [`BengGeometry::opaque_defs`] (Uniec `CONSTRD_LIB`).",
+          "type": "string"
+        },
+        "grenst_aan": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/BengAdjacency"
+            }
+          ],
+          "description": "Waar het vlak aan grenst (Uniec `BEGR_VLOER`/`BEGR_GEVEL`/`BEGR_DAK`); voor buitenlucht/AOS draagt de variant de oriëntatie mee, zie [`BengAdjacency`]."
+        },
+        "helling_deg": {
+          "description": "Helling in graden t.o.v. horizontaal (Uniec `BEGR_HEL`; 90 = gevel, 15 = hellend dak). `None` voor een vloer (\"n.v.t.\" in Uniec).",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Unieke id binnen de zone (Uniec begrenzingsvlak-id).",
+          "type": "string"
+        },
+        "omschrijving": {
+          "description": "Vlak-omschrijving (Uniec `BEGR_OMSCHR`, bv. \"Wand\", \"Dak\").",
+          "type": "string"
+        },
+        "omtrek_p_m": {
+          "description": "Omtrek P van het vloerveld in m (Uniec `omtrek van het vloerveld (P)`). Verplicht bij een vloer-op-grond (P/A-methode, NTA 8800 bijlage); afwezig voor overige vlakken. Zie [`BengAdjacency::requires_omtrek`].",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ramen": {
+          "description": "Ramen/deuren op dit vlak (Uniec `Constructies/{vlak}` → kozijn-plaatsingen).",
+          "items": {
+            "$ref": "#/definitions/BengWindowPlacement"
+          },
+          "type": "array"
+        },
+        "vlak_type": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/VlakType"
+            }
+          ],
+          "description": "Vlak-type (Uniec `BEGR_VLAK`)."
+        }
+      },
+      "required": [
+        "bruto_buiten_opp_m2",
+        "constructie_ref",
+        "grenst_aan",
+        "id",
+        "vlak_type"
+      ],
+      "type": "object"
+    },
+    "BengGeometry": {
+      "description": "Gevel-georiënteerde BENG-geometrie-invoer (F6). Zie module-doc.\n\nAdditief invoerblok náást [`crate::geometry::SharedGeometry`]; alle velden hebben een default zodat een half-ingevuld formulier geldig blijft en bestaande JSON byte-identiek round-trippt.",
+      "properties": {
+        "opaque_defs": {
+          "description": "Bouwkundige bibliotheek — opake constructie-definities (Uniec `LIBCONSTRD_*`). Door de gevels gerefereerd via [`BengBoundary::constructie_ref`].",
+          "items": {
+            "$ref": "#/definitions/OpaqueConstructionDef"
+          },
+          "type": "array"
+        },
+        "window_defs": {
+          "description": "Kozijn-bibliotheek — kozijnmerk-definities (Uniec `LIBCONSTRT_*`). Door de ramen gerefereerd via [`BengWindowPlacement::kozijn_ref`].",
+          "items": {
+            "$ref": "#/definitions/WindowDef"
+          },
+          "type": "array"
+        },
+        "zones": {
+          "description": "Rekenzones (Uniec `RZ`). Meestal één voor een grondgebonden woning.",
+          "items": {
+            "$ref": "#/definitions/BengZone"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "BengWindowPlacement": {
+      "description": "Een kozijn-plaatsing op een gevel (Uniec `Constructies/{vlak}` → `CONSTRT_LIB` + belemmering/zonwering/zomernachtventilatie).\n\nVerwijst naar een [`WindowDef`] en geeft het aantal exemplaren plus de per-raam-eigenschappen. Belemmering en zonwering hergebruiken de bestaande `nta8800-model`-typen (die al op [`crate::geometry::Opening`] hangen) — geen duplicaat-typen.",
+      "properties": {
+        "aantal": {
+          "default": 1,
+          "description": "Aantal identieke exemplaren op deze gevel (Uniec plaatsings-`aantal`). De totale oppervlakte is `aantal · WindowDef::area_m2`.",
+          "format": "uint32",
+          "minimum": 0.0,
+          "type": "integer"
+        },
+        "belemmering": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/Obstruction"
+            }
+          ],
+          "description": "Externe belemmering (Uniec `CONSTRT_BESCH`, NTA 8800 §17.3). Default [`Obstruction::None`]; bij de default niet geserialiseerd zodat JSON byte-identiek blijft.\n\n`nta8800-model::Obstruction` kent de situaties a), c), e) en g) van §17.3.2 (minimaal, overstek, volledig, overig); zijbelemmering (d) en belemmering met constante hoogte (b) niet."
+        },
+        "kozijn_ref": {
+          "description": "Referentie naar het kozijnmerk in [`BengGeometry::window_defs`] (Uniec `CONSTRT_LIB`).",
+          "type": "string"
+        },
+        "zomernachtventilatie": {
+          "description": "Zomernachtventilatie via dit raam aanwezig (Uniec `CONSTRT_ZNVENT`; `ZOMERNVENT_NAANW` = niet aanwezig = `false`).",
+          "type": "boolean"
+        },
+        "zonwering": {
+          "anyOf": [
+            {
+              "$ref": "#/definitions/MovableSunShading"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Beweegbare zonwering (Uniec `CONSTRT_ZONW`, NTA 8800 §7.6.6.1.4). `None` = geen zonwering (Uniec `ZONW_GEEN`)."
+        }
+      },
+      "required": [
+        "kozijn_ref"
+      ],
+      "type": "object"
+    },
+    "BengZone": {
+      "description": "Rekenzone (Uniec `RZ`, NTA 8800 §6.2) — thermisch samenhangend gebied met zijn eigen begrenzing (de thermische schil).",
+      "properties": {
+        "a_g_m2": {
+          "description": "Gebruiksoppervlakte A_g in m² (Uniec `A_g gebruiksoppervlak`, NTA 8800 §6). Noemer van de BENG-indicatoren.",
+          "format": "double",
+          "type": "number"
+        },
+        "bouwwijze_vloer": {
+          "description": "Bouwwijze vloer (thermische massa, Uniec `RZ_BOUWW_VL`, bv. `CONSTRM_FL_26` = massief beton zeer zwaar). Vrij-veld met de Uniec-code; relevant voor TOjuli/dynamica, nog niet verrekend in fase 1.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "bouwwijze_wand": {
+          "description": "Bouwwijze wand (Uniec `RZ_BOUWW_W`, bv. `CONSTRM_W_11` = hsb licht). Zie [`Self::bouwwijze_vloer`].",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gebruiksfuncties": {
+          "description": "Gebruiksfuncties in deze rekenzone met hun gebruiksoppervlak (Uniec `UNIT-RZ-GF`). Stuurt de BENG-grenswaarden (Bbl tabel 4.148A, bij meer functies gewogen naar gebruiksoppervlak, Bbl art. 4.149 lid 2). Leeg = de functie volgt uit het gebouwtype van het project.",
+          "items": {
+            "$ref": "#/definitions/GebruiksfunctieAandeel"
+          },
+          "type": "array"
+        },
+        "gevels": {
+          "description": "De begrenzingsvlakken die de thermische schil van deze zone vormen (Uniec `Begrenzing`).",
+          "items": {
+            "$ref": "#/definitions/BengBoundary"
+          },
+          "type": "array"
+        },
+        "id": {
+          "description": "Unieke id binnen [`BengGeometry::zones`].",
+          "type": "string"
+        },
+        "naam": {
+          "description": "Rekenzone-omschrijving (Uniec `RZ_OMSCHR`, bv. \"woning\").",
+          "type": "string"
+        },
+        "woningtype": {
+          "description": "Woningtype (Uniec `UNIT_TYPEWON`, bv. `TWON_VRIJ_K` = vrijstaand met kap). Bepaalt onder meer het infiltratie-forfait.",
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "a_g_m2",
+        "id"
+      ],
+      "type": "object"
+    },
+    "GebruiksfunctieAandeel": {
+      "description": "Eén gebruiksfunctie binnen een rekenzone met haar gebruiksoppervlak.",
+      "properties": {
+        "a_g_m2": {
+          "description": "Gebruiksoppervlak van deze functie in m² (> 0).",
+          "format": "double",
+          "type": "number"
+        },
+        "functie": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/BblGebruiksfunctie"
+            }
+          ],
+          "description": "Gebruiksfunctie volgens de indeling van Bbl tabel 4.148A."
+        }
+      },
+      "required": [
+        "a_g_m2",
+        "functie"
+      ],
+      "type": "object"
+    },
+    "KozijnType": {
+      "description": "Type kozijn-vulling (Uniec `LIBCONSTRT_TYPE`).",
+      "oneOf": [
+        {
+          "description": "Raam (transparant, draagt g-waarde). Uniec `TRANSTYPE_RAAM`.",
+          "enum": [
+            "raam"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Deur (opaak of glas). Uniec `TRANSTYPE_DEUR`.",
+          "enum": [
+            "deur"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Paneel in kozijn (opaak vlak binnen een kozijn). Uniec `TRANSTYPE_PANEEL`.",
+          "enum": [
+            "paneel_in_kozijn"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "MovableSunShading": {
+      "description": "Beweegbare zonwering op een raam (screen, jaloezie, rolluik, uitval-/ knikarmscherm), NTA 8800 §7.6.6.1.4, formules (7.42)/(7.43).\n\nHet maandgemiddelde van de totale zontoetredingsfactor wordt met beweegbare zonwering:\n\n```text g_gl;wi;mi = (1 − f_sh;with;mi) · g_gl;wi + f_sh;with;mi · (F_c · g_gl;wi)      (7.42)/(7.43) ```\n\nzodat de effectieve g-reductiefactor per maand `(1 − f_sh;with) + f_sh;with · F_c` bedraagt. `f_sh;with` volgt uit [`ShadingControl`], `F_c` uit tabel 7.5/7.6.",
+      "properties": {
+        "control": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/ShadingControl"
+            }
+          ],
+          "description": "Bedieningsregime (bepaalt het `f_sh;with`-profiel)."
+        },
+        "f_c": {
+          "description": "Reductiefactor `F_c` voor de totale zontoetredingsfactor (0..=1), forfaitair uit NTA 8800 tabel 7.5 (screens/jaloezieën/rolluiken/ gemetalliseerde weefsels) of tabel 7.6 (uitval-/knikarmschermen).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "control",
+        "f_c"
+      ],
+      "type": "object"
+    },
+    "Obstruction": {
+      "description": "Externe beschaduwing/belemmering van het zonontvangend vlak (horizon, overstek, zij-/verticale lamellen), NTA 8800 §17.3.\n\nDe belemmering grijpt aan als multiplicatieve factor `F_sh;obst;mi` op de zoninstraling `I_sol` in formule (7.33), losstaand van de beweegbare zonwering (die op de `g`-waarde werkt). De factor is asymmetrisch tussen warmte en koeling: de norm hanteert aparte tabellen 17.4 (verwarming) en 17.5 (koeling).\n\nGemodelleerd zijn de situaties a), c), e) en g) uit §17.3.2 (tabel 17.3): geen belemmering ([`Obstruction::None`], factor 1,0), minimale belemmering ([`Obstruction::Minimal`], a), overstek evenwijdig aan het vlak ([`Obstruction::Overhang`], c), volledige belemmering ([`Obstruction::Full`], e) en overige belemmering ([`Obstruction::Other`], g). Belemmering met constante hoogte (b), zijbelemmering (d) en dakranden (f, alleen PV) zijn niet gemodelleerd; voor verwarming en koeling is g) daar de altijd toegestane, conservatieve keuze.",
+      "oneOf": [
+        {
+          "description": "Geen externe belemmering — `F_sh;obst;mi = 1,0` in elke maand.",
+          "enum": [
+            "none"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Minimale belemmering (§17.3.2 onder a): standaard-horizon zonder belemmeringen > 20° belemmeringshoek en zonder overstekken < 45°. De maandfactoren volgen uit tabel 17.4 (warmte) resp. 17.5 (koeling).",
+          "enum": [
+            "minimal"
+          ],
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Overstek met constante hoogte evenwijdig aan een verticaal vlak (§17.3.2 onder c, §17.3.5): tabel 17.8 (warmte) en 17.9 (koeling).",
+          "properties": {
+            "overhang": {
+              "properties": {
+                "h_o": {
+                  "description": "Relatieve hoogte `h_o;⊥` van het overstek, loodrecht op het vlak gemeten (hoogteverschil / horizontale afstand, §17.3.1). > 0.",
+                  "format": "double",
+                  "type": "number"
+                }
+              },
+              "required": [
+                "h_o"
+              ],
+              "type": "object"
+            }
+          },
+          "required": [
+            "overhang"
+          ],
+          "type": "object"
+        },
+        {
+          "description": "Volledige belemmering (§17.3.2 onder e, §17.3.7): tabel 17.13 (warmte) en 17.14 (koeling).",
+          "enum": [
+            "full"
+          ],
+          "type": "string"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Overige belemmering (§17.3.2 onder g): voor warmte de tabel van e) (17.13); voor koeling de tabel van c) (17.9) als er een overstek bij is, anders a) (17.5).",
+          "properties": {
+            "other": {
+              "properties": {
+                "overhang_h_o": {
+                  "description": "Relatieve hoogte van het overstek als er een bij de belemmeringen zit; `None` als er geen overstek is.",
+                  "format": "double",
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "type": "object"
+            }
+          },
+          "required": [
+            "other"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "OpaqueConstructionDef": {
+      "description": "Opake constructie-definitie in de bouwkundige bibliotheek (Uniec `LIBCONSTRD_*`, methode `VRIJE_INV` = vrije invoer).\n\nWordt door één of meer [`BengBoundary`]s gerefereerd; dit is de definitie-kant van Uniecs tweelaags model (definitie ↔ plaatsing).",
+      "properties": {
+        "id": {
+          "description": "Unieke id binnen [`BengGeometry::opaque_defs`] (referentiedoel van [`BengBoundary::constructie_ref`]).",
+          "type": "string"
+        },
+        "kind": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/VlakType"
+            }
+          ],
+          "description": "Vlak-type (Uniec `LIBCONSTRD_TYPE`)."
+        },
+        "omschrijving": {
+          "description": "Mens-leesbare omschrijving (Uniec `LIBCONSTRD_OMSCHR`, bv. \"Wand\").",
+          "type": "string"
+        },
+        "thermal": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/RcOrU"
+            }
+          ],
+          "description": "Thermische kwaliteit: Rc (opake vrije invoer, m²·K/W) of een direct gegeven U (W/(m²·K)). Uniec hanteert hier Rc; het model laat beide toe."
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    },
+    "Orientation": {
+      "description": "Oriëntatie van een vlak op het horizontale grondvlak.\n\nDe hoofdrichtingen volgen de NTA 8800 conventie: 0° = Noord, hoek loopt met de klok mee (Oost = 90°, Zuid = 180°, West = 270°). [`Orientation::Horizontaal`] wordt apart behandeld — een plat vlak heeft geen oriëntatie, alleen een helling.",
+      "oneOf": [
+        {
+          "description": "0° — pal noord.",
+          "enum": [
+            "noord"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "45° — noordoost.",
+          "enum": [
+            "noord_oost"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "90° — pal oost.",
+          "enum": [
+            "oost"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "135° — zuidoost.",
+          "enum": [
+            "zuid_oost"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "180° — pal zuid.",
+          "enum": [
+            "zuid"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "225° — zuidwest.",
+          "enum": [
+            "zuid_west"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "270° — pal west.",
+          "enum": [
+            "west"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "315° — noordwest.",
+          "enum": [
+            "noord_west"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Geen geldige kompasrichting — plat vlak (zoals een dak met tilt 0°).",
+          "enum": [
+            "horizontaal"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "RcOrU": {
+      "description": "Thermische kwaliteit van een opake constructie — Rc of U.\n\nUniec voert opake constructies in als **Rc** (warmteweerstand van de constructie zónder oppervlakteweerstanden); een direct gegeven **U** is de alternatieve invoer. De F2b-orchestrator zet Rc via de oppervlakteweerstanden (`R_si`/`R_se`, afhankelijk van vlak-type) om naar U.",
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "description": "Warmteweerstand Rc in m²·K/W (Uniec `LIBCONSTRD_RC`, vrije invoer).",
+          "properties": {
+            "rc": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "rc"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "description": "Warmtedoorgangscoëfficiënt U in W/(m²·K).",
+          "properties": {
+            "u": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          "required": [
+            "u"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "ShadingControl": {
+      "description": "Bedieningsregime van beweegbare zonwering — bepaalt de gewogen inzetfractie `f_sh;with` (NTA 8800 §7.6.6.1.4).\n\nDe concrete maand/oriëntatie-profielen (tabel 7.7 resp. 7.9) leven in de `nta8800-demand`-crate; dit model draagt alleen de keuze.",
+      "oneOf": [
+        {
+          "description": "Handbediende zonwering, woningbouw (schakelcriterium 300 W/m², tabel 7.7).",
+          "enum": [
+            "manual_residential"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Automatisch geregelde zonwering (schakelcriterium 150 W/m², tabel 7.9).",
+          "enum": [
+            "automatic"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "VlakType": {
+      "description": "Vlak-type van een begrenzing of opake constructie-definitie (Uniec `BEGR_VLAK` / `LIBCONSTRD_TYPE`).",
+      "oneOf": [
+        {
+          "description": "Vloer. Uniec `VLAK_VLOER` / `LIBVLAK_VLOER`.",
+          "enum": [
+            "vloer"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Vloer boven buitenlucht. Uniec `vloer boven buitenlucht`.",
+          "enum": [
+            "vloer_boven_buitenlucht"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Gevel (verticale wand). Uniec `VLAK_GEVEL` / `LIBVLAK_GEVEL`.",
+          "enum": [
+            "gevel"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Dak. Uniec `VLAK_DAK` / `LIBVLAK_DAK`.",
+          "enum": [
+            "dak"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Kelderwand. Uniec `kelderwand`.",
+          "enum": [
+            "kelderwand"
+          ],
+          "type": "string"
+        },
+        {
+          "description": "Bodem (alleen bibliotheek-type). Uniec `bodem`.",
+          "enum": [
+            "bodem"
+          ],
+          "type": "string"
+        }
+      ]
+    },
+    "WindowDef": {
+      "description": "Kozijnmerk-definitie in de kozijn-bibliotheek (Uniec `LIBCONSTRT_*`, modus `oppervlakte per kozijnmerk invoeren`).\n\n[`Self::area_m2`] is de **oppervlakte per exemplaar**; een plaatsing ([`BengWindowPlacement`]) vermenigvuldigt die met `aantal`. Zo geeft bibliotheek-merk \"C\" (0,36 m²) met `aantal = 2` op een gevel 0,72 m².",
+      "properties": {
+        "area_m2": {
+          "description": "Oppervlakte **per exemplaar** in m² (Uniec kozijnmerk-`oppervlakte`). De totale bijdrage aan een gevel is `area_m2 · aantal` van de plaatsing.",
+          "format": "double",
+          "type": "number"
+        },
+        "frame_fraction": {
+          "description": "Kozijnfractie `F_fr` (0..=1) van dit kozijnmerk, NTA 8800 §7.6.6.2 methode A (formule 7.44, `F_fr = 1 − A_gl/A_w`). `None` = forfait 0,25 (methode B). Voedt de zontoetreding via de demand-keten.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "ggl": {
+          "description": "Zonnewarmtedoorlatingsfactor g (0..=1, Uniec `ggl`). `None`/0 voor een opake deur.",
+          "format": "double",
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "id": {
+          "description": "Unieke id binnen [`BengGeometry::window_defs`] (referentiedoel van [`BengWindowPlacement::kozijn_ref`]).",
+          "type": "string"
+        },
+        "kind": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/KozijnType"
+            }
+          ],
+          "description": "Type transparante/opake vulling (Uniec `LIBCONSTRT_TYPE`)."
+        },
+        "omschrijving": {
+          "description": "Kozijnmerk-omschrijving (Uniec `LIBCONSTRT_OMSCHR`, bv. \"A\", \"dakraam\").",
+          "type": "string"
+        },
+        "u_w_per_m2k": {
+          "description": "Samengestelde U-waarde in W/(m²·K) (glas + kozijn, Uniec `U`).",
+          "format": "double",
+          "type": "number"
+        }
+      },
+      "required": [
+        "area_m2",
+        "id",
+        "kind"
+      ],
+      "type": "object"
+    }
+  },
+  "description": "Het beng-import-v1-document (typed vorm; alleen te deserialiseren als de geometrie compleet is). Dient ook als bron voor het JSON-schema.",
+  "properties": {
+    "aansluitingen": {
+      "description": "Lineaire aansluitingen (type, lengte, zone) (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "belemmering_geometrie": {
+      "description": "Belemmeringsgeometrie per raam (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "beng_geometry": {
+      "allOf": [
+        {
+          "$ref": "#/definitions/BengGeometry"
+        }
+      ],
+      "description": "De kern: exact [`BengGeometry`]."
+    },
+    "compleet": {
+      "description": "`true` alleen als `beng_geometry` zonder aanvulling deserialiseert en valideert.",
+      "type": "boolean"
+    },
+    "exported_at": {
+      "description": "Exportmoment, ISO 8601.",
+      "type": "string"
+    },
+    "format": {
+      "description": "Altijd `\"beng-import\"`.",
+      "type": "string"
+    },
+    "gevels_extra": {
+      "description": "Extra per gevelvlak (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "herkomst": {
+      "description": "Herkomst per veld (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "meldingen": {
+      "description": "Meldingen van de bron; worden doorgegeven aan de gebruiker.",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "opaque_defs_extra": {
+      "description": "Extra per opake constructie, bv. lagen (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "project_name": {
+      "description": "Projectnaam (informatief).",
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "pv_vlakken": {
+      "description": "PV-vlakken (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "source": {
+      "description": "Herkomst van het document (tool, versie).",
+      "type": "string"
+    },
+    "true_north_deg": {
+      "description": "Ware-noordhoek van het bronmodel in graden (informatief).",
+      "format": "double",
+      "type": [
+        "number",
+        "null"
+      ]
+    },
+    "version": {
+      "description": "Contractversie, `\"1.0\"`.",
+      "type": "string"
+    },
+    "vloeren_per_bouwlaag": {
+      "description": "Vloeren per bouwlaag met massaklasse (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "window_defs_extra": {
+      "description": "Extra per kozijnmerk (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "zones_extra": {
+      "description": "Extra per rekenzone (v1: niet gelezen).",
+      "items": {
+        "additionalProperties": true,
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "beng_geometry",
+    "compleet",
+    "exported_at",
+    "format",
+    "source",
+    "version"
+  ],
+  "title": "BengImportV1",
+  "type": "object"
+}
