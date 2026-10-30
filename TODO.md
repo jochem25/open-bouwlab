@@ -1,5 +1,18 @@
 # TODO
 
+## Trapontwerper v1 in Open Bouwlab (2026-10-30, branch `feat/trap-module`, O-2026-10-30-14)
+Verslag: `docs/2026-10-30-trapontwerper-v1.md`. Lokaal: `scripts/trap-lokaal.ps1` -> http://localhost:3011/trap.
+- [x] trap-core overgenomen (geanonimiseerd; referenties lokaal in `tests/fixtures.local/trap/`)
+- [x] API `/trap/ontwerp` + `/trap/schema`, Tauri-command `trap_ontwerp`, scherm `/trap`
+- [x] IFC met clearance-proxy en IFC voor leverancier; ifcopenshell validate 0 fouten (test `ifc_valide`)
+- [x] Rooktest `frontend/scripts/trap-rooktest.mjs` (recht, kwart, half)
+- [ ] Test door Jochem; daarna aparte go voor push/PR
+- [ ] Toegang: nu publieke reken-route zonder entitlement (als BENG); besluiten of de trap achter een entitlement moet (zoals constructie)
+- [ ] Automatische verdrijfvakken verdrijven bij een kwart de hele arm mee (alle voorkanten oranje); voorkeur voor rechte treden (vraag trappenmaker) open
+- [ ] Uitslag bomen en varianten-tab uit de mockup: niet in v1
+- [ ] Trapgat uit een model lezen (mockup 'Trapgat uit Revit lezen'): niet in v1, trapgat alleen als coordinatenlijst
+- [ ] Rooktest in CI: vraagt Chrome + draaiende API; nu handmatig
+
 ## BENG via IFC (2026-10-12, LIVE: main 9ac06ee, sidecar ifc-ruimtebalans 248f561)
 
 Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-fixes.md`, contract `docs/beng-import-v1-contract.md`.
