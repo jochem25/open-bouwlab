@@ -23,8 +23,8 @@ pub mod toets;
 pub mod verdrijving;
 pub mod vlak;
 
-pub use bouw::{ontwerp, Ontwerp, Rapport, DISCLAIMER};
-pub use ifc::{schrijf_ifc, IfcOpties};
+pub use bouw::{ontwerp, Ontwerp, Rapport, Tekening, DISCLAIMER};
+pub use ifc::{schrijf_ifc, ClearanceIfc, IfcOpties};
 pub use invoer::Invoer;
 pub use model::Trapmodel;
 
@@ -54,4 +54,50 @@ pub fn ontwerp_from_json(json: &str, opties: &IfcOpties) -> Result<(String, Stri
     let ifc = schrijf_ifc(&o.model, opties)?;
     let toets = serde_json::to_string_pretty(&o.rapport)? + "\n";
     Ok((ifc, toets))
+}
+
+/// Alles wat het scherm nodig heeft: toetsing, tekening en twee IFC's.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Uitvoer {
+    pub rapport: Rapport,
+    pub tekening: Tekening,
+    /// IFC4 met de clearance als representatie en als proxy (coordinatie).
+    pub ifc: String,
+    /// IFC4 zonder clearance-geometrie (voor de leverancier).
+    pub ifc_leverancier: String,
+    /// Voorgestelde bestandsnaam zonder extensie.
+    pub bestandsnaam: String,
+}
+
+/// Bestandsnaam uit de trapnaam: kleine letters, cijfers en '-'.
+pub fn bestandsnaam(naam: &str) -> String {
+    let mut s = String::new();
+    for c in naam.to_lowercase().chars() {
+        if c.is_ascii_alphanumeric() {
+            s.push(c);
+        } else if !s.ends_with('-') && !s.is_empty() {
+            s.push('-');
+        }
+    }
+    let s = s.trim_end_matches('-');
+    if s.is_empty() { "trap".into() } else { s.into() }
+}
+
+/// Invoer in, scherm-uitvoer uit. `tijd` = FILE_NAME-tijdstempel (ISO 8601).
+pub fn ontwerp_uitvoer(invoer: &Invoer, tijd: &str) -> Result<Uitvoer, Fout> {
+    let o = ontwerp(invoer)?;
+    let naam = bestandsnaam(&invoer.naam);
+    let opties = |achtervoegsel: &str, clearance| IfcOpties {
+        tijd: tijd.into(),
+        bestandsnaam: format!("{naam}{achtervoegsel}.ifc"),
+        disclaimer: Some(DISCLAIMER.into()),
+        clearance,
+    };
+    Ok(Uitvoer {
+        ifc: schrijf_ifc(&o.model, &opties("", ClearanceIfc::RepresentatieEnProxy))?,
+        ifc_leverancier: schrijf_ifc(&o.model, &opties("_leverancier", ClearanceIfc::Geen))?,
+        rapport: o.rapport,
+        tekening: o.tekening,
+        bestandsnaam: naam,
+    })
 }

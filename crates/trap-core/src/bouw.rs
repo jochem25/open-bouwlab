@@ -37,7 +37,31 @@ pub const KLIMLIJN_STAP: f64 = 5.0;
 pub struct Ontwerp {
     pub model: Trapmodel,
     pub rapport: Rapport,
+    pub tekening: Tekening,
 }
+
+/// Plattegrond voor de tekening in het scherm (mm, projectcoordinaten).
+#[derive(Debug, Clone, Serialize)]
+pub struct Tekening {
+    /// Randen van de loopbreedte, doorgetrokken tot de trapgatrand.
+    pub binnenzijde: Vec<P2>,
+    pub buitenzijde: Vec<P2>,
+    /// Looplijn zoals ingesteld (afstand uit de buitenzijde, boog of afronding).
+    pub looplijn: Vec<P2>,
+    /// Klimlijn op `KLIMLIJN_AFSTAND` uit de buitenzijde, met dezelfde hoekvorm.
+    pub klimlijn: Vec<P2>,
+    pub klimlijn_afstand: f64,
+    /// Treden en welstuk (in volgorde, het welstuk als laatste).
+    pub treden: Vec<Vec<P2>>,
+    pub bomen: Vec<Vec<P2>>,
+    pub palen: Vec<Vec<P2>>,
+    /// Trapgat uit de invoer (als opgegeven).
+    pub trapgat: Option<Vec<P2>>,
+}
+
+/// Afstand van de klimlijn tot de buitenzijde in de tekening (Bbl bijlage I,
+/// tabel 4.26: klimlijn 300 mm uit de zijkant).
+pub const KLIMLIJN_AFSTAND: f64 = 300.0;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Rapport {
@@ -590,7 +614,36 @@ pub fn ontwerp(inv: &Invoer) -> Result<Ontwerp, Fout> {
         trapgat_minimaal: trapgat_min,
         waarschuwingen,
     };
-    Ok(Ontwerp { model, rapport })
+    let klimlijn = if (inv.looplijn.afstand_buitenzijde - KLIMLIJN_AFSTAND).abs() < 1e-9 {
+        c.looplijn.punten.clone()
+    } else {
+        Contour::nieuw(
+            pl.binnen.clone(),
+            pl.buiten.clone(),
+            pl.kant_binnen,
+            KLIMLIJN_AFSTAND,
+            inv.looplijn.hoek,
+            inv.looplijn.straal,
+        )
+        .map(|k| k.looplijn.punten)
+        .unwrap_or_default()
+    };
+    let tekening = Tekening {
+        binnenzijde: pl.binnenvlak.punten.clone(),
+        buitenzijde: pl.buitenvlak.punten.clone(),
+        looplijn: c.looplijn.punten.clone(),
+        klimlijn,
+        klimlijn_afstand: KLIMLIJN_AFSTAND,
+        treden: model.treden.iter().map(|t| t.veelhoek.clone()).collect(),
+        bomen: model
+            .bomen
+            .iter()
+            .flat_map(|b| b.delen.iter().map(|d| deel_voetafdruk(&d.deel)))
+            .collect(),
+        palen: model.palen.iter().map(|p| p.paal.veelhoek.clone()).collect(),
+        trapgat: inv.trapgat.clone(),
+    };
+    Ok(Ontwerp { model, rapport, tekening })
 }
 
 fn r1(x: f64) -> f64 {

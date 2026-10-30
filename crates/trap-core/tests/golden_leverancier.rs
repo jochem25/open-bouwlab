@@ -153,6 +153,7 @@ fn leverancier_nabouw() {
         tijd: "2026-10-30T00:00:00".into(),
         bestandsnaam: "leverancier_nabouw_kern.ifc".into(),
         disclaimer: Some(DISCLAIMER.into()),
+        ..Default::default()
     };
     std::fs::write(uit.join("leverancier_nabouw_kern.ifc"), schrijf_ifc(m, &opties).unwrap()).unwrap();
     std::fs::write(uit.join("leverancier_nabouw_kern.toets.json"), serde_json::to_string_pretty(&o.rapport).unwrap()).unwrap();

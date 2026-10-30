@@ -78,6 +78,7 @@ fn main() -> ExitCode {
                 tijd: tijd.unwrap_or_else(nu),
                 bestandsnaam: ifc.file_name().and_then(|s| s.to_str()).unwrap_or("").into(),
                 disclaimer: Some(DISCLAIMER.into()),
+                ..Default::default()
             };
             match ontwerp_from_json(&json, &opties) {
                 Ok((tekst_ifc, tekst_toets)) => {

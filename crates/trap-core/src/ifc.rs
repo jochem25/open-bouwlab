@@ -30,6 +30,21 @@ pub struct IfcOpties {
     pub bestandsnaam: String,
     /// Pset KBA_Status op de IfcStair (status van de uitvoer).
     pub disclaimer: Option<String>,
+    /// Hoe de clearance in het bestand komt.
+    pub clearance: ClearanceIfc,
+}
+
+/// Uitvoervorm van de clearance.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum ClearanceIfc {
+    /// Representatie 'Clearance' (Brep) op de IfcStair (BIMcollab Zoom toont die).
+    #[default]
+    Representatie,
+    /// Idem, plus een IfcBuildingElementProxy 'Clearance' met dezelfde schil als
+    /// 'Body' (Revit leest bij een IFC-koppeling alleen 'Body'); type CLEARANCE.
+    RepresentatieEnProxy,
+    /// Geen clearance-geometrie (IFC voor de leverancier); de pset blijft.
+    Geen,
 }
 
 impl Default for IfcOpties {
@@ -38,6 +53,7 @@ impl Default for IfcOpties {
             tijd: "1970-01-01T00:00:00".into(),
             bestandsnaam: String::new(),
             disclaimer: None,
+            clearance: ClearanceIfc::Representatie,
         }
     }
 }
@@ -304,7 +320,8 @@ impl Schrijver {
         );
     }
 
-    fn clearance(&mut self, c: &Clearance, ctx: Ref) -> Result<Ref, Fout> {
+    /// Clearance-schil als representatie `id` ('Clearance' of 'Body') in `ctx`.
+    fn clearance(&mut self, c: &Clearance, ctx: Ref, id: &str) -> Result<Ref, Fout> {
         let punten: Vec<Ref> = c
             .hoekpunten
             .iter()
@@ -345,7 +362,7 @@ impl Schrijver {
         self.f.add("IfcStyledItem", format!("{brep},({stijl}),$"));
         Ok(self.f.add(
             "IfcShapeRepresentation",
-            format!("{ctx},'Clearance','Brep',({brep})"),
+            format!("{ctx},{},'Brep',({brep})", string(id)),
         ))
     }
 }
@@ -519,7 +536,8 @@ pub fn schrijf_ifc(m: &Trapmodel, opties: &IfcOpties) -> Result<String, Fout> {
         ),
     );
     let trap_pl = s.element_plaatsing();
-    let trap_vorm = match &m.clearance {
+    let clearance = m.clearance.as_ref().filter(|_| opties.clearance != ClearanceIfc::Geen);
+    let trap_vorm = match clearance {
         Some(c) => {
             let ctx = s.f.add(
                 "IfcGeometricRepresentationSubContext",
@@ -528,7 +546,7 @@ pub fn schrijf_ifc(m: &Trapmodel, opties: &IfcOpties) -> Result<String, Fout> {
                     s.model_ctx
                 ),
             );
-            let rep = s.clearance(c, ctx)?;
+            let rep = s.clearance(c, ctx, "Clearance")?;
             s.f.add("IfcProductDefinitionShape", format!("$,$,({rep})"))
                 .to_string()
         }
@@ -547,9 +565,38 @@ pub fn schrijf_ifc(m: &Trapmodel, opties: &IfcOpties) -> Result<String, Fout> {
     let mut trapdelen = vec![steek];
     trapdelen.extend(&leden);
     s.rel_aggregates(&format!("trap|{sl}"), trap, &trapdelen);
+    let mut in_laag = vec![trap];
+    if let (Some(c), ClearanceIfc::RepresentatieEnProxy) = (clearance, opties.clearance) {
+        let rep = s.clearance(c, s.body, "Body")?;
+        let vorm = s.f.add("IfcProductDefinitionShape", format!("$,$,({rep})"));
+        let pl = s.element_plaatsing();
+        let proxy = s.f.add(
+            "IfcBuildingElementProxy",
+            format!(
+                "'{}',$,'Clearance',$,'CLEARANCE',{pl},{vorm},$,.USERDEFINED.",
+                guid(&format!("clearance-proxy|{sl}"))
+            ),
+        );
+        let ptype = s.f.add(
+            "IfcBuildingElementProxyType",
+            format!(
+                "'{}',$,'CLEARANCE',$,$,$,$,$,'CLEARANCE',.USERDEFINED.",
+                guid(&format!("clearance-type|{sl}"))
+            ),
+        );
+        s.f.add(
+            "IfcRelDefinesByType",
+            format!(
+                "'{}',$,$,$,({proxy}),{ptype}",
+                guid(&format!("clearance-reltype|{sl}"))
+            ),
+        );
+        s.pset(&[proxy], "KBA_Clearance", &c.eigenschappen, &format!("clearance-proxy|{sl}"));
+        in_laag.push(proxy);
+    }
     s.f.add(
         "IfcRelContainedInSpatialStructure",
-        format!("'{}',$,$,$,({trap}),{laag}", guid(&format!("bevat|{sl}"))),
+        format!("'{}',$,$,$,{},{laag}", guid(&format!("bevat|{sl}")), lijst(in_laag)),
     );
     s.pset(&[trap], "Pset_StairCommon", &m.pset_trap, sl);
     let steek_props: Vec<(String, Waarde)> = m

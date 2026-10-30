@@ -292,6 +292,7 @@ fn schrijft_ifc_met_disclaimer() {
         tijd: "2026-10-30T00:00:00".into(),
         bestandsnaam: "trap_referentie_kern.ifc".into(),
         disclaimer: Some(DISCLAIMER.into()),
+        ..Default::default()
     };
     let ifc = schrijf_ifc(&o.model, &opties).unwrap();
     assert!(ifc.contains("FILE_SCHEMA(('IFC4'));"));
