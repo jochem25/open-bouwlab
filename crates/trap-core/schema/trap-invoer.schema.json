@@ -1,0 +1,656 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Invoer",
+  "type": "object",
+  "required": [
+    "naam",
+    "niveaus",
+    "plattegrond"
+  ],
+  "properties": {
+    "boom": {
+      "default": {
+        "achterhout_min": 20.0,
+        "dikte": 40.0,
+        "materiaal": "vurenhout",
+        "nestdiepte": 10.0,
+        "plankbreedte": 320.0,
+        "voorhout": 50.0
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/BoomInvoer"
+        }
+      ]
+    },
+    "bouwsoort": {
+      "default": "nieuwbouw",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Bouwsoort"
+        }
+      ]
+    },
+    "clearance": {
+      "default": {
+        "vrije_hoogte": null
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/ClearanceInvoer"
+        }
+      ]
+    },
+    "gebruiksfunctie": {
+      "default": "woonfunctie",
+      "allOf": [
+        {
+          "$ref": "#/definitions/Gebruiksfunctie"
+        }
+      ]
+    },
+    "hoekverbinding": {
+      "default": {
+        "doorlopend": "hoger"
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/HoekverbindingInvoer"
+        }
+      ]
+    },
+    "looplijn": {
+      "default": {
+        "afstand_buitenzijde": 300.0,
+        "hoek": "boog",
+        "straal": null
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/LooplijnInvoer"
+        }
+      ]
+    },
+    "naam": {
+      "description": "Naam van de trap (ook sleutel voor de GUID's in het IFC).",
+      "type": "string"
+    },
+    "niveaus": {
+      "$ref": "#/definitions/Niveaus"
+    },
+    "optreden": {
+      "description": "Aantal optreden. Weg = automatisch: kleinste aantal waarbij de optrede aan het Bbl voldoet, met de stapmaat het dichtst bij 630 mm.",
+      "default": null,
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "minimum": 0.0
+    },
+    "plattegrond": {
+      "$ref": "#/definitions/Plattegrond"
+    },
+    "project": {
+      "default": {
+        "bouwlaag": "bouwlaag",
+        "naam": "trapontwerp",
+        "z_bouwlaag": null
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/Project"
+        }
+      ]
+    },
+    "stootbord": {
+      "default": {
+        "dikte": 18.0,
+        "soort": "dicht"
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/StootbordInvoer"
+        }
+      ]
+    },
+    "trapgat": {
+      "description": "Optioneel bestaand trapgat (veelhoek in plattegrond): dan wordt gecontroleerd of de clearance erbinnen valt. Zonder trapgat volgt het minimale trapgat uit de trap (de trap is leidend).",
+      "default": null,
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "number",
+          "format": "double"
+        },
+        "maxItems": 2,
+        "minItems": 2
+      }
+    },
+    "trappaal": {
+      "description": "Trappaal in elke binnenhoek (verplicht bij een draai).",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/TrappaalInvoer"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "trede": {
+      "default": {
+        "dikte": 40.0,
+        "neus": 42.0
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/TredeInvoer"
+        }
+      ]
+    },
+    "verdrijving": {
+      "default": {
+        "methode": "fuik",
+        "vakken": null
+      },
+      "allOf": [
+        {
+          "$ref": "#/definitions/VerdrijvingInvoer"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "BoomInvoer": {
+      "type": "object",
+      "properties": {
+        "achterhout_min": {
+          "description": "Minimum hout onder de nesten; standaard 20.",
+          "default": 20.0,
+          "type": "number",
+          "format": "double"
+        },
+        "dikte": {
+          "description": "Dikte; standaard 40.",
+          "default": 40.0,
+          "type": "number",
+          "format": "double"
+        },
+        "materiaal": {
+          "default": "vurenhout",
+          "type": "string"
+        },
+        "nestdiepte": {
+          "description": "Nestdiepte (treden en stootborden in de boom); standaard 10.",
+          "default": 10.0,
+          "type": "number",
+          "format": "double"
+        },
+        "plankbreedte": {
+          "description": "Plankbreedte loodrecht op de bovenkant; standaard 320.",
+          "default": 320.0,
+          "type": "number",
+          "format": "double"
+        },
+        "voorhout": {
+          "description": "Hout boven de tredevoorkanten, loodrecht; standaard 50.",
+          "default": 50.0,
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Bouwsoort": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "nieuwbouw"
+          ]
+        },
+        {
+          "description": "Verbouw: Bbl art. 5.4/5.5, rechtens verkregen niveau. Een overschrijding van het nieuwbouwniveau wordt gemeld, niet afgekeurd.",
+          "type": "string",
+          "enum": [
+            "verbouw"
+          ]
+        }
+      ]
+    },
+    "Breedtemaat": {
+      "type": "string",
+      "enum": [
+        "loopbreedte",
+        "buitenwerks"
+      ]
+    },
+    "ClearanceInvoer": {
+      "type": "object",
+      "properties": {
+        "vrije_hoogte": {
+          "description": "Vrije hoogte boven het neuslijnvlak; weg = Bbl-minimum voor de gebruiksfunctie (tabel 4.26).",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Doorlopend": {
+      "type": "string",
+      "enum": [
+        "hoger",
+        "lager"
+      ]
+    },
+    "Gebruiksfunctie": {
+      "type": "string",
+      "enum": [
+        "woonfunctie",
+        "bijeenkomstfunctie",
+        "celfunctie",
+        "gezondheidszorgfunctie",
+        "industriefunctie",
+        "kantoorfunctie",
+        "logiesfunctie",
+        "onderwijsfunctie",
+        "sportfunctie",
+        "winkelfunctie",
+        "overig"
+      ]
+    },
+    "HoekverbindingInvoer": {
+      "description": "Koude (stompe) hoekverbinding van de buitenboom.",
+      "type": "object",
+      "properties": {
+        "doorlopend": {
+          "description": "Welk boomdeel doorloopt door het hoekvierkant: 'hoger' (standaard, Wattjes: uitkeping in de hogere boom, de lagere sluit er met een vlakke borst op aan) of 'lager'.",
+          "default": "hoger",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Doorlopend"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Kant": {
+      "type": "string",
+      "enum": [
+        "links",
+        "rechts"
+      ]
+    },
+    "LooplijnInvoer": {
+      "type": "object",
+      "properties": {
+        "afstand_buitenzijde": {
+          "description": "Afstand tot de buitenzijde van de loopbreedte; standaard 300.",
+          "default": 300.0,
+          "type": "number",
+          "format": "double"
+        },
+        "hoek": {
+          "description": "'boog' (standaard) of 'scherp' in de hoeken.",
+          "default": "boog",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Looplijnhoek"
+            }
+          ]
+        },
+        "straal": {
+          "description": "Afrondingsstraal rho van de hoek van de offsetlijn (de boog raakt beide armen); weg = afstand van de binnenhoek tot de looplijn (boog uit de binnenhoek, rho = breedte - afstand bij een kwart); 0 = scherp.",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Looplijnhoek": {
+      "type": "string",
+      "enum": [
+        "boog",
+        "scherp"
+      ]
+    },
+    "Niveaus": {
+      "description": "Afgewerkte vloerniveaus onder en boven de trap.",
+      "type": "object",
+      "required": [
+        "boven",
+        "onder"
+      ],
+      "properties": {
+        "boven": {
+          "type": "number",
+          "format": "double"
+        },
+        "onder": {
+          "type": "number",
+          "format": "double"
+        },
+        "vloerdikte_boven": {
+          "description": "Dikte van de bovenvloer (voor het minimale trapgat); standaard 300.",
+          "default": 300.0,
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Plattegrond": {
+      "description": "De trap in plattegrond.",
+      "oneOf": [
+        {
+          "description": "Parametrisch: rechte armen met kwartdraaien in dezelfde draaizin. Eén arm = rechte trap, twee = kwartdraai, drie = halfdraai.",
+          "type": "object",
+          "required": [
+            "armlengtes",
+            "binnenzijde",
+            "breedte",
+            "richting",
+            "soort",
+            "start"
+          ],
+          "properties": {
+            "armlengtes": {
+              "description": "Lengte per arm langs de buitenzijde van de loopbreedte: eerste arm van de voorkant van trede 1 tot de hoek, middelste armen hoek tot hoek, laatste arm van de hoek tot de voorkant van het welstuk.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "binnenzijde": {
+              "description": "Kant van de binnenzijde (= draaizin: 'links' draait linksom).",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Kant"
+                }
+              ]
+            },
+            "breedte": {
+              "description": "Breedte, zie `breedte_is`.",
+              "type": "number",
+              "format": "double"
+            },
+            "breedte_is": {
+              "description": "'loopbreedte' (tussen de bomen) of 'buitenwerks' (over de bomen); bij buitenwerks gelden ook de armlengtes buitenwerks (buitenkant buitenboom).",
+              "default": "loopbreedte",
+              "allOf": [
+                {
+                  "$ref": "#/definitions/Breedtemaat"
+                }
+              ]
+            },
+            "richting": {
+              "description": "Klimrichting van de eerste arm (wordt genormaliseerd).",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "soort": {
+              "type": "string",
+              "enum": [
+                "armen"
+              ]
+            },
+            "start": {
+              "description": "Punt op de buitenzijde van de loopbreedte, op de voorkant van trede 1.",
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "double"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "welstuk": {
+              "description": "Diepte van het welstuk (voorkant tot trapgatrand); standaard 80.",
+              "default": 80.0,
+              "type": "number",
+              "format": "double"
+            }
+          }
+        },
+        {
+          "description": "Vrij: binnen- en buitenzijde van de loopbreedte als polylijnen in de klimrichting, van de voorkant van de eerste trede tot de voorkant van het welstuk; het welstuk loopt `welstuk` door langs het laatste segment.",
+          "type": "object",
+          "required": [
+            "binnenzijde",
+            "buitenzijde",
+            "kant_binnen",
+            "soort"
+          ],
+          "properties": {
+            "binnenzijde": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "maxItems": 2,
+                "minItems": 2
+              }
+            },
+            "buitenzijde": {
+              "type": "array",
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "number",
+                  "format": "double"
+                },
+                "maxItems": 2,
+                "minItems": 2
+              }
+            },
+            "kant_binnen": {
+              "$ref": "#/definitions/Kant"
+            },
+            "soort": {
+              "type": "string",
+              "enum": [
+                "contour"
+              ]
+            },
+            "welstuk": {
+              "default": 80.0,
+              "type": "number",
+              "format": "double"
+            }
+          }
+        }
+      ]
+    },
+    "Project": {
+      "type": "object",
+      "properties": {
+        "bouwlaag": {
+          "default": "bouwlaag",
+          "type": "string"
+        },
+        "naam": {
+          "default": "trapontwerp",
+          "type": "string"
+        },
+        "z_bouwlaag": {
+          "description": "Peil van de bouwlaag in het IFC; weg = niveau onder.",
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StootbordInvoer": {
+      "type": "object",
+      "properties": {
+        "dikte": {
+          "description": "Standaard 18.",
+          "default": 18.0,
+          "type": "number",
+          "format": "double"
+        },
+        "soort": {
+          "description": "'dicht' of 'open' (open trap: geen stootborden).",
+          "default": "dicht",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Stootbordsoort"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "Stootbordsoort": {
+      "type": "string",
+      "enum": [
+        "dicht",
+        "open"
+      ]
+    },
+    "TrappaalInvoer": {
+      "description": "Trappaal in een binnenhoek: rechthoek in de hoek aan de boomkant; de binnenbomen komen er stomp tegen.",
+      "type": "object",
+      "properties": {
+        "boven_boom": {
+          "description": "Paal tot zoveel boven het hoogste punt van de binnenboom; standaard 50.",
+          "default": 50.0,
+          "type": "number",
+          "format": "double"
+        },
+        "insteek_in": {
+          "description": "Hoe ver de paal de loopbreedte van de inkomende arm insteekt; standaard 0.",
+          "default": 0.0,
+          "type": "number",
+          "format": "double"
+        },
+        "insteek_uit": {
+          "description": "Hoe ver de paal de loopbreedte van de uitgaande arm insteekt; standaard 0.",
+          "default": 0.0,
+          "type": "number",
+          "format": "double"
+        },
+        "langs_in": {
+          "description": "Maat langs de inkomende arm, vanaf de binnenhoek terug; standaard 90.",
+          "default": 90.0,
+          "type": "number",
+          "format": "double"
+        },
+        "langs_uit": {
+          "description": "Maat langs de uitgaande arm, vanaf de binnenhoek; standaard 90.",
+          "default": 90.0,
+          "type": "number",
+          "format": "double"
+        },
+        "materiaal": {
+          "default": "vurenhout",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TredeInvoer": {
+      "type": "object",
+      "properties": {
+        "dikte": {
+          "description": "Standaard 40.",
+          "default": 40.0,
+          "type": "number",
+          "format": "double"
+        },
+        "neus": {
+          "description": "Neus voorbij het voorvlak van het stootbord; standaard 42.",
+          "default": 42.0,
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Vak": {
+      "type": "object",
+      "required": [
+        "tot",
+        "van"
+      ],
+      "properties": {
+        "tot": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        },
+        "van": {
+          "type": "integer",
+          "format": "uint",
+          "minimum": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "Verdrijfmethode": {
+      "oneOf": [
+        {
+          "description": "Rekenkundige reeks langs de binnenboom (Wattjes, fuikmethode).",
+          "type": "string",
+          "enum": [
+            "fuik"
+          ]
+        }
+      ]
+    },
+    "VerdrijvingInvoer": {
+      "type": "object",
+      "properties": {
+        "methode": {
+          "default": "fuik",
+          "allOf": [
+            {
+              "$ref": "#/definitions/Verdrijfmethode"
+            }
+          ]
+        },
+        "vakken": {
+          "description": "Verdrijfvakken (voorkant `van` en `tot` blijven onverdreven). Weg = automatisch: per binnenhoek de tusschenkwart met de grootste kleinste aantrede aan de binnenboom.",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/definitions/Vak"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

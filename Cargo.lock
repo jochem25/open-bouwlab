@@ -6172,6 +6172,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "trap-core"
+version = "0.2.0"
+dependencies = [
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "tray-icon"
 version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -1,0 +1,23 @@
+{
+  "naam": "kwartdraai leverancier-nabouw",
+  "project": {"naam": "referentie leverancier", "bouwlaag": "begane grond"},
+  "niveaus": {"onder": 0.0, "boven": 3384.0},
+  "plattegrond": {
+    "soort": "armen",
+    "start": [2674.1, 1421.0],
+    "richting": [-1.0, 0.0],
+    "binnenzijde": "links",
+    "armlengtes": [2625.1, 1368.0],
+    "breedte": 872.0,
+    "welstuk": 53.0
+  },
+  "optreden": 18,
+  "boom": {"dikte": 39.0, "plankbreedte": 240.0, "voorhout": 20.0, "achterhout_min": 20.0, "nestdiepte": 10.0},
+  "trede": {"dikte": 39.0, "neus": 40.0},
+  "stootbord": {"soort": "dicht", "dikte": 13.0},
+  "trappaal": {"langs_in": 101.0, "langs_uit": 53.5, "insteek_in": 14.5, "insteek_uit": 14.0, "materiaal": "vurenhout"},
+  "looplijn": {"afstand_buitenzijde": 300.0, "hoek": "boog"},
+  "hoekverbinding": {"doorlopend": "hoger"},
+  "gebruiksfunctie": "overig",
+  "bouwsoort": "nieuwbouw"
+}
