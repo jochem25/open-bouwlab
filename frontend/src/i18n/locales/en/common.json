@@ -94,7 +94,8 @@
       "rekentools": "Calculation tools",
       "library": "Library",
       "help": "Help",
-      "constructie": "Structures"
+      "constructie": "Structures",
+      "trap": "Stair"
     },
     "ventilationBalance": "Ventilation balance",
     "doorGap": "Door gap calculator",
@@ -113,7 +114,8 @@
       "volgt": "Coming in a later version",
       "staal": "Steel",
       "beton": "Concrete"
-    }
+    },
+    "trap": "Stair designer"
   },
   "beng": {
     "import": {
@@ -967,5 +969,133 @@
     "label": "Report house style",
     "standaard": "{{naam}} (default)",
     "geenOrganisatie": "Your account is not linked to an organisation; reports are unavailable. Ask the administrator."
+  },
+  "trap": {
+    "titel": "Stair designer",
+    "subtitel": "Timber stair: winders, Bbl and Wattjes checks, IFC",
+    "rekenen": "Calculating…",
+    "samenvatting": "{{optreden}} risers of {{optrede}} mm; {{aantreden}} treads of {{aantrede}} mm on the walking line",
+    "tab": {
+      "plattegrond": "Plan",
+      "3d": "3D"
+    },
+    "vorm": {
+      "recht": "Straight",
+      "kwart_links": "Quarter turn left",
+      "kwart_rechts": "Quarter turn right",
+      "half_links": "Half turn left",
+      "half_rechts": "Half turn right"
+    },
+    "invoer": {
+      "titel": "Input",
+      "groep": {
+        "algemeen": "Stair",
+        "trapgat": "1 · Opening and height",
+        "verdrijving": "2 · Winders",
+        "vrijeRuimte": "3 · Headroom",
+        "constructie": "4 · Construction"
+      },
+      "naam": "Stair name",
+      "projectnaam": "Project",
+      "bouwlaag": "Storey",
+      "vorm": "Shape",
+      "onder": "Level below",
+      "verdiepingshoogte": "Storey height",
+      "arm": "Flight {{n}}",
+      "armHint": "Available length per flight, measured along the outer side up to the opening edge.",
+      "breedte": "Stair width",
+      "breedteIs": "Width is",
+      "loopbreedte": "Clear width (between stringers)",
+      "buitenwerks": "Overall (incl. stringers)",
+      "optredenAuto": "Number of risers automatic",
+      "optreden": "Number of risers",
+      "gebruiksfunctie": "Use",
+      "woonfunctie": "Residential",
+      "overig": "Other use",
+      "bouwsoort": "Construction type",
+      "nieuwbouw": "New build",
+      "verbouw": "Renovation",
+      "looplijnAfstand": "Walking line from outer side",
+      "looplijnHoek": "Walking line in the corner",
+      "boog": "Arc",
+      "scherp": "Sharp",
+      "looplijnStraal": "Walking line rounding (rho)",
+      "straalHint": "Empty = arc from the inner corner. The climbing line (300 from the outer side) gets the same rounding.",
+      "vakkenAuto": "Winder zones automatic",
+      "vakken": "Winder zones (nosing numbers)",
+      "vrijeHoogte": "Headroom",
+      "vloerdikte": "Floor thickness above",
+      "vrijeHoogteHint": "Empty = Bbl value for the use (2300 residential / 2100 other).",
+      "trapgat": "Existing opening (optional)",
+      "trapgatHint": "Only if the opening is fixed: corner points x,y in mm separated by ';'. The stair leads; the minimal opening follows from the clearance.",
+      "boomDikte": "Stringer thickness",
+      "plankbreedte": "Stringer board width",
+      "voorhout": "Front wood",
+      "achterhout": "Back wood min.",
+      "nestdiepte": "Housing depth",
+      "welstuk": "Landing nosing",
+      "tredeDikte": "Tread thickness",
+      "neus": "Nosing",
+      "stootbord": "Riser",
+      "dicht": "Closed",
+      "open": "Open (no risers)",
+      "stootbordDikte": "Riser thickness",
+      "paal": "Newel post (square)",
+      "doorlopend": "Outer corner: continuous part",
+      "hoger": "Higher part continues",
+      "lager": "Lower part continues"
+    },
+    "plattegrond": {
+      "titel": "Stair plan",
+      "klimlijn": "climbing line {{afstand}} mm from the outer side",
+      "looplijn": "walking line (as set)",
+      "trapgatMinimaal": "minimal opening (clearance)",
+      "verdreven": "green nosing = winder",
+      "hoofdmaten": "overall {{breedte}} x {{diepte}} mm"
+    },
+    "drieD": {
+      "laden": "Loading IFC…",
+      "fout": "Cannot show 3D: {{fout}}",
+      "clearance": "Show clearance"
+    },
+    "tredenstaat": {
+      "titel": "Tread schedule (going in mm)",
+      "trede": "Tread",
+      "binnen": "Inner",
+      "looplijn": "Walking line",
+      "buiten": "Outer",
+      "gelijk": "{{aantrede}} on every tread"
+    },
+    "toetsing": {
+      "titel": "Checks",
+      "bbl": "Bbl (table 4.26, climbing line)",
+      "advies": "Advice (Wattjes, practice)",
+      "onderwerp": "Subject",
+      "eis": "Requirement",
+      "waarde": "Value",
+      "oordeel": "Result",
+      "bron": "Source",
+      "afgekeurd": "{{n}} Bbl requirement(s) not met.",
+      "voldoetAlles": "No Bbl requirement failed.",
+      "aandacht": "{{n}} point(s) of attention."
+    },
+    "oordeel": {
+      "voldoet": "complies",
+      "voldoet_niet": "does not comply",
+      "melding": "note (renovation)",
+      "advies_voldoet": "advice: ok",
+      "advies_afwijking": "advice: deviation",
+      "handmatig": "check manually",
+      "niet_van_toepassing": "n/a"
+    },
+    "uitvoer": {
+      "titel": "Output",
+      "ifc": "Download IFC (with clearance)",
+      "ifcLeverancier": "IFC for supplier",
+      "opslaan": "Save input (JSON)",
+      "laden": "Load input",
+      "geenJson": "File is not readable JSON.",
+      "toelichting": "IFC with clearance: red transparent free space as representation and as proxy 'Clearance' (for Revit). IFC for supplier: without clearance geometry."
+    }
   }
 }

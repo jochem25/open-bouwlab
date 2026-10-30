@@ -3,6 +3,7 @@
 //! ```text
 //! trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO>]
 //! trap schema               JSON-schema van de invoer naar stdout
+//! trap uitvoer <invoer.json> [--tijd <ISO>]   scherm-uitvoer (toetsing, tekening, IFC's) als JSON
 //! ```
 //!
 //! Zonder `--ifc`/`--toets` komen de bestanden naast de invoer
@@ -16,7 +17,7 @@ use trap_core::{ontwerp_from_json, IfcOpties, DISCLAIMER};
 
 fn gebruik() -> ExitCode {
     eprintln!(
-        "gebruik:\n  trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO 8601>]\n  trap schema"
+        "gebruik:\n  trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO 8601>]\n  trap schema\n  trap uitvoer <invoer.json> [--tijd <ISO 8601>]"
     );
     ExitCode::from(2)
 }
@@ -48,6 +49,31 @@ fn main() -> ExitCode {
         Some("schema") => {
             print!("{}", trap_core::invoer::schema());
             ExitCode::SUCCESS
+        }
+        Some("uitvoer") => {
+            let Some(pad) = args.get(1) else {
+                return gebruik();
+            };
+            let tijd = match (args.get(2).map(String::as_str), args.get(3)) {
+                (Some("--tijd"), Some(t)) => t.clone(),
+                (None, _) => nu(),
+                _ => return gebruik(),
+            };
+            let uit = std::fs::read_to_string(pad)
+                .map_err(|e| format!("kan {pad} niet lezen: {e}"))
+                .and_then(|j| serde_json::from_str::<trap_core::Invoer>(&j).map_err(|e| e.to_string()))
+                .and_then(|i| trap_core::ontwerp_uitvoer(&i, &tijd).map_err(|e| e.to_string()))
+                .and_then(|u| serde_json::to_string(&u).map_err(|e| e.to_string()));
+            match uit {
+                Ok(j) => {
+                    println!("{j}");
+                    ExitCode::SUCCESS
+                }
+                Err(e) => {
+                    eprintln!("{e}");
+                    ExitCode::FAILURE
+                }
+            }
         }
         Some("ontwerp") => {
             let Some(invoer) = args.get(1).map(PathBuf::from) else {

@@ -222,6 +222,7 @@ type GroupKey =
   | "beng"
   | "rcwaarde"
   | "constructie"
+  | "trap"
   | "rekentools"
   | "library"
   | "help";
@@ -327,6 +328,12 @@ export const NAV_GROUPS: ReadonlyArray<NavGroupSpec> = [
       { to: "/constructie/beton", labelKey: "sidebar.constructie.beton", Icon: IconLayers },
       { to: "/constructie/hout", labelKey: "sidebar.constructie.hout", Icon: IconLayers },
     ],
+  },
+  {
+    key: "trap",
+    titleKey: "sidebar.groups.trap",
+    defaultCollapsed: false,
+    items: [{ to: "/trap", labelKey: "sidebar.trap", Icon: IconLayers }],
   },
   {
     key: "rekentools",

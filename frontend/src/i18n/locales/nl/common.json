@@ -94,7 +94,8 @@
       "rekentools": "Rekentools",
       "library": "Bibliotheek",
       "help": "Help",
-      "constructie": "Constructie"
+      "constructie": "Constructie",
+      "trap": "Trap"
     },
     "ventilationBalance": "Ventilatiebalans",
     "doorGap": "Deurspleet-calculator",
@@ -113,7 +114,8 @@
       "volgt": "Volgt in een latere versie",
       "staal": "Staal",
       "beton": "Beton"
-    }
+    },
+    "trap": "Trapontwerper"
   },
   "beng": {
     "import": {
@@ -967,5 +969,133 @@
     "label": "Huisstijl rapport",
     "standaard": "{{naam}} (standaard)",
     "geenOrganisatie": "Je account is niet aan een organisatie gekoppeld; rapporten zijn niet beschikbaar. Vraag de beheerder."
+  },
+  "trap": {
+    "titel": "Trapontwerper",
+    "subtitel": "Houten trap: verdrijving, toetsing Bbl en Wattjes, IFC",
+    "rekenen": "Rekenen…",
+    "samenvatting": "{{optreden}} optreden van {{optrede}} mm; {{aantreden}} aantreden van {{aantrede}} mm op de looplijn",
+    "tab": {
+      "plattegrond": "Plattegrond",
+      "3d": "3D"
+    },
+    "vorm": {
+      "recht": "Recht",
+      "kwart_links": "Kwartdraai links",
+      "kwart_rechts": "Kwartdraai rechts",
+      "half_links": "Halfdraai links",
+      "half_rechts": "Halfdraai rechts"
+    },
+    "invoer": {
+      "titel": "Invoer",
+      "groep": {
+        "algemeen": "Trap",
+        "trapgat": "1 · Trapgat en hoogte",
+        "verdrijving": "2 · Verdrijving",
+        "vrijeRuimte": "3 · Vrije ruimte",
+        "constructie": "4 · Constructie"
+      },
+      "naam": "Naam trap",
+      "projectnaam": "Project",
+      "bouwlaag": "Bouwlaag",
+      "vorm": "Vorm",
+      "onder": "Niveau onder",
+      "verdiepingshoogte": "Verdiepingshoogte",
+      "arm": "Arm {{n}}",
+      "armHint": "Beschikbare lengte per arm, gemeten langs de buitenzijde tot de trapgatrand.",
+      "breedte": "Trapbreedte",
+      "breedteIs": "Breedte is",
+      "loopbreedte": "Loopbreedte (tussen de bomen)",
+      "buitenwerks": "Buitenwerks (incl. bomen)",
+      "optredenAuto": "Aantal optreden automatisch",
+      "optreden": "Aantal optreden",
+      "gebruiksfunctie": "Gebruiksfunctie",
+      "woonfunctie": "Woonfunctie",
+      "overig": "Andere gebruiksfunctie",
+      "bouwsoort": "Bouwsoort",
+      "nieuwbouw": "Nieuwbouw",
+      "verbouw": "Verbouw",
+      "looplijnAfstand": "Looplijn uit buitenzijde",
+      "looplijnHoek": "Looplijn in de hoek",
+      "boog": "Boog",
+      "scherp": "Scherp",
+      "looplijnStraal": "Afronding looplijn (rho)",
+      "straalHint": "Leeg = boog uit de binnenhoek. De klimlijn (300 uit de buitenzijde) krijgt dezelfde afronding.",
+      "vakkenAuto": "Verdrijfvakken automatisch (fuik)",
+      "vakken": "Verdrijfvakken (voorkantnummers)",
+      "vrijeHoogte": "Vrije hoogte",
+      "vloerdikte": "Vloerdikte boven",
+      "vrijeHoogteHint": "Leeg = Bbl-waarde bij de gebruiksfunctie (2300 woon / 2100 andere).",
+      "trapgat": "Bestaand trapgat (optioneel)",
+      "trapgatHint": "Alleen als het trapgat al vastligt: hoekpunten x,y in mm, gescheiden door ';'. De trap is leidend; het minimale trapgat volgt uit de clearance.",
+      "boomDikte": "Boomdikte",
+      "plankbreedte": "Plankbreedte boom",
+      "voorhout": "Voorhout",
+      "achterhout": "Achterhout min.",
+      "nestdiepte": "Nestdiepte",
+      "welstuk": "Welstuk",
+      "tredeDikte": "Tredendikte",
+      "neus": "Neus",
+      "stootbord": "Stootbord",
+      "dicht": "Dicht",
+      "open": "Open (geen stootborden)",
+      "stootbordDikte": "Stootborddikte",
+      "paal": "Trappaal (vierkant)",
+      "doorlopend": "Buitenhoek: doorlopend deel",
+      "hoger": "Hoger deel loopt door",
+      "lager": "Lager deel loopt door"
+    },
+    "plattegrond": {
+      "titel": "Plattegrond van de trap",
+      "klimlijn": "klimlijn {{afstand}} mm uit de buitenzijde",
+      "looplijn": "looplijn (ingesteld)",
+      "trapgatMinimaal": "minimaal trapgat (clearance)",
+      "verdreven": "groene voorkant = verdreven",
+      "hoofdmaten": "hoofdmaten {{breedte}} x {{diepte}} mm"
+    },
+    "drieD": {
+      "laden": "IFC laden…",
+      "fout": "3D niet te tonen: {{fout}}",
+      "clearance": "Clearance tonen"
+    },
+    "tredenstaat": {
+      "titel": "Tredenstaat (aantrede in mm)",
+      "trede": "Trede",
+      "binnen": "Binnen",
+      "looplijn": "Looplijn",
+      "buiten": "Buiten",
+      "gelijk": "{{aantrede}} op elke trede"
+    },
+    "toetsing": {
+      "titel": "Toetsing",
+      "bbl": "Bbl (tabel 4.26, klimlijn)",
+      "advies": "Advies (Wattjes, praktijk)",
+      "onderwerp": "Onderwerp",
+      "eis": "Eis",
+      "waarde": "Waarde",
+      "oordeel": "Oordeel",
+      "bron": "Bron",
+      "afgekeurd": "{{n}} Bbl-eis(en) niet gehaald.",
+      "voldoetAlles": "Geen Bbl-eis afgekeurd.",
+      "aandacht": "{{n}} aandachtspunt(en)."
+    },
+    "oordeel": {
+      "voldoet": "voldoet",
+      "voldoet_niet": "voldoet niet",
+      "melding": "melding (verbouw)",
+      "advies_voldoet": "advies: in orde",
+      "advies_afwijking": "advies: afwijking",
+      "handmatig": "handmatig nagaan",
+      "niet_van_toepassing": "n.v.t."
+    },
+    "uitvoer": {
+      "titel": "Uitvoer",
+      "ifc": "IFC downloaden (met clearance)",
+      "ifcLeverancier": "IFC voor leverancier",
+      "opslaan": "Invoer opslaan (JSON)",
+      "laden": "Invoer laden",
+      "geenJson": "Bestand is geen leesbare JSON.",
+      "toelichting": "IFC met clearance: rood transparante vrije ruimte als representatie en als proxy 'Clearance' (voor Revit). IFC voor leverancier: zonder clearance-geometrie."
+    }
   }
 }
