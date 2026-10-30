@@ -5,7 +5,8 @@
  * (O-2026-10-30-02): web-ifc 0.0.77, geen Fragments.
  *
  * De clearance zit twee keer in het bestand (representatie op de IfcStair en
- * de proxy 'Clearance'); de schakelaar verbergt of toont beide.
+ * de proxy 'Clearance'). Getekend wordt de proxy (anders dubbel rood); zonder
+ * proxy de IfcStair. De schakelaar verbergt of toont hem.
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -22,8 +23,8 @@ const RANDKLEUR = 0x1f2937;
 /** Kijkrichting van het isometrische overzicht. */
 const ISO = new THREE.Vector3(1, 0.8, 1).normalize();
 
-function isClearance(el: BengShellElement): boolean {
-  return el.ifcType === "IfcStair" || (el.ifcType === "IfcBuildingElementProxy" && el.name === "Clearance");
+function isProxy(el: BengShellElement): boolean {
+  return el.ifcType === "IfcBuildingElementProxy" && el.name === "Clearance";
 }
 
 interface Props {
@@ -63,8 +64,10 @@ export function TrapViewer3D({ ifc, toonClearance }: Props) {
         if (!actief) return;
         const trap = new THREE.Group();
         const clearance = new THREE.Group();
+        const metProxy = els.some(isProxy);
         for (const e of els) {
-          const doel = isClearance(e) ? clearance : trap;
+          if (metProxy && e.ifcType === "IfcStair") continue;
+          const doel = isProxy(e) || e.ifcType === "IfcStair" ? clearance : trap;
           for (const p of e.parts) {
             const geo = new THREE.BufferGeometry();
             geo.setAttribute("position", new THREE.BufferAttribute(p.positions, 3));

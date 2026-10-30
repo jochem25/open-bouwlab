@@ -1050,7 +1050,7 @@
       "klimlijn": "climbing line {{afstand}} mm from the outer side",
       "looplijn": "walking line (as set)",
       "trapgatMinimaal": "minimal opening (clearance)",
-      "verdreven": "green nosing = winder",
+      "verdreven": "orange nosing = winder",
       "hoofdmaten": "overall {{breedte}} x {{diepte}} mm"
     },
     "drieD": {

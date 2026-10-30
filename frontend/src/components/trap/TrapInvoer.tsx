@@ -48,9 +48,11 @@ function Vink({ label, checked, onChange }: { label: string; checked: boolean; o
 export function TrapInvoer({ waarde: f, onChange }: Props) {
   const { t } = useTranslation();
   const n = aantalArmen(f.vorm);
+  const basis = useId();
 
   const getal = (veld: Getalveld, label: string, unit = "mm") => (
     <Input
+      id={`${basis}-${veld}`}
       label={label}
       unit={unit}
       type="number"
@@ -61,6 +63,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
   const arm = (i: 0 | 1 | 2) => (
     <Input
       key={i}
+      id={`${basis}-arm${i}`}
       label={t("trap.invoer.arm", { n: i + 1 })}
       unit="mm"
       type="number"
@@ -76,14 +79,16 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
   return (
     <div className="flex flex-col gap-4" data-testid="trap-invoer">
       <Groep titel={t("trap.invoer.groep.algemeen")}>
-        <Input label={t("trap.invoer.naam")} value={f.naam} onChange={(e) => onChange({ naam: e.target.value })} />
+        <Input id={`${basis}-naam`} label={t("trap.invoer.naam")} value={f.naam} onChange={(e) => onChange({ naam: e.target.value })} />
         <div className="grid grid-cols-2 gap-2">
           <Input
+            id={`${basis}-v2`}
             label={t("trap.invoer.projectnaam")}
             value={f.projectnaam}
             onChange={(e) => onChange({ projectnaam: e.target.value })}
           />
           <Input
+            id={`${basis}-v3`}
             label={t("trap.invoer.bouwlaag")}
             value={f.bouwlaag}
             onChange={(e) => onChange({ bouwlaag: e.target.value })}
@@ -93,6 +98,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
 
       <Groep titel={t("trap.invoer.groep.trapgat")}>
         <Select
+          id={`${basis}-v4`}
           label={t("trap.invoer.vorm")}
           value={f.vorm}
           options={VORMEN.map((v) => ({ value: v, label: t(`trap.vorm.${v}`) }))}
@@ -110,6 +116,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
         <div className="grid grid-cols-2 gap-2">
           {getal("breedte", t("trap.invoer.breedte"))}
           <Select
+            id={`${basis}-v5`}
             label={t("trap.invoer.breedteIs")}
             value={f.breedte_is}
             options={[
@@ -127,6 +134,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
         {!f.optreden_auto && getal("optreden", t("trap.invoer.optreden"), "st")}
         <div className="grid grid-cols-2 gap-2">
           <Select
+            id={`${basis}-v6`}
             label={t("trap.invoer.gebruiksfunctie")}
             value={f.gebruiksfunctie}
             options={[
@@ -136,6 +144,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
             onChange={(e) => onChange({ gebruiksfunctie: e.target.value as Formulier["gebruiksfunctie"] })}
           />
           <Select
+            id={`${basis}-v7`}
             label={t("trap.invoer.bouwsoort")}
             value={f.bouwsoort}
             options={[
@@ -151,6 +160,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
         <div className="grid grid-cols-2 gap-2">
           {getal("looplijn_afstand", t("trap.invoer.looplijnAfstand"))}
           <Select
+            id={`${basis}-v8`}
             label={t("trap.invoer.looplijnHoek")}
             value={f.looplijn_hoek}
             options={[
@@ -171,6 +181,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
             />
             {!f.vakken_auto && (
               <Input
+                id={`${basis}-v9`}
                 label={t("trap.invoer.vakken")}
                 value={f.vakken}
                 placeholder="0-5, 5-15"
@@ -188,6 +199,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
         </div>
         <p className="-mt-2 text-xs text-on-surface-secondary">{t("trap.invoer.vrijeHoogteHint")}</p>
         <Input
+          id={`${basis}-v10`}
           label={t("trap.invoer.trapgat")}
           value={f.trapgat}
           placeholder="x,y; x,y; x,y; x,y"
@@ -207,6 +219,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
           {getal("trede_dikte", t("trap.invoer.tredeDikte"))}
           {getal("neus", t("trap.invoer.neus"))}
           <Select
+            id={`${basis}-v11`}
             label={t("trap.invoer.stootbord")}
             value={f.stootbord}
             options={[
@@ -219,6 +232,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
           {n > 1 && getal("paal", t("trap.invoer.paal"))}
           {n > 1 && (
             <Select
+              id={`${basis}-v12`}
               label={t("trap.invoer.doorlopend")}
               value={f.doorlopend}
               options={[

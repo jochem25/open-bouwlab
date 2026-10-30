@@ -3,7 +3,16 @@
  * invoer links; rechts plattegrond of 3D, tredenstaat, toetsing en uitvoer.
  * Rekent na elke invoerwijziging (debounce) via trapClient (Tauri of API).
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import { bewaarTekst, ontwerpTrap } from "../../lib/trapClient";
@@ -15,7 +24,9 @@ import { bouwInvoer, type Formulier, invoerNaarFormulier, STANDAARD_FORMULIER } 
 import { Plattegrond } from "./Plattegrond";
 import { TrapInvoer } from "./TrapInvoer";
 import { TrapToetsing } from "./TrapToetsing";
-import { TrapViewer3D } from "./TrapViewer3D";
+
+// three en @thatopen pas laden als de 3D-tab opengaat (zoals IfcImportViewer3D).
+const TrapViewer3D = lazy(() => import("./TrapViewer3D").then((m) => ({ default: m.TrapViewer3D })));
 
 /** Wachttijd na de laatste invoerwijziging voordat er gerekend wordt. */
 export const REKEN_DEBOUNCE_MS = 400;
@@ -172,7 +183,9 @@ export function TrapPagina() {
                   {weergave === "plattegrond" ? (
                     <Plattegrond tekening={uitvoer.tekening} rapport={r} />
                   ) : (
-                    <TrapViewer3D ifc={uitvoer.ifc} toonClearance={toonClearance} />
+                    <Suspense fallback={<p className="text-sm">{t("trap.drieD.laden")}</p>}>
+                      <TrapViewer3D ifc={uitvoer.ifc} toonClearance={toonClearance} />
+                    </Suspense>
                   )}
                 </Card>
 

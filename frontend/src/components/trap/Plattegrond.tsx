@@ -15,6 +15,8 @@ const MARGE = 450;
 const MAAT_AFSTAND = 200;
 /** Tekstgrootte in mm (in tekenschaal). */
 const TEKST = 70;
+/** Kleur van een verdreven voorkant (los van de klimlijnkleur). */
+const VERDREVEN = "#c2410c";
 
 function pad(punten: P2[], sluit: boolean): string {
   if (punten.length === 0) return "";
@@ -97,19 +99,6 @@ export function Plattegrond({ tekening, rapport }: Props) {
         viewBox={vb.map((v) => v.toFixed(0)).join(" ")}
         className="h-[520px] w-full rounded-md border border-[var(--oaec-border)] bg-[var(--oaec-bg-surface,white)]"
       >
-        {rapport.trapgat_minimaal.length > 2 && (
-          <path
-            d={pad(rapport.trapgat_minimaal, true)}
-            fill="none"
-            stroke="var(--theme-danger-color, #c0392b)"
-            strokeWidth={12}
-            strokeDasharray="60 40"
-            data-testid="trap-trapgat-minimaal"
-          />
-        )}
-        {tekening.trapgat && (
-          <path d={pad(tekening.trapgat, true)} fill="none" stroke="currentColor" strokeWidth={20} />
-        )}
         {tekening.bomen.map((b, i) => (
           <path key={`b${i}`} d={pad(b, true)} fill="#d9c4a3" stroke="#6b4f2a" strokeWidth={6} />
         ))}
@@ -132,7 +121,7 @@ export function Plattegrond({ tekening, rapport }: Props) {
             y1={-v.p_binnen[1]}
             x2={v.p_buiten[0]}
             y2={-v.p_buiten[1]}
-            stroke={v.verdreven ? "var(--theme-accent, #0d6862)" : "#3f3f46"}
+            stroke={v.verdreven ? VERDREVEN : "#3f3f46"}
             strokeWidth={v.verdreven ? 10 : 6}
           />
         ))}
@@ -152,6 +141,19 @@ export function Plattegrond({ tekening, rapport }: Props) {
             </text>
           );
         })}
+        {rapport.trapgat_minimaal.length > 2 && (
+          <path
+            d={pad(rapport.trapgat_minimaal, true)}
+            fill="none"
+            stroke="var(--theme-danger-color, #c0392b)"
+            strokeWidth={12}
+            strokeDasharray="60 40"
+            data-testid="trap-trapgat-minimaal"
+          />
+        )}
+        {tekening.trapgat && (
+          <path d={pad(tekening.trapgat, true)} fill="none" stroke="currentColor" strokeWidth={20} />
+        )}
         <path
           d={pad(tekening.looplijn, false)}
           fill="none"
