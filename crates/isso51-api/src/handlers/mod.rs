@@ -10,6 +10,7 @@ mod ifcx;
 mod projects;
 pub(super) mod report;
 mod thermal_import;
+mod trap;
 mod uniec_import;
 mod user;
 
@@ -27,4 +28,5 @@ pub use projects::{
 };
 pub use report::generate_report;
 pub use thermal_import::thermal_import_handler;
+pub use trap::{trap_ontwerp, trap_schema};
 pub use user::get_profile;

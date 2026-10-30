@@ -151,6 +151,7 @@ async fn main() {
         .route("/cooling/simplified", post(handlers::simplified_cooling))
         .route("/tojuli/calculate", post(handlers::tojuli_calculate))
         .route("/beng/calculate", post(handlers::beng_calculate))
+        .route("/trap/ontwerp", post(handlers::trap_ontwerp))
         .layer(DefaultBodyLimit::max(COMPUTE_BODY_LIMIT))
         .layer(axum::middleware::from_fn_with_state(
             rate_limiter.clone(),
@@ -182,6 +183,7 @@ async fn main() {
         .route("/health", get(handlers::health))
         .route("/schemas", get(handlers::list_schemas))
         .route("/schemas/{name}", get(handlers::get_schema))
+        .route("/trap/schema", get(handlers::trap_schema))
         .merge(compute)
         .merge(uniec_import);
 
