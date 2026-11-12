@@ -9,20 +9,40 @@ export type Kant = "links" | "rechts";
 export type Gebruiksfunctie = "woonfunctie" | "overig";
 export type Bouwsoort = "nieuwbouw" | "verbouw";
 
+export interface ArmenPlattegrond {
+  soort: "armen";
+  start: P2;
+  richting: P2;
+  binnenzijde: Kant;
+  armlengtes: number[];
+  breedte: number;
+  breedte_is?: "loopbreedte" | "buitenwerks";
+  welstuk?: number;
+}
+
+/** Vrije contour: randen van de loopbreedte als polylijnen (alleen via 'invoer laden'). */
+export interface ContourPlattegrond {
+  soort: "contour";
+  binnenzijde: P2[];
+  buitenzijde: P2[];
+  kant_binnen: Kant;
+  welstuk?: number;
+}
+
+export interface TrappaalInvoer {
+  langs_in?: number;
+  langs_uit?: number;
+  insteek_in?: number;
+  insteek_uit?: number;
+  boven_boom?: number;
+  materiaal?: string;
+}
+
 export interface TrapInvoer {
   naam: string;
   project?: { naam?: string; bouwlaag?: string; z_bouwlaag?: number };
   niveaus: { onder: number; boven: number; vloerdikte_boven?: number };
-  plattegrond: {
-    soort: "armen";
-    start: P2;
-    richting: P2;
-    binnenzijde: Kant;
-    armlengtes: number[];
-    breedte: number;
-    breedte_is?: "loopbreedte" | "buitenwerks";
-    welstuk?: number;
-  };
+  plattegrond: ArmenPlattegrond | ContourPlattegrond;
   optreden?: number;
   boom?: {
     dikte?: number;
@@ -34,9 +54,10 @@ export interface TrapInvoer {
   };
   trede?: { dikte?: number; neus?: number };
   stootbord?: { soort?: "dicht" | "open"; dikte?: number };
-  trappaal?: { langs_in?: number; langs_uit?: number; boven_boom?: number; materiaal?: string };
+  trappaal?: TrappaalInvoer;
   verdrijving?: { methode?: "fuik"; vakken?: { van: number; tot: number }[] };
-  looplijn?: { afstand_buitenzijde?: number; hoek?: "boog" | "scherp"; straal?: number };
+  /** afstand_buitenkant_boom: looplijn vanaf de buitenkant van de buitenboom (besluit 11-11-2026). */
+  looplijn?: { afstand_buitenkant_boom?: number; hoek?: "boog" | "scherp"; straal?: number };
   hoekverbinding?: { doorlopend?: "hoger" | "lager" };
   clearance?: { vrije_hoogte?: number };
   gebruiksfunctie?: string;

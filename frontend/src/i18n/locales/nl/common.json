@@ -974,6 +974,11 @@
     "titel": "Trapontwerper",
     "subtitel": "Houten trap: verdrijving, toetsing Bbl en Wattjes, IFC",
     "rekenen": "Rekenen…",
+    "toegang": {
+      "laden": "Toegang controleren…",
+      "nietGeactiveerdTitel": "Trapontwerper niet geactiveerd",
+      "nietGeactiveerd": "De trapontwerper is niet geactiveerd voor dit account. Neem contact op met de beheerder om toegang te krijgen."
+    },
     "samenvatting": "{{optreden}} optreden van {{optrede}} mm; {{aantreden}} aantreden van {{aantrede}} mm op de looplijn",
     "tab": {
       "plattegrond": "Plattegrond",
@@ -984,7 +989,8 @@
       "kwart_links": "Kwartdraai links",
       "kwart_rechts": "Kwartdraai rechts",
       "half_links": "Halfdraai links",
-      "half_rechts": "Halfdraai rechts"
+      "half_rechts": "Halfdraai rechts",
+      "contour": "Vrije contour (geladen)"
     },
     "invoer": {
       "titel": "Invoer",
@@ -999,6 +1005,7 @@
       "projectnaam": "Project",
       "bouwlaag": "Bouwlaag",
       "vorm": "Vorm",
+      "contourHint": "Vrije contour uit het geladen bestand ({{n}} armen); armlengtes en breedte staan in de contour en zijn hier niet te bewerken.",
       "onder": "Niveau onder",
       "verdiepingshoogte": "Verdiepingshoogte",
       "arm": "Arm {{n}}",
@@ -1015,7 +1022,7 @@
       "bouwsoort": "Bouwsoort",
       "nieuwbouw": "Nieuwbouw",
       "verbouw": "Verbouw",
-      "looplijnAfstand": "Looplijn uit buitenzijde",
+      "looplijnAfstand": "Looplijn uit buitenkant boom",
       "looplijnHoek": "Looplijn in de hoek",
       "boog": "Boog",
       "scherp": "Scherp",
@@ -1047,7 +1054,7 @@
     },
     "plattegrond": {
       "titel": "Plattegrond van de trap",
-      "klimlijn": "klimlijn {{afstand}} mm uit de buitenzijde",
+      "klimlijn": "klimlijn {{afstand}} mm uit de buitenkant van de boom",
       "looplijn": "looplijn (ingesteld)",
       "trapgatMinimaal": "minimaal trapgat (clearance)",
       "verdreven": "oranje voorkant = verdreven",

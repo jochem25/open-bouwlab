@@ -28,5 +28,5 @@ pub use projects::{
 };
 pub use report::generate_report;
 pub use thermal_import::thermal_import_handler;
-pub use trap::{trap_ontwerp, trap_schema};
+pub use trap::trap_routes;
 pub use user::get_profile;

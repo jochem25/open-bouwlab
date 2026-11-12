@@ -47,7 +47,9 @@ function Vink({ label, checked, onChange }: { label: string; checked: boolean; o
 
 export function TrapInvoer({ waarde: f, onChange }: Props) {
   const { t } = useTranslation();
-  const n = aantalArmen(f.vorm);
+  const n = aantalArmen(f.vorm, f.contour);
+  const isContour = f.vorm === "contour";
+  const vormen = f.contour ? [...VORMEN, "contour" as const] : VORMEN;
   const basis = useId();
 
   const getal = (veld: Getalveld, label: string, unit = "mm") => (
@@ -101,7 +103,7 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
           id={`${basis}-v4`}
           label={t("trap.invoer.vorm")}
           value={f.vorm}
-          options={VORMEN.map((v) => ({ value: v, label: t(`trap.vorm.${v}`) }))}
+          options={vormen.map((v) => ({ value: v, label: t(`trap.vorm.${v}`) }))}
           onChange={(e) => onChange({ vorm: e.target.value as Formulier["vorm"] })}
           data-testid="trap-vorm"
         />
@@ -109,11 +111,19 @@ export function TrapInvoer({ waarde: f, onChange }: Props) {
           {getal("onder", t("trap.invoer.onder"))}
           {getal("verdiepingshoogte", t("trap.invoer.verdiepingshoogte"))}
         </div>
-        <div className={`grid gap-2 ${n === 1 ? "grid-cols-1" : n === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
-          {([0, 1, 2] as const).slice(0, n).map(arm)}
-        </div>
-        <p className="-mt-2 text-xs text-on-surface-secondary">{t("trap.invoer.armHint")}</p>
-        <div className="grid grid-cols-2 gap-2">
+        {isContour ? (
+          <p className="text-xs text-on-surface-secondary" data-testid="trap-contour">
+            {t("trap.invoer.contourHint", { n })}
+          </p>
+        ) : (
+          <>
+            <div className={`grid gap-2 ${n === 1 ? "grid-cols-1" : n === 2 ? "grid-cols-2" : "grid-cols-3"}`}>
+              {([0, 1, 2] as const).slice(0, n).map(arm)}
+            </div>
+            <p className="-mt-2 text-xs text-on-surface-secondary">{t("trap.invoer.armHint")}</p>
+          </>
+        )}
+        <div className={`grid grid-cols-2 gap-2 ${isContour ? "hidden" : ""}`}>
           {getal("breedte", t("trap.invoer.breedte"))}
           <Select
             id={`${basis}-v5`}

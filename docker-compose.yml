@@ -14,6 +14,9 @@ services:
       # Constructiemodule (defaults getoond; groep = Authentik-entitlement):
       # - CONSTRUCTIE_ENABLED=true
       # - CONSTRUCTIE_ENTITLEMENT_GROUP=openbouwlab-constructie
+      # Trapontwerper (defaults getoond; groep = Authentik-entitlement):
+      # - TRAP_ENABLED=true
+      # - TRAP_ENTITLEMENT_GROUP=openbouwlab-trap
       # Standaard-coverfoto per tenant (<tenant>.jpg|png); map read-only mounten:
       # - REPORT_DEFAULT_COVER_DIR=/etc/openaec/covers
     volumes:

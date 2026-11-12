@@ -105,6 +105,36 @@ await page.getByTestId("trap-laden-bestand").setInputFiles(json);
 await page.waitForTimeout(300);
 controleer((await page.getByTestId("trap-vorm").inputValue()) === "half_rechts", "invoer opslaan en laden");
 
+// kwartdraai met onderkwart als vrije contour (golden 3, O-2026-11-12-01): via 'invoer laden'
+const CONTOUR = "crates/trap-core/tests/fixtures/invoer_kwartdraai_onderkwart.json";
+if (fs.existsSync(CONTOUR)) {
+  const vorige = await page.getByTestId("trap-samenvatting").innerText().catch(() => "");
+  await page.getByTestId("trap-laden-bestand").setInputFiles(CONTOUR);
+  await page.waitForFunction(
+    (v) => {
+      const s = document.querySelector('[data-testid="trap-samenvatting"]');
+      return s && s.textContent !== v && !document.querySelector('[aria-busy="true"]');
+    },
+    vorige,
+    { timeout: WACHT_MS },
+  );
+  controleer((await page.getByTestId("trap-vorm").inputValue()) === "contour", "onderkwart: contour geladen");
+  controleer((await page.getByTestId("trap-fout").count()) === 0, "onderkwart: geen rekenfout");
+  const samenvatting = await page.getByTestId("trap-samenvatting").innerText();
+  console.log(`     ${samenvatting}`);
+  controleer(samenvatting.includes("16 optreden"), "onderkwart: 16 optreden");
+  await page.getByTestId("trap-tab-plattegrond").click().catch(() => {});
+  await page.screenshot({ path: path.join(UIT, "onderkwart_scherm.png"), fullPage: true });
+  await page.getByTestId("trap-plattegrond").screenshot({ path: path.join(UIT, "onderkwart_plattegrond.png") });
+  await page.getByTestId("trap-tab-3d").click();
+  await page.locator('[data-testid="trap-3d"][data-status="klaar"], [data-testid="trap-3d"][data-status="fout"]').waitFor({ timeout: WACHT_MS });
+  controleer((await page.getByTestId("trap-3d").getAttribute("data-status")) === "klaar", "onderkwart: 3D geladen");
+  await page.waitForTimeout(800);
+  await page.getByTestId("trap-3d").screenshot({ path: path.join(UIT, "onderkwart_3d_clearance.png") });
+} else {
+  console.log(`     onderkwart overgeslagen: ${CONTOUR} niet gevonden (draai vanuit de repo-root)`);
+}
+
 await browser.close();
 console.log(fouten.length === 0 ? "rooktest geslaagd" : `rooktest: ${fouten.length} fout(en)`);
 process.exit(fouten.length === 0 ? 0 : 1);

@@ -974,6 +974,11 @@
     "titel": "Stair designer",
     "subtitel": "Timber stair: winders, Bbl and Wattjes checks, IFC",
     "rekenen": "Calculating…",
+    "toegang": {
+      "laden": "Checking access…",
+      "nietGeactiveerdTitel": "Stair designer not activated",
+      "nietGeactiveerd": "The stair designer is not activated for this account. Contact the administrator for access."
+    },
     "samenvatting": "{{optreden}} risers of {{optrede}} mm; {{aantreden}} treads of {{aantrede}} mm on the walking line",
     "tab": {
       "plattegrond": "Plan",
@@ -984,7 +989,8 @@
       "kwart_links": "Quarter turn left",
       "kwart_rechts": "Quarter turn right",
       "half_links": "Half turn left",
-      "half_rechts": "Half turn right"
+      "half_rechts": "Half turn right",
+      "contour": "Free outline (loaded)"
     },
     "invoer": {
       "titel": "Input",
@@ -999,6 +1005,7 @@
       "projectnaam": "Project",
       "bouwlaag": "Storey",
       "vorm": "Shape",
+      "contourHint": "Free outline from the loaded file ({{n}} flights); flight lengths and width are part of the outline and cannot be edited here.",
       "onder": "Level below",
       "verdiepingshoogte": "Storey height",
       "arm": "Flight {{n}}",
@@ -1015,7 +1022,7 @@
       "bouwsoort": "Construction type",
       "nieuwbouw": "New build",
       "verbouw": "Renovation",
-      "looplijnAfstand": "Walking line from outer side",
+      "looplijnAfstand": "Walking line from outside of stringer",
       "looplijnHoek": "Walking line in the corner",
       "boog": "Arc",
       "scherp": "Sharp",
@@ -1047,7 +1054,7 @@
     },
     "plattegrond": {
       "titel": "Stair plan",
-      "klimlijn": "climbing line {{afstand}} mm from the outer side",
+      "klimlijn": "climbing line {{afstand}} mm from the outside of the stringer",
       "looplijn": "walking line (as set)",
       "trapgatMinimaal": "minimal opening (clearance)",
       "verdreven": "orange nosing = winder",

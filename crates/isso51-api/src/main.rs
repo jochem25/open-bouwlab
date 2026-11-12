@@ -151,7 +151,6 @@ async fn main() {
         .route("/cooling/simplified", post(handlers::simplified_cooling))
         .route("/tojuli/calculate", post(handlers::tojuli_calculate))
         .route("/beng/calculate", post(handlers::beng_calculate))
-        .route("/trap/ontwerp", post(handlers::trap_ontwerp))
         .layer(DefaultBodyLimit::max(COMPUTE_BODY_LIMIT))
         .layer(axum::middleware::from_fn_with_state(
             rate_limiter.clone(),
@@ -179,11 +178,19 @@ async fn main() {
             ratelimit::rate_limit,
         ));
 
+    // Trapontwerper: auth + entitlement `trap` per handler (patroon
+    // constructie, O-2026-11-12-01). Zelfde body-limit en per-IP rate-limit.
+    let trap = handlers::trap_routes()
+        .layer(DefaultBodyLimit::max(COMPUTE_BODY_LIMIT))
+        .layer(axum::middleware::from_fn_with_state(
+            rate_limiter.clone(),
+            ratelimit::rate_limit,
+        ));
+
     let public = Router::new()
         .route("/health", get(handlers::health))
         .route("/schemas", get(handlers::list_schemas))
         .route("/schemas/{name}", get(handlers::get_schema))
-        .route("/trap/schema", get(handlers::trap_schema))
         .merge(compute)
         .merge(uniec_import);
 
@@ -211,7 +218,8 @@ async fn main() {
         // onderlegger (base64 PDF/afbeelding) blijft bewust uit de envelope —
         // 20 MB is ruime headroom voor puur project-JSON.
         .layer(DefaultBodyLimit::max(20 * 1024 * 1024))
-        .merge(constructie);
+        .merge(constructie)
+        .merge(trap);
 
     // IFC analyse with 100 MB body limit (default is 2 MB).
     let ifc_routes = Router::new()

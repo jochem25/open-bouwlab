@@ -3,9 +3,18 @@
  * (en terug, voor 'invoer laden'). Lege of ongeldige getallen zijn `null`;
  * `bouwInvoer` geeft dan een melding in plaats van een invoer.
  */
-import type { Bouwsoort, Gebruiksfunctie, Kant, P2, TrapInvoer } from "../../types/trap";
+import type {
+  Bouwsoort,
+  ContourPlattegrond,
+  Gebruiksfunctie,
+  Kant,
+  P2,
+  TrapInvoer,
+  TrappaalInvoer,
+} from "../../types/trap";
 
-export type Vorm = "recht" | "kwart_links" | "kwart_rechts" | "half_links" | "half_rechts";
+/** 'contour' alleen na het laden van een invoer met een vrije contour. */
+export type Vorm = "recht" | "kwart_links" | "kwart_rechts" | "half_links" | "half_rechts" | "contour";
 
 export const VORMEN: Vorm[] = ["recht", "kwart_links", "kwart_rechts", "half_links", "half_rechts"];
 
@@ -52,6 +61,10 @@ export interface Formulier {
   /** Ligging van de trap (niet in het scherm, wel bewaard bij laden). */
   start: P2;
   richting: P2;
+  /** Vrije contour uit een geladen invoer (vorm 'contour'); niet te bewerken. */
+  contour: ContourPlattegrond | null;
+  /** Trappaal uit een geladen invoer; blijft gelden zolang 'paal' gelijk is aan langs_in. */
+  trappaal_geladen: TrappaalInvoer | null;
 }
 
 export const STANDAARD_FORMULIER: Formulier = {
@@ -76,10 +89,10 @@ export const STANDAARD_FORMULIER: Formulier = {
   vakken: "",
   boom_dikte: 40,
   plankbreedte: 320,
-  voorhout: 50,
+  voorhout: 30,
   achterhout_min: 20,
   nestdiepte: 10,
-  trede_dikte: 40,
+  trede_dikte: 38,
   neus: 42,
   stootbord: "dicht",
   stootbord_dikte: 18,
@@ -90,6 +103,8 @@ export const STANDAARD_FORMULIER: Formulier = {
   trapgat: "",
   start: [0, 0],
   richting: [0, 1],
+  contour: null,
+  trappaal_geladen: null,
 };
 
 /** Getal uit een invoerveld (komma of punt); leeg of ongeldig = null. */
@@ -100,7 +115,11 @@ export function parseGetal(s: string): number | null {
   return Number.isFinite(x) ? x : null;
 }
 
-export function aantalArmen(vorm: Vorm): 1 | 2 | 3 {
+export function aantalArmen(vorm: Vorm, contour?: ContourPlattegrond | null): 1 | 2 | 3 {
+  if (vorm === "contour") {
+    const n = (contour?.binnenzijde.length ?? 3) - 1;
+    return Math.min(3, Math.max(1, n)) as 1 | 2 | 3;
+  }
   if (vorm === "recht") return 1;
   return vorm.startsWith("kwart") ? 2 : 3;
 }
@@ -146,13 +165,14 @@ export type Bouwresultaat = { invoer: TrapInvoer; fout?: undefined } | { invoer?
 
 /** Formulier naar trap-core-invoer, of een melding welk veld ontbreekt. */
 export function bouwInvoer(f: Formulier): Bouwresultaat {
-  const n = aantalArmen(f.vorm);
+  const contour = f.vorm === "contour" ? f.contour : null;
+  if (f.vorm === "contour" && !contour) return { fout: "geen contour geladen" };
+  const n = aantalArmen(f.vorm, contour);
   const verplicht: [string, number | null][] = [
     ["niveau onder", f.onder],
     ["verdiepingshoogte", f.verdiepingshoogte],
     ["vloerdikte boven", f.vloerdikte_boven],
-    ["trapbreedte", f.breedte],
-    ["looplijn uit buitenzijde", f.looplijn_afstand],
+    ["looplijn uit buitenkant boom", f.looplijn_afstand],
     ["boomdikte", f.boom_dikte],
     ["plankbreedte", f.plankbreedte],
     ["voorhout", f.voorhout],
@@ -163,7 +183,10 @@ export function bouwInvoer(f: Formulier): Bouwresultaat {
     ["stootborddikte", f.stootbord_dikte],
     ["welstuk", f.welstuk],
   ];
-  for (let i = 0; i < n; i++) verplicht.push([`arm ${i + 1}`, f.armen[i] ?? null]);
+  if (!contour) {
+    verplicht.push(["trapbreedte", f.breedte]);
+    for (let i = 0; i < n; i++) verplicht.push([`arm ${i + 1}`, f.armen[i] ?? null]);
+  }
   if (n > 1) verplicht.push(["trappaal", f.paal]);
   if (!f.optreden_auto) verplicht.push(["aantal optreden", f.optreden]);
   for (const [naam, w] of verplicht) {
@@ -186,16 +209,18 @@ export function bouwInvoer(f: Formulier): Bouwresultaat {
     naam: f.naam.trim() || "trap",
     project: { naam: f.projectnaam.trim() || "project", bouwlaag: f.bouwlaag.trim() || "bouwlaag" },
     niveaus: { onder, boven: onder + f.verdiepingshoogte!, vloerdikte_boven: f.vloerdikte_boven! },
-    plattegrond: {
-      soort: "armen",
-      start: f.start,
-      richting: f.richting,
-      binnenzijde: binnenzijde(f.vorm),
-      armlengtes: f.armen.slice(0, n).map((a) => a!),
-      breedte: f.breedte!,
-      breedte_is: f.breedte_is,
-      welstuk: f.welstuk!,
-    },
+    plattegrond: contour
+      ? { ...contour, welstuk: f.welstuk! }
+      : {
+          soort: "armen",
+          start: f.start,
+          richting: f.richting,
+          binnenzijde: binnenzijde(f.vorm),
+          armlengtes: f.armen.slice(0, n).map((a) => a!),
+          breedte: f.breedte!,
+          breedte_is: f.breedte_is,
+          welstuk: f.welstuk!,
+        },
     boom: {
       dikte: f.boom_dikte!,
       plankbreedte: f.plankbreedte!,
@@ -206,7 +231,7 @@ export function bouwInvoer(f: Formulier): Bouwresultaat {
     trede: { dikte: f.trede_dikte!, neus: f.neus! },
     stootbord: { soort: f.stootbord, dikte: f.stootbord_dikte! },
     looplijn: {
-      afstand_buitenzijde: f.looplijn_afstand!,
+      afstand_buitenkant_boom: f.looplijn_afstand!,
       hoek: f.looplijn_hoek,
       ...(f.looplijn_straal !== null ? { straal: f.looplijn_straal } : {}),
     },
@@ -216,7 +241,10 @@ export function bouwInvoer(f: Formulier): Bouwresultaat {
     bouwsoort: f.bouwsoort,
   };
   if (!f.optreden_auto) invoer.optreden = f.optreden!;
-  if (n > 1) invoer.trappaal = { langs_in: f.paal!, langs_uit: f.paal! };
+  if (n > 1) {
+    const g = f.trappaal_geladen;
+    invoer.trappaal = g && g.langs_in === f.paal ? { ...g } : { langs_in: f.paal!, langs_uit: f.paal! };
+  }
   if (vakken) invoer.verdrijving = { methode: "fuik", vakken };
   if (trapgat) invoer.trapgat = trapgat;
   return { invoer };
@@ -228,8 +256,9 @@ function vormUit(armen: number, kant: Kant): Vorm {
 }
 
 /**
- * Opgeslagen invoer (JSON) terug naar het formulier. Alleen plattegrond
- * 'armen' met 1-3 armen; anders een melding.
+ * Opgeslagen invoer (JSON) terug naar het formulier: plattegrond 'armen' met
+ * 1-3 armen, of een vrije 'contour' (vorm 'contour', niet te bewerken);
+ * anders een melding.
  */
 export function invoerNaarFormulier(
   raw: unknown,
@@ -239,29 +268,38 @@ export function invoerNaarFormulier(
     return { fout: "geen trapinvoer (niveaus en plattegrond ontbreken)" };
   }
   const p = inv.plattegrond;
-  if (p.soort !== "armen" || !Array.isArray(p.armlengtes) || p.armlengtes.length < 1 || p.armlengtes.length > 3) {
-    return { fout: "alleen een plattegrond met 1 tot 3 armen kan in het scherm worden geladen" };
-  }
   const s = STANDAARD_FORMULIER;
-  const a = p.armlengtes;
+  const isContour =
+    p.soort === "contour" &&
+    Array.isArray(p.binnenzijde) &&
+    Array.isArray(p.buitenzijde) &&
+    p.binnenzijde.length >= 2 &&
+    p.binnenzijde.length <= 4 &&
+    p.binnenzijde.length === p.buitenzijde.length;
+  const isArmen =
+    p.soort === "armen" && Array.isArray(p.armlengtes) && p.armlengtes.length >= 1 && p.armlengtes.length <= 3;
+  if (!isContour && !isArmen) {
+    return { fout: "alleen een plattegrond met 1 tot 3 armen (ook als contour) kan in het scherm worden geladen" };
+  }
+  const a = p.soort === "armen" ? p.armlengtes : [];
   const formulier: Formulier = {
     ...s,
     naam: inv.naam ?? s.naam,
     projectnaam: inv.project?.naam ?? s.projectnaam,
     bouwlaag: inv.project?.bouwlaag ?? s.bouwlaag,
-    vorm: vormUit(a.length, p.binnenzijde),
+    vorm: p.soort === "armen" ? vormUit(a.length, p.binnenzijde) : "contour",
     onder: inv.niveaus.onder,
     verdiepingshoogte: inv.niveaus.boven - inv.niveaus.onder,
     vloerdikte_boven: inv.niveaus.vloerdikte_boven ?? s.vloerdikte_boven,
     armen: [a[0] ?? null, a[1] ?? s.armen[1], a[2] ?? s.armen[2]],
-    breedte: p.breedte,
-    breedte_is: p.breedte_is ?? "loopbreedte",
+    breedte: p.soort === "armen" ? p.breedte : s.breedte,
+    breedte_is: p.soort === "armen" ? (p.breedte_is ?? "loopbreedte") : "loopbreedte",
     optreden_auto: inv.optreden === undefined || inv.optreden === null,
     optreden: inv.optreden ?? s.optreden,
     gebruiksfunctie:
       inv.gebruiksfunctie === undefined || inv.gebruiksfunctie === "woonfunctie" ? "woonfunctie" : "overig",
     bouwsoort: inv.bouwsoort ?? s.bouwsoort,
-    looplijn_afstand: inv.looplijn?.afstand_buitenzijde ?? s.looplijn_afstand,
+    looplijn_afstand: inv.looplijn?.afstand_buitenkant_boom ?? s.looplijn_afstand,
     looplijn_hoek: inv.looplijn?.hoek ?? s.looplijn_hoek,
     looplijn_straal: inv.looplijn?.straal ?? null,
     vakken_auto: !inv.verdrijving?.vakken,
@@ -280,8 +318,10 @@ export function invoerNaarFormulier(
     doorlopend: inv.hoekverbinding?.doorlopend ?? s.doorlopend,
     vrije_hoogte: inv.clearance?.vrije_hoogte ?? null,
     trapgat: (inv.trapgat ?? []).map(([x, y]) => `${x},${y}`).join("; "),
-    start: p.start,
-    richting: p.richting,
+    start: p.soort === "armen" ? p.start : s.start,
+    richting: p.soort === "armen" ? p.richting : s.richting,
+    contour: p.soort === "contour" ? { ...p } : null,
+    trappaal_geladen: inv.trappaal ? { ...inv.trappaal } : null,
   };
   return { formulier };
 }

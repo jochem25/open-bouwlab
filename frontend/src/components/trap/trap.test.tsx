@@ -20,10 +20,17 @@ import {
 } from "./formulier";
 import { Plattegrond } from "./Plattegrond";
 import { TRAP_DISCLAIMER, TrapPagina } from "./TrapPagina";
+import { TrapInvoer as TrapInvoerScherm } from "./TrapInvoer";
+import { TrapToegang } from "./TrapToegang";
 import { TrapToetsing } from "./TrapToetsing";
+import { Trap } from "../../pages/Trap";
 
 vi.mock("../../hooks/useConstructieEntitlement", () => ({
   useConstructieEntitlement: () => "uit",
+}));
+const trapRecht = vi.hoisted(() => ({ waarde: "aan" as "laden" | "aan" | "uit" }));
+vi.mock("../../hooks/useTrapEntitlement", () => ({
+  useTrapEntitlement: () => trapRecht.waarde,
 }));
 
 const uitvoer = uitvoerKwart as unknown as TrapUitvoer;
@@ -119,6 +126,37 @@ describe("formulier", () => {
     expect(r.formulier?.verdiepingshoogte).toBe(2800);
     expect(invoerNaarFormulier({ naam: "x" }).fout).toBeDefined();
   });
+
+  it("laadt een vrije contour met trappaal en geeft hem ongewijzigd terug", () => {
+    const contourInvoer = {
+      naam: "contour",
+      niveaus: { onder: 0, boven: 3180, vloerdikte_boven: 100 },
+      plattegrond: {
+        soort: "contour",
+        binnenzijde: [[1530.7, -1399.8], [1530.7, -851.4], [52.7, -851.4]],
+        buitenzijde: [[2359.6, -1399.8], [2359.6, -48.0], [52.7, -48.0]],
+        kant_binnen: "links",
+        welstuk: 52.7,
+      },
+      optreden: 16,
+      trappaal: { langs_in: 37.9, langs_uit: 115.4, insteek_in: 0, insteek_uit: 29.5 },
+      looplijn: { afstand_buitenkant_boom: 300, hoek: "boog", straal: 500 },
+    };
+    const r = invoerNaarFormulier(contourInvoer as unknown);
+    expect(r.fout).toBeUndefined();
+    const f = r.formulier!;
+    expect(f.vorm).toBe("contour");
+    const inv = bouwInvoer(f).invoer!;
+    expect(inv.plattegrond).toEqual(contourInvoer.plattegrond);
+    expect(inv.trappaal).toEqual(contourInvoer.trappaal);
+    expect(inv.looplijn).toEqual(contourInvoer.looplijn);
+    // paal aangepast: dan weer de eenvoudige paal uit het formulier
+    expect(bouwInvoer({ ...f, paal: 90 }).invoer!.trappaal).toEqual({ langs_in: 90, langs_uit: 90 });
+    // het scherm toont de contour in plaats van de armvelden
+    const html = render(<TrapInvoerScherm waarde={f} onChange={() => {}} />);
+    expect(html).toContain('data-testid="trap-contour"');
+    expect(html).toContain("Vrije contour (geladen)");
+  });
 });
 
 describe("plattegrond", () => {
@@ -132,7 +170,7 @@ describe("plattegrond", () => {
     const n = uitvoer.tekening.treden.length - 1;
     expect(html).toContain(`>${n}</text>`);
     expect(html).not.toContain(`>${n + 1}</text>`);
-    expect(html).toContain("klimlijn 300 mm uit de buitenzijde");
+    expect(html).toContain("klimlijn 300 mm uit de buitenkant van de boom");
     expect(html).toMatch(/hoofdmaten \d/);
   });
 });
@@ -145,7 +183,9 @@ describe("toetsing", () => {
       expect(html).toContain(r.bron_id);
     }
     expect(html).toContain("Bbl (tabel 4.26, klimlijn)");
-    expect(html).toContain("advies: afwijking");
+    // standaardtrap (fixture): geen Wattjes-afwijking (besluit Jochem 12-11-2026)
+    expect(html).toContain("advies: in orde");
+    expect(html).not.toContain("advies: afwijking");
   });
 });
 
@@ -159,10 +199,31 @@ describe("pagina", () => {
     expect(html).toContain('data-testid="trap-ifc"');
   });
 
-  it("sidebar heeft de trapontwerper", () => {
+  it("sidebar toont de trapontwerper alleen met entitlement trap", () => {
+    trapRecht.waarde = "uit";
+    const zonder = render(<Sidebar />);
+    expect(zonder).not.toContain('href="/trap"');
+
+    trapRecht.waarde = "aan";
     const html = render(<Sidebar />);
     expect(html).toContain('href="/trap"');
     expect(html).toContain("Trapontwerper");
+  });
+
+  it("route /trap zonder entitlement toont een melding, geen ontwerper", () => {
+    trapRecht.waarde = "uit";
+    const zonder = render(<Trap />);
+    expect(zonder).toContain('role="alert"');
+    expect(zonder).toContain("Trapontwerper niet geactiveerd");
+    expect(zonder).not.toContain('data-testid="trap-invoer"');
+
+    trapRecht.waarde = "laden";
+    expect(render(<TrapToegang><p>x</p></TrapToegang>)).toContain('role="status"');
+
+    trapRecht.waarde = "aan";
+    const met = render(<Trap />);
+    expect(met).toContain('data-testid="trap-invoer"');
+    expect(met).toContain(TRAP_DISCLAIMER);
   });
 
   it("NL en EN hebben dezelfde trap-sleutels", () => {

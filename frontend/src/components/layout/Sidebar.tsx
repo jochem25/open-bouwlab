@@ -6,6 +6,7 @@ import { isTauri } from "../../lib/backend";
 import { IFC_IMPORT_ROUTE } from "../../lib/appRoutes";
 import { useProjectStore } from "../../store/projectStore";
 import { useConstructieEntitlement } from "../../hooks/useConstructieEntitlement";
+import { useTrapEntitlement } from "../../hooks/useTrapEntitlement";
 
 /* ─── SVG Icon components (inline, no dependency) ─── */
 
@@ -546,10 +547,16 @@ function SaveStatus() {
 export function Sidebar() {
   const isWeb = !isTauri();
   const constructieStatus = useConstructieEntitlement();
-  // Groep Constructie alleen met entitlement (desktop: nooit in deel 1).
+  const trapStatus = useTrapEntitlement();
+  // Groepen Constructie en Trap alleen met entitlement (desktop: nooit in deel 1).
   const zichtbareGroepen = useMemo(
-    () => NAV_GROUPS.filter((g) => g.key !== "constructie" || constructieStatus === "aan"),
-    [constructieStatus],
+    () =>
+      NAV_GROUPS.filter(
+        (g) =>
+          (g.key !== "constructie" || constructieStatus === "aan") &&
+          (g.key !== "trap" || trapStatus === "aan"),
+      ),
+    [constructieStatus, trapStatus],
   );
   const [collapsed, toggle] = useGroupCollapsed();
   const location = useLocation();

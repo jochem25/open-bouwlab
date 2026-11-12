@@ -1,6 +1,6 @@
 /**
  * Plattegrond van de trap als SVG: treden met nummers, bomen en trappalen,
- * looplijn, klimlijn (300 uit de buitenzijde), het minimale trapgat (uit de
+ * looplijn, klimlijn (300 uit de buitenkant van de boom), het minimale trapgat (uit de
  * clearance), een opgegeven trapgat en de hoofdmaten.
  *
  * Projectcoordinaten in mm (y omhoog); de SVG draait y om.
