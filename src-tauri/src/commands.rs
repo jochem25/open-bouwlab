@@ -205,3 +205,15 @@ pub fn import_uniec3(file_base64: String) -> Result<Uniec3ImportResponse, String
         warnings: imported.warnings,
     })
 }
+
+/// Trapontwerper: invoer naar toetsing, tekening en twee IFC's.
+///
+/// Zelfde contract als de web-route `POST /trap/ontwerp`; de invoer komt als
+/// JSON-waarde binnen zodat een invoerfout leesbaar terugkomt (foutstring).
+#[tauri::command]
+pub fn trap_ontwerp(invoer: serde_json::Value) -> Result<trap_core::Uitvoer, String> {
+    let invoer: trap_core::Invoer =
+        serde_json::from_value(invoer).map_err(|e| format!("ongeldige invoer: {e}"))?;
+    let tijd = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+    trap_core::ontwerp_uitvoer(&invoer, &tijd).map_err(|e| e.to_string())
+}

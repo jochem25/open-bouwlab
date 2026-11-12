@@ -21,6 +21,7 @@ members = [
     "crates/nta8800-transmission",
     "crates/nta8800-ventilation",
     "crates/openaec-project-shared",
+    "crates/trap-core",
     "crates/uniec3-import",
     "crates/vabi-importer",
     "src-tauri",

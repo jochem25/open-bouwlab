@@ -1,0 +1,13 @@
+{
+  "naam": "kwart",
+  "niveaus": { "onder": 0, "boven": 2800 },
+  "plattegrond": {
+    "soort": "armen",
+    "start": [0, 0],
+    "richting": [0, 1],
+    "binnenzijde": "links",
+    "armlengtes": [2400, 1600],
+    "breedte": 850
+  },
+  "trappaal": {}
+}

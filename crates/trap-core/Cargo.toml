@@ -1,0 +1,17 @@
+[package]
+name = "trap-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Trapontwerper: rekenkern (verdrijving, bomen, clearance, Bbl-toets) en IFC4 (STEP P21), puur Rust zonder I/O."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+# float_roundtrip: coordinaten uit de Python-fixture bit-exact inlezen
+serde_json = { version = "1", features = ["float_roundtrip"] }
+thiserror = "2"
+schemars = "0.8"
+
+[[bin]]
+name = "trap"
+path = "src/bin/trap.rs"

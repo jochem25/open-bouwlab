@@ -1,5 +1,21 @@
 # TODO
 
+## Trapontwerper v1 in Open Bouwlab (2026-10-30, branch `feat/trap-module`, O-2026-10-30-14)
+Verslag: `docs/2026-10-30-trapontwerper-v1.md`. Lokaal: `scripts/trap-lokaal.ps1` -> http://localhost:3011/trap.
+- [x] trap-core overgenomen (geanonimiseerd; referenties lokaal in `tests/fixtures.local/trap/`)
+- [x] API `/trap/ontwerp` + `/trap/schema`, Tauri-command `trap_ontwerp`, scherm `/trap`
+- [x] IFC met clearance-proxy en IFC voor leverancier; ifcopenshell validate 0 fouten (test `ifc_valide`)
+- [x] Rooktest `frontend/scripts/trap-rooktest.mjs` (recht, kwart, half)
+- [x] v1.1 (O-2026-11-12-01, `docs/2026-11-12-trapontwerper-v1.1.md`): looplijn uit buitenkant boom, kiertest, golden 3 onderkwart, standaardwaarden, entitlement `trap`, lokaal samengevoegd in main
+- [ ] Test door Jochem; daarna aparte go voor push/PR, installer en online
+- [ ] Authentik-groep `openbouwlab-trap` aanmaken en toekennen bij online zetten
+- [ ] Desktop: trap is (zoals constructie) uit in de Tauri-app; besluiten of de desktop de trap wel krijgt
+- [x] Automatische verdrijfvakken: kiezen nu eerst vakken zonder zichtbare overgang (kwart: 7 verdreven i.p.v. de hele arm)
+- [ ] Verdrijving van de leverancier overnemen als invoer (voorkanten opgeven): nu alleen vergelijken in golden 3
+- [ ] Uitslag bomen en varianten-tab uit de mockup: niet in v1
+- [ ] Trapgat uit een model lezen (mockup 'Trapgat uit Revit lezen'): niet in v1, trapgat alleen als coordinatenlijst
+- [ ] Rooktest in CI: vraagt Chrome + draaiende API; nu handmatig
+
 ## BENG via IFC (2026-10-12, LIVE: main 9ac06ee, sidecar ifc-ruimtebalans 248f561)
 
 Opdracht planner `opdracht-beng-ob-12-10`. Notities: `docs/2026-10-12-beng-ifc-fixes.md`, contract `docs/beng-import-v1-contract.md`.

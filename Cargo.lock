@@ -2326,6 +2326,7 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+ "trap-core",
  "uniec3-import",
  "uuid",
  "zip",
@@ -2350,6 +2351,7 @@ name = "isso51-desktop"
 version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
+ "chrono",
  "image",
  "isso51-core",
  "isso53-core",
@@ -2366,6 +2368,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-fs",
  "tauri-plugin-shell",
+ "trap-core",
  "uniec3-import",
 ]
 
@@ -6169,6 +6172,16 @@ dependencies = [
  "tracing",
  "tracing-core",
  "tracing-log",
+]
+
+[[package]]
+name = "trap-core"
+version = "0.2.0"
+dependencies = [
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
 ]
 
 [[package]]

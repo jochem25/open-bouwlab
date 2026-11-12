@@ -25,6 +25,8 @@ nta8800-model = { path = "../crates/nta8800-model" }
 nta8800-tables = { path = "../crates/nta8800-tables" }
 openaec-project-shared = { path = "../crates/openaec-project-shared" }
 uniec3-import = { path = "../crates/uniec3-import" }
+trap-core = { path = "../crates/trap-core" }
+chrono = "0.4"
 openaec-layout = { path = "../libs/openaec-reports/rust/crates/openaec-layout" }
 tauri = { version = "2", features = ["devtools"] }
 tauri-plugin-dialog = "2"

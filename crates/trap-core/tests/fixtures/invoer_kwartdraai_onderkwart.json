@@ -1,0 +1,22 @@
+{
+  "naam": "kwartdraai onderkwart",
+  "project": {"naam": "referentie onderkwart", "bouwlaag": "begane grond"},
+  "niveaus": {"onder": 0.0, "boven": 3180.0, "vloerdikte_boven": 100.0},
+  "plattegrond": {
+    "soort": "contour",
+    "binnenzijde": [[1530.7, -1399.8], [1530.7, -851.4], [52.7, -851.4]],
+    "buitenzijde": [[2359.6, -1399.8], [2359.6, -48.0], [52.7, -48.0]],
+    "kant_binnen": "links",
+    "welstuk": 52.7
+  },
+  "optreden": 16,
+  "boom": {"dikte": 38.0, "plankbreedte": 320.0, "voorhout": 50.0, "achterhout_min": 20.0, "nestdiepte": 10.0},
+  "trede": {"dikte": 38.0, "neus": 40.0},
+  "stootbord": {"soort": "dicht", "dikte": 15.0},
+  "trappaal": {"langs_in": 37.9, "langs_uit": 115.4, "insteek_in": 0.0, "insteek_uit": 29.5, "materiaal": "vurenhout"},
+  "looplijn": {"afstand_buitenkant_boom": 300.0, "hoek": "boog", "straal": 500.0},
+  "hoekverbinding": {"doorlopend": "hoger"},
+  "gebruiksfunctie": "woonfunctie",
+  "bouwsoort": "nieuwbouw",
+  "trapgat": [[0.0, -898.6], [2410.7, -898.6], [2410.7, 0.0], [0.0, 0.0]]
+}
