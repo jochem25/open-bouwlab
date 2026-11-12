@@ -6,9 +6,12 @@ Verslag: `docs/2026-10-30-trapontwerper-v1.md`. Lokaal: `scripts/trap-lokaal.ps1
 - [x] API `/trap/ontwerp` + `/trap/schema`, Tauri-command `trap_ontwerp`, scherm `/trap`
 - [x] IFC met clearance-proxy en IFC voor leverancier; ifcopenshell validate 0 fouten (test `ifc_valide`)
 - [x] Rooktest `frontend/scripts/trap-rooktest.mjs` (recht, kwart, half)
-- [ ] Test door Jochem; daarna aparte go voor push/PR
-- [ ] Toegang: nu publieke reken-route zonder entitlement (als BENG); besluiten of de trap achter een entitlement moet (zoals constructie)
-- [ ] Automatische verdrijfvakken verdrijven bij een kwart de hele arm mee (alle voorkanten oranje); voorkeur voor rechte treden (vraag trappenmaker) open
+- [x] v1.1 (O-2026-11-12-01, `docs/2026-11-12-trapontwerper-v1.1.md`): looplijn uit buitenkant boom, kiertest, golden 3 onderkwart, standaardwaarden, entitlement `trap`, lokaal samengevoegd in main
+- [ ] Test door Jochem; daarna aparte go voor push/PR, installer en online
+- [ ] Authentik-groep `openbouwlab-trap` aanmaken en toekennen bij online zetten
+- [ ] Desktop: trap is (zoals constructie) uit in de Tauri-app; besluiten of de desktop de trap wel krijgt
+- [x] Automatische verdrijfvakken: kiezen nu eerst vakken zonder zichtbare overgang (kwart: 7 verdreven i.p.v. de hele arm)
+- [ ] Verdrijving van de leverancier overnemen als invoer (voorkanten opgeven): nu alleen vergelijken in golden 3
 - [ ] Uitslag bomen en varianten-tab uit de mockup: niet in v1
 - [ ] Trapgat uit een model lezen (mockup 'Trapgat uit Revit lezen'): niet in v1, trapgat alleen als coordinatenlijst
 - [ ] Rooktest in CI: vraagt Chrome + draaiende API; nu handmatig
