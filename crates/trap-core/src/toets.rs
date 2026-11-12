@@ -73,16 +73,17 @@ pub struct Meting {
     /// deze lagere waarden.
     pub info_aantrede_loodrecht: f64,
     pub info_aantrede_loodrecht_eigen: f64,
-    /// Afstand van de looplijn (= klimlijn) tot binnen- en buitenzijde.
+    /// Afstand van de looplijn (= klimlijn) tot binnen- en buitenzijde, gemeten
+    /// tot de buitenkant van de boom (besluit Jochem 11-11-2026).
     pub klimlijn_tot_binnenzijde: f64,
     pub klimlijn_tot_buitenzijde: f64,
-    /// Informatie: band van mogelijke klimlijnen (afstand uit de buitenzijde);
+    /// Informatie: band van mogelijke klimlijnen (afstand uit de buitenkant van de buitenboom);
     /// None als de trap smaller is dan 2 x 300.
     pub klimlijn_band: Option<[f64; 2]>,
     pub neus: f64,
     pub tredevlak_smalst: f64,
     pub loopbreedte_min: f64,
-    pub looplijn_afstand_buitenzijde: f64,
+    pub looplijn_afstand_buitenkant_boom: f64,
     /// Afrondingsstraal rho van de looplijn per binnenhoek (0 = scherp).
     pub looplijn_afronding: Vec<f64>,
     /// Grootste knik van de looplijn (graden); vloeiend (Bbl bijlage I) als
@@ -348,10 +349,10 @@ pub fn toets(m: &Meting) -> Vec<Regel> {
         )
     };
     let welke = format!(
-        "klimlijn = looplijn {:.0} uit de buitenzijde, {rho}, {vloeiend}; aantrede = afstand \
+        "klimlijn = looplijn {:.0} uit de buitenkant van de buitenboom, {rho}, {vloeiend}; aantrede = afstand \
          tussen opvolgende neuspunten, ontwikkeld langs de looplijn (meetwijze besluit Jochem \
          30-10-2026)",
-        m.looplijn_afstand_buitenzijde
+        m.looplijn_afstand_buitenkant_boom
     );
     let andere = format!(
         "informatie: loodrecht op de voorkant gemeten (strikte lezing) {:.1} (A) / {:.1} (A')",
@@ -408,7 +409,7 @@ pub fn toets(m: &Meting) -> Vec<Regel> {
         Zin::Min,
         Some(b.klimlijn_zijkant),
         format!(
-            "binnenzijde {:.1}, buitenzijde {:.1} (zijkant = rand loopbreedte; een insteek van \
+            "binnenzijde {:.1}, buitenzijde {:.1} (zijkant = buitenkant van de boom, besluit Jochem 11-11-2026; een insteek van \
              de trappaal telt niet mee)",
             m.klimlijn_tot_binnenzijde, m.klimlijn_tot_buitenzijde
         ),
@@ -515,7 +516,7 @@ pub fn toets(m: &Meting) -> Vec<Regel> {
         "-",
         "-",
     ));
-    let verhouding = m.looplijn_afstand_buitenzijde / m.loopbreedte_min;
+    let verhouding = m.looplijn_afstand_buitenkant_boom / m.loopbreedte_min;
     r.push(advies(
         "wattjes-klimlijn-plaats",
         "plaats klimlijn vanaf de buitenboom",
@@ -523,7 +524,10 @@ pub fn toets(m: &Meting) -> Vec<Regel> {
         Some(verhouding),
         "deel van de breedte",
         (1.0 / 3.0 - 1e-9..=0.4 + 1e-9).contains(&verhouding),
-        format!("looplijn {:.0} mm uit de buitenzijde", m.looplijn_afstand_buitenzijde),
+        format!(
+            "looplijn {:.0} mm uit de buitenkant van de buitenboom, binnenwerkse breedte {:.0}",
+            m.looplijn_afstand_buitenkant_boom, m.loopbreedte_min
+        ),
         "Wattjes deel VIII h2 par. 5-6 (leerboek, niet bindend)",
         P56,
         "r. 321-322",
@@ -637,7 +641,7 @@ mod tests {
             loopbreedte_min: 850.0,
             klimlijn_tot_binnenzijde: 550.0,
             klimlijn_tot_buitenzijde: 300.0,
-            looplijn_afstand_buitenzijde: 300.0,
+            looplijn_afstand_buitenkant_boom: 300.0,
             looplijn_afronding: vec![550.0],
             looplijn_grootste_knik: 0.25,
             vrije_hoogte: 2300.0,

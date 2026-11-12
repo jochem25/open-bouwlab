@@ -15,7 +15,7 @@
         "materiaal": "vurenhout",
         "nestdiepte": 10.0,
         "plankbreedte": 320.0,
-        "voorhout": 50.0
+        "voorhout": 30.0
       },
       "allOf": [
         {
@@ -61,7 +61,7 @@
     },
     "looplijn": {
       "default": {
-        "afstand_buitenzijde": 300.0,
+        "afstand_buitenkant_boom": 300.0,
         "hoek": "boog",
         "straal": null
       },
@@ -145,7 +145,7 @@
     },
     "trede": {
       "default": {
-        "dikte": 40.0,
+        "dikte": 38.0,
         "neus": 42.0
       },
       "allOf": [
@@ -194,14 +194,14 @@
           "format": "double"
         },
         "plankbreedte": {
-          "description": "Plankbreedte loodrecht op de bovenkant; standaard 320.",
+          "description": "Plankbreedte loodrecht op de bovenkant; standaard 320 (besluit Jochem 11-11-2026).",
           "default": 320.0,
           "type": "number",
           "format": "double"
         },
         "voorhout": {
-          "description": "Hout boven de tredevoorkanten, loodrecht; standaard 50.",
-          "default": 50.0,
+          "description": "Hout boven de tredevoorkanten, loodrecht; standaard 30 (Wattjes 15-30, besluit Jochem 12-11-2026).",
+          "default": 30.0,
           "type": "number",
           "format": "double"
         }
@@ -296,8 +296,8 @@
     "LooplijnInvoer": {
       "type": "object",
       "properties": {
-        "afstand_buitenzijde": {
-          "description": "Afstand tot de buitenzijde van de loopbreedte; standaard 300.",
+        "afstand_buitenkant_boom": {
+          "description": "Afstand van de looplijn tot de BUITENKANT VAN DE BUITENBOOM (het vlak van de boom aan de muurzijde, niet de rand van de loopbreedte); standaard 300 (besluit Jochem 11-11-2026, gelijk aan de leverancier). Tot de rand van de loopbreedte is dat deze afstand min de boomdikte.",
           "default": 300.0,
           "type": "number",
           "format": "double"
@@ -582,8 +582,8 @@
       "type": "object",
       "properties": {
         "dikte": {
-          "description": "Standaard 40.",
-          "default": 40.0,
+          "description": "Standaard 38 (besluit Jochem 11-11-2026).",
+          "default": 38.0,
           "type": "number",
           "format": "double"
         },

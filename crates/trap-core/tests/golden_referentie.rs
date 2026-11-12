@@ -262,14 +262,26 @@ fn treden_en_stootborden_overlappen_niet() {
     assert!(o < 1e-3, "overlap {o} mm3");
 }
 
+/// Tot O-2026-11-12-01 koos de automatische verdrijving hier de vakken van v5
+/// (0-5, 5-15). Die geven een zichtbare overgang (Wattjes: eerste verdreven
+/// aantrede groter dan het reeksverschil). De keuze verkiest nu eerst vakken
+/// zonder overgang; dat geeft kortere vakken, zoals de leverancier in golden 3
+/// (`golden_onderkwart.rs`). De v5-vergelijking zelf gebruikt de vakken uit de
+/// invoer en verandert niet.
 #[test]
-fn automatische_vakken_als_v5() {
+fn automatische_vakken_zonder_overgang() {
     let mut inv: Invoer = serde_json::from_str(INVOER).unwrap();
     inv.verdrijving.vakken = None;
     let o = ontwerp(&inv).unwrap();
     let v: Vec<(usize, usize)> = o.rapport.resultaat.vakken.iter().map(|v| (v.van, v.tot)).collect();
     println!("automatische vakken: {v:?}");
-    assert_eq!(v, vec![(0, 5), (5, 15)]);
+    assert_eq!(v, vec![(1, 6), (6, 9)]);
+    let r = o.rapport.regels.iter().find(|x| x.id == "wattjes-verdrijving-overgang").unwrap();
+    assert_eq!(r.oordeel, Oordeel::AdviesVoldoet);
+    // de v5-vakken geven die overgang wel
+    let v5 = kern();
+    let r5 = v5.rapport.regels.iter().find(|x| x.id == "wattjes-verdrijving-overgang").unwrap();
+    assert_eq!(r5.oordeel, Oordeel::AdviesAfwijking);
 }
 
 #[test]

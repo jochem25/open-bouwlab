@@ -46,9 +46,11 @@ pub struct Tekening {
     /// Randen van de loopbreedte, doorgetrokken tot de trapgatrand.
     pub binnenzijde: Vec<P2>,
     pub buitenzijde: Vec<P2>,
-    /// Looplijn zoals ingesteld (afstand uit de buitenzijde, boog of afronding).
+    /// Looplijn zoals ingesteld (afstand uit de buitenkant van de buitenboom,
+    /// boog of afronding).
     pub looplijn: Vec<P2>,
-    /// Klimlijn op `KLIMLIJN_AFSTAND` uit de buitenzijde, met dezelfde hoekvorm.
+    /// Klimlijn op `KLIMLIJN_AFSTAND` uit de buitenkant van de buitenboom, met
+    /// dezelfde hoekvorm.
     pub klimlijn: Vec<P2>,
     pub klimlijn_afstand: f64,
     /// Treden en welstuk (in volgorde, het welstuk als laatste).
@@ -59,8 +61,9 @@ pub struct Tekening {
     pub trapgat: Option<Vec<P2>>,
 }
 
-/// Afstand van de klimlijn tot de buitenzijde in de tekening (Bbl bijlage I,
-/// tabel 4.26: klimlijn 300 mm uit de zijkant).
+/// Afstand van de klimlijn tot de zijkant in de tekening (Bbl tabel 4.26:
+/// klimlijn 300 mm uit de zijkant). Zijkant = buitenkant van de boom (besluit
+/// Jochem 11-11-2026, gelijk aan de leverancier).
 pub const KLIMLIJN_AFSTAND: f64 = 300.0;
 
 #[derive(Debug, Clone, Serialize)]
@@ -227,6 +230,19 @@ fn strook(binnenvlak: &Polylijn, buitenvlak: &Polylijn, kant_binnen: Kant, nest:
 
 /// Aantal optreden: kleinste aantal waarbij de optrede aan tabel 4.26 voldoet,
 /// daarboven tot vier extra het aantal met de stapmaat het dichtst bij 630.
+/// Afstand van de looplijn tot de rand van de loopbreedte: de invoer meet vanaf
+/// de buitenkant van de buitenboom, de contour rekent vanaf de rand.
+fn looplijn_tot_rand(inv: &Invoer) -> Result<f64, Fout> {
+    let lp = inv.looplijn.afstand_buitenkant_boom - inv.boom.dikte;
+    if lp <= 0.0 {
+        return Err(Fout::Invoer(format!(
+            "looplijn {:.0} mm uit de buitenkant van de boom ligt in de boom (dikte {:.0})",
+            inv.looplijn.afstand_buitenkant_boom, inv.boom.dikte
+        )));
+    }
+    Ok(lp)
+}
+
 fn kies_optreden(inv: &Invoer, hoogte: f64, looplijn: f64) -> u32 {
     let g = tabel_4_26(inv.gebruiksfunctie);
     let n_min = ((hoogte / g.optrede) - 1e-9).ceil().max(2.0) as u32;
@@ -245,11 +261,12 @@ pub fn ontwerp(inv: &Invoer) -> Result<Ontwerp, Fout> {
     if hoogte <= 0.0 {
         return Err(Fout::Invoer("niveau boven moet boven niveau onder liggen".into()));
     }
+    let lp = looplijn_tot_rand(inv)?;
     let c = Contour::nieuw(
         pl.binnen.clone(),
         pl.buiten.clone(),
         pl.kant_binnen,
-        inv.looplijn.afstand_buitenzijde,
+        lp,
         inv.looplijn.hoek,
         inv.looplijn.straal,
     )?;
@@ -468,18 +485,27 @@ pub fn ontwerp(inv: &Invoer) -> Result<Ontwerp, Fout> {
     let loodrecht = aantreden_loodrecht(&v, LOODRECHT)?;
     let loodrecht_eigen = aantreden_loodrecht(&v, Loodrecht::VanafEigen)?;
     let ontwerp_a = loodrecht.iter().copied().fold(f64::INFINITY, f64::min);
+    // zijkant = buitenkant van de boom (besluit Jochem 11-11-2026): de afstand
+    // tot de rand van de loopbreedte plus de boomdikte, aan beide zijden
+    let t_boom = inv.boom.dikte;
     let (kl_binnen, kl_buiten) = looplijn_tot_zijkanten(&c);
+    let (kl_binnen, kl_buiten) = (kl_binnen + t_boom, kl_buiten + t_boom);
     let loopbreedte = loopbreedte_min(&pl.binnen, &pl.buiten);
-    // informatie: klimlijnen in de band 300 .. breedte - 300, kleinste aantrede
-    // langs elke lijn (het oordeel volgt de ingestelde looplijn, besluit Jochem)
-    let band = (loopbreedte >= 2.0 * g.klimlijn_zijkant)
-        .then_some([g.klimlijn_zijkant, loopbreedte - g.klimlijn_zijkant]);
+    // informatie: klimlijnen in de band 300 .. breedte - 300 (gemeten vanaf de
+    // buitenkant van de bomen), kleinste aantrede langs elke lijn (het oordeel
+    // volgt de ingestelde looplijn, besluit Jochem)
+    let buitenwerks = loopbreedte + 2.0 * t_boom;
+    let band = (buitenwerks >= 2.0 * g.klimlijn_zijkant)
+        .then_some([g.klimlijn_zijkant, buitenwerks - g.klimlijn_zijkant]);
     let mut klimlijnen: Vec<[f64; 2]> = Vec::new();
     if let Some([lo, hi]) = band {
         let n = ((hi - lo) / KLIMLIJN_STAP).ceil().max(1.0) as usize;
         for i in 0..=n {
             let d = lo + (hi - lo) * i as f64 / n as f64;
-            if let Ok(k) = aantreden_op_klimlijn(&c, &v, d, LOODRECHT) {
+            if d - t_boom <= 0.0 || d - t_boom >= loopbreedte {
+                continue;
+            }
+            if let Ok(k) = aantreden_op_klimlijn(&c, &v, d - t_boom, LOODRECHT) {
                 klimlijnen.push([r1(d), r3(k.langs_min)]);
             }
         }
@@ -499,7 +525,7 @@ pub fn ontwerp(inv: &Invoer) -> Result<Ontwerp, Fout> {
         neus: inv.trede.neus,
         tredevlak_smalst: smalste_tredevlak(&v, inv.trede.neus)?,
         loopbreedte_min: loopbreedte,
-        looplijn_afstand_buitenzijde: inv.looplijn.afstand_buitenzijde,
+        looplijn_afstand_buitenkant_boom: inv.looplijn.afstand_buitenkant_boom,
         looplijn_afronding: c.afronding.iter().map(|&r| r3(r)).collect(),
         looplijn_grootste_knik: c.looplijn.grootste_knik(),
         vrije_hoogte,
@@ -546,7 +572,8 @@ pub fn ontwerp(inv: &Invoer) -> Result<Ontwerp, Fout> {
         "STRAIGHT"
     };
     let a = v.aantrede_loop;
-    let walking_offset = loopbreedte - inv.looplijn.afstand_buitenzijde;
+    // IFC: afstand tot de binnenzijde van de loopbreedte
+    let walking_offset = loopbreedte - lp;
     let pset_trap = vec![
         ("NumberOfRiser".into(), Waarde::Int(i64::from(n_opt))),
         ("NumberOfTreads".into(), Waarde::Int(aantreden as i64)),
@@ -614,14 +641,14 @@ pub fn ontwerp(inv: &Invoer) -> Result<Ontwerp, Fout> {
         trapgat_minimaal: trapgat_min,
         waarschuwingen,
     };
-    let klimlijn = if (inv.looplijn.afstand_buitenzijde - KLIMLIJN_AFSTAND).abs() < 1e-9 {
+    let klimlijn = if (inv.looplijn.afstand_buitenkant_boom - KLIMLIJN_AFSTAND).abs() < 1e-9 {
         c.looplijn.punten.clone()
     } else {
         Contour::nieuw(
             pl.binnen.clone(),
             pl.buiten.clone(),
             pl.kant_binnen,
-            KLIMLIJN_AFSTAND,
+            KLIMLIJN_AFSTAND - t_boom,
             inv.looplijn.hoek,
             inv.looplijn.straal,
         )
@@ -807,7 +834,7 @@ fn uitgangspunten(
                 .get(1)
                 .filter(|_| pl.binnen.punten.len() > 2)
                 .map(|&h| {
-                    let lp = verschuif(&pl.buiten, inv.looplijn.afstand_buitenzijde, pl.kant_binnen)
+                    let lp = verschuif(&pl.buiten, inv.looplijn.afstand_buitenkant_boom - inv.boom.dikte, pl.kant_binnen)
                         .ok()
                         .map(|x| x.projecteer(h).1)
                         .unwrap_or(0.0);
@@ -827,8 +854,9 @@ fn uitgangspunten(
         (
             "Looplijn".into(),
             l(format!(
-                "{:.0} mm uit buitenzijde (rand loopbreedte), {boog}",
-                inv.looplijn.afstand_buitenzijde
+                "{:.0} mm uit de buitenkant van de buitenboom ({:.0} uit de rand loopbreedte), {boog}",
+                inv.looplijn.afstand_buitenkant_boom,
+                inv.looplijn.afstand_buitenkant_boom - inv.boom.dikte
             )),
         ),
         ("Voorhout".into(), Waarde::Real(inv.boom.voorhout)),

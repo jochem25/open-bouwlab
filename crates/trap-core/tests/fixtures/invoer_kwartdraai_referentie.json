@@ -17,7 +17,7 @@
   "stootbord": {"soort": "dicht", "dikte": 18.0},
   "trappaal": {"langs_in": 90.0, "langs_uit": 90.0, "materiaal": "vurenhout"},
   "verdrijving": {"methode": "fuik", "vakken": [{"van": 0, "tot": 5}, {"van": 5, "tot": 15}]},
-  "looplijn": {"afstand_buitenzijde": 300.0, "hoek": "boog"},
+  "looplijn": {"afstand_buitenkant_boom": 340.0, "hoek": "boog"},
   "hoekverbinding": {"doorlopend": "hoger"},
   "clearance": {"vrije_hoogte": 2300.0},
   "gebruiksfunctie": "woonfunctie",

@@ -136,8 +136,9 @@ fn te_smalle_trap_voldoet_niet_bij_nieuwbouw() {
     let o = controleer(&inv);
     let r = o.rapport.regels.iter().find(|r| r.id == "bbl-4.26-breedte").unwrap();
     assert_eq!(r.oordeel, Oordeel::VoldoetNiet);
-    // 700 breed: klimlijnband 300 .. 400 uit de buitenzijde
-    assert_eq!(o.rapport.resultaat.meting.klimlijn_band, Some([300.0, 400.0]));
+    // 700 loopbreedte, bomen 40: buitenwerks 780; klimlijnband 300 .. 480 uit de
+    // buitenkant van de buitenboom (zijkant = buitenkant boom, besluit Jochem 11-11)
+    assert_eq!(o.rapport.resultaat.meting.klimlijn_band, Some([300.0, 480.0]));
 }
 
 #[test]

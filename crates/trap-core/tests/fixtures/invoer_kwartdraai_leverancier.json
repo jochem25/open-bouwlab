@@ -16,7 +16,7 @@
   "trede": {"dikte": 39.0, "neus": 40.0},
   "stootbord": {"soort": "dicht", "dikte": 13.0},
   "trappaal": {"langs_in": 101.0, "langs_uit": 53.5, "insteek_in": 14.5, "insteek_uit": 14.0, "materiaal": "vurenhout"},
-  "looplijn": {"afstand_buitenzijde": 300.0, "hoek": "boog"},
+  "looplijn": {"afstand_buitenkant_boom": 339.0, "hoek": "boog"},
   "hoekverbinding": {"doorlopend": "hoger"},
   "gebruiksfunctie": "overig",
   "bouwsoort": "nieuwbouw"

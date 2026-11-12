@@ -175,10 +175,11 @@ pub struct BoomInvoer {
     /// Dikte; standaard 40.
     #[serde(default = "standaard_40")]
     pub dikte: f64,
-    /// Plankbreedte loodrecht op de bovenkant; standaard 320.
+    /// Plankbreedte loodrecht op de bovenkant; standaard 320 (besluit Jochem 11-11-2026).
     #[serde(default = "standaard_plank")]
     pub plankbreedte: f64,
-    /// Hout boven de tredevoorkanten, loodrecht; standaard 50.
+    /// Hout boven de tredevoorkanten, loodrecht; standaard 30 (Wattjes 15-30,
+    /// besluit Jochem 12-11-2026).
     #[serde(default = "standaard_voorhout")]
     pub voorhout: f64,
     /// Minimum hout onder de nesten; standaard 20.
@@ -211,7 +212,7 @@ fn standaard_plank() -> f64 {
     320.0
 }
 fn standaard_voorhout() -> f64 {
-    50.0
+    30.0
 }
 fn standaard_achterhout() -> f64 {
     20.0
@@ -226,8 +227,8 @@ fn standaard_materiaal() -> String {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TredeInvoer {
-    /// Standaard 40.
-    #[serde(default = "standaard_40")]
+    /// Standaard 38 (besluit Jochem 11-11-2026).
+    #[serde(default = "standaard_trede")]
     pub dikte: f64,
     /// Neus voorbij het voorvlak van het stootbord; standaard 42.
     #[serde(default = "standaard_neus")]
@@ -237,10 +238,14 @@ pub struct TredeInvoer {
 impl Default for TredeInvoer {
     fn default() -> Self {
         Self {
-            dikte: 40.0,
+            dikte: standaard_trede(),
             neus: standaard_neus(),
         }
     }
+}
+
+fn standaard_trede() -> f64 {
+    38.0
 }
 
 fn standaard_neus() -> f64 {
@@ -353,9 +358,12 @@ pub struct Vak {
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct LooplijnInvoer {
-    /// Afstand tot de buitenzijde van de loopbreedte; standaard 300.
+    /// Afstand van de looplijn tot de BUITENKANT VAN DE BUITENBOOM (het vlak
+    /// van de boom aan de muurzijde, niet de rand van de loopbreedte); standaard
+    /// 300 (besluit Jochem 11-11-2026, gelijk aan de leverancier). Tot de rand
+    /// van de loopbreedte is dat deze afstand min de boomdikte.
     #[serde(default = "standaard_looplijn")]
-    pub afstand_buitenzijde: f64,
+    pub afstand_buitenkant_boom: f64,
     /// 'boog' (standaard) of 'scherp' in de hoeken.
     #[serde(default)]
     pub hoek: Looplijnhoek,
@@ -369,7 +377,7 @@ pub struct LooplijnInvoer {
 impl Default for LooplijnInvoer {
     fn default() -> Self {
         Self {
-            afstand_buitenzijde: standaard_looplijn(),
+            afstand_buitenkant_boom: standaard_looplijn(),
             hoek: Looplijnhoek::Boog,
             straal: None,
         }

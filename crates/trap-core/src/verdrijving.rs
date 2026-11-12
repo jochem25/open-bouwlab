@@ -399,8 +399,10 @@ fn verdeel_intern(c: &Contour, aantal: usize, vakken: &[Vak], controle: bool) ->
 }
 
 /// Automatische vakken: per binnenhoek een tusschenkwart (de voorkant door de
-/// hoek blijft onverdreven, beide armen worden verdreven), gekozen op de
-/// grootste kleinste aantrede aan de binnenzijde.
+/// hoek blijft onverdreven, beide armen worden verdreven), gekozen op: eerst
+/// geen zichtbare overgang (eerste verdreven aantrede <= reeksverschil, Wattjes
+/// deel VIII h2 par. 7-11 r. 851-856), dan de grootste kleinste aantrede aan de
+/// binnenzijde.
 pub fn kies_vakken(c: &Contour, aantal: usize) -> Result<Vec<Vak>, Fout> {
     let basis = verdeel_intern(c, aantal, &[], false)?;
     let hoeken = c.binnenhoeken();
@@ -460,19 +462,28 @@ pub fn kies_vakken(c: &Contour, aantal: usize) -> Result<Vec<Vak>, Fout> {
                 }
             }
         }
-        let mut beste: Option<(f64, Vec<Vak>)> = None;
+        // eerst opties zonder zichtbare overgang (Wattjes: eerste verdreven
+        // aantrede <= reeksverschil), daarbinnen de grootste kleinste aantrede
+        // aan de binnenzijde; alleen als er zo geen is, de beste met overgang
+        // (O-2026-11-12-01: standaardtrap zonder Wattjes-afwijking)
+        let mut beste: Option<(bool, f64, Vec<Vak>)> = None;
         for v in opties {
             let mut alle = gekozen.clone();
             alle.extend(v.iter().copied());
             let laatste = i + 1 == hoeken.len();
             let Ok(d) = verdeel_intern(c, aantal, &alle, laatste) else { continue };
+            let vloeiend = d.waarschuwingen.is_empty();
             let b = d.aantreden(Waar::Binnen);
             let score = b[lo..hi].iter().copied().fold(f64::INFINITY, f64::min);
-            if beste.as_ref().is_none_or(|(s, _)| score > *s + 1e-9) {
-                beste = Some((score, v));
+            let beter = match &beste {
+                None => true,
+                Some((vl, s, _)) => (vloeiend && !vl) || (vloeiend == *vl && score > *s + 1e-9),
+            };
+            if beter {
+                beste = Some((vloeiend, score, v));
             }
         }
-        let (_, v) = beste.ok_or_else(|| {
+        let (_, _, v) = beste.ok_or_else(|| {
             Fout::Ontwerp(format!("geen geldige verdrijving gevonden bij binnenhoek {}", i + 1))
         })?;
         gekozen.extend(v);
