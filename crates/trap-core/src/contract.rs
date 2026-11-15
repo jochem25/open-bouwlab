@@ -245,11 +245,26 @@ pub struct NlSfb {
 }
 
 /// Projectbestand: pad (relatief aan het invoerbestand, de CLI leest het) of inline.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, JsonSchema)]
 #[serde(untagged)]
 pub enum ProjectBron {
     Pad(String),
     Inline(Box<ProjectOorsprong>),
+}
+
+/// Eigen Deserialize: een untagged enum meldt alleen "did not match any
+/// variant"; zo krijgt een fout in een inline project een precieze melding.
+impl<'de> Deserialize<'de> for ProjectBron {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        use serde::de::Error as _;
+        match serde_json::Value::deserialize(d)? {
+            serde_json::Value::String(s) => Ok(Self::Pad(s)),
+            v @ serde_json::Value::Object(_) => serde_json::from_value(v)
+                .map(|p| Self::Inline(Box::new(p)))
+                .map_err(|e| D::Error::custom(format!("project (inline): {e}"))),
+            _ => Err(D::Error::custom("project: verwacht een pad (tekst) of een project.json-object")),
+        }
+    }
 }
 
 /// Headless invoer van de trapontwerper volgens het assemblagecontract.

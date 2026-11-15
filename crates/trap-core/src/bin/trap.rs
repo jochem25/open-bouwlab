@@ -71,8 +71,20 @@ fn contract(args: &[String]) -> Result<Vec<PathBuf>, String> {
     }
     let tijd = tijd.unwrap_or_else(nu);
     let bron = std::fs::read(&invoer).map_err(|e| format!("kan {} niet lezen: {e}", invoer.display()))?;
+    // eerst het schema-veld: een verkeerd bestand (bv. project.json) krijgt dan
+    // een duidelijke melding in plaats van een fout in een binnenveld
+    let ruw: serde_json::Value =
+        serde_json::from_slice(&bron).map_err(|e| format!("{}: geen geldige JSON: {e}", invoer.display()))?;
+    let schema = ruw.get("schema").and_then(|s| s.as_str()).unwrap_or("(geen)");
+    if schema != trap_core::contract::INVOER_SCHEMA {
+        return Err(format!(
+            "{}: schema '{schema}', verwacht '{}' (headless trapinvoer)",
+            invoer.display(),
+            trap_core::contract::INVOER_SCHEMA
+        ));
+    }
     let ci: trap_core::contract::ContractInvoer =
-        serde_json::from_slice(&bron).map_err(|e| format!("{}: {e}", invoer.display()))?;
+        serde_json::from_value(ruw).map_err(|e| format!("{}: {e}", invoer.display()))?;
     let project = match &ci.project {
         trap_core::contract::ProjectBron::Inline(p) => (**p).clone(),
         trap_core::contract::ProjectBron::Pad(p) => {
