@@ -1,0 +1,27 @@
+{
+  "schema": "kba-assemblage/1",
+  "project": {
+    "id": "REF-0001",
+    "naam": "referentie kwartdraai"
+  },
+  "oorsprong": {
+    "rd_x": 0,
+    "rd_y": 0,
+    "nap_peil": 0,
+    "rotatie_ware_noorden": 0,
+    "bron": "geanonimiseerde referentie (golden test); geen echt nulpunt"
+  },
+  "bouwlagen": [
+    {
+      "code": "-02",
+      "naam": "bouwlaag -2",
+      "peil": -130
+    },
+    {
+      "code": "-01",
+      "naam": "bouwlaag -1",
+      "peil": 3130,
+      "vloerpakket": 300
+    }
+  ]
+}

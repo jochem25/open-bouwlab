@@ -4,6 +4,10 @@
 //! trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO>]
 //! trap schema               JSON-schema van de invoer naar stdout
 //! trap uitvoer <invoer.json> [--tijd <ISO>]   scherm-uitvoer (toetsing, tekening, IFC's) als JSON
+//! trap contract <invoer.json> [--uit <map>] [--tijd <ISO>] [--corpus <kennis-v2>]
+//!                           headless volgens het assemblagecontract: <onderdeel>.ifc,
+//!                           .toets.json, .toetsverslag.md en .pdf
+//! trap contract-schema      JSON-schema van de headless invoer
 //! ```
 //!
 //! Zonder `--ifc`/`--toets` komen de bestanden naast de invoer
@@ -17,7 +21,7 @@ use trap_core::{ontwerp_from_json, IfcOpties, DISCLAIMER};
 
 fn gebruik() -> ExitCode {
     eprintln!(
-        "gebruik:\n  trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO 8601>]\n  trap schema\n  trap uitvoer <invoer.json> [--tijd <ISO 8601>]"
+        "gebruik:\n  trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO 8601>]\n  trap schema\n  trap uitvoer <invoer.json> [--tijd <ISO 8601>]\n  trap contract <invoer.json> [--uit <map>] [--tijd <ISO 8601>] [--corpus <kennis-v2>]\n  trap contract-schema"
     );
     ExitCode::from(2)
 }
@@ -43,9 +47,107 @@ fn naast(invoer: &Path, achtervoegsel: &str) -> PathBuf {
     invoer.with_file_name(format!("{stam}{achtervoegsel}"))
 }
 
+/// Normcorpus kennis-v2: `--corpus`, anders `%KBA_SHARED%\kennis-v2`.
+fn corpus_map(expliciet: Option<PathBuf>) -> Option<PathBuf> {
+    expliciet
+        .or_else(|| std::env::var_os("KBA_SHARED").map(|s| PathBuf::from(s).join("kennis-v2")))
+        .filter(|p| p.is_dir())
+}
+
+/// `trap contract`: headless volgens het assemblagecontract.
+fn contract(args: &[String]) -> Result<Vec<PathBuf>, String> {
+    let invoer = args.first().map(PathBuf::from).ok_or("invoerbestand ontbreekt")?;
+    let (mut uit, mut tijd, mut corpus) = (None, None, None);
+    let mut i = 1;
+    while i < args.len() {
+        let w = args.get(i + 1).cloned().ok_or_else(|| format!("waarde ontbreekt bij {}", args[i]))?;
+        match args[i].as_str() {
+            "--uit" => uit = Some(PathBuf::from(w)),
+            "--tijd" => tijd = Some(w),
+            "--corpus" => corpus = Some(PathBuf::from(w)),
+            o => return Err(format!("onbekende optie {o}")),
+        }
+        i += 2;
+    }
+    let tijd = tijd.unwrap_or_else(nu);
+    let bron = std::fs::read(&invoer).map_err(|e| format!("kan {} niet lezen: {e}", invoer.display()))?;
+    let ci: trap_core::contract::ContractInvoer =
+        serde_json::from_slice(&bron).map_err(|e| format!("{}: {e}", invoer.display()))?;
+    let project = match &ci.project {
+        trap_core::contract::ProjectBron::Inline(p) => (**p).clone(),
+        trap_core::contract::ProjectBron::Pad(p) => {
+            let pad = invoer.parent().unwrap_or(Path::new(".")).join(p);
+            let tekst = std::fs::read(&pad).map_err(|e| format!("kan project {} niet lezen: {e}", pad.display()))?;
+            serde_json::from_slice(&tekst).map_err(|e| format!("{}: {e}", pad.display()))?
+        }
+    };
+    let naam = invoer.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+    let u = trap_core::ontwerp_contract(&ci, &project, &naam, &bron, &tijd).map_err(|e| e.to_string())?;
+
+    let corpus = corpus_map(corpus);
+    let opzoek = |art: &str, lid: Option<&str>, bron_id: &str| {
+        let map = corpus.as_ref()?;
+        if bron_id.is_empty() || bron_id == "-" {
+            return None;
+        }
+        let rel = format!("{bron_id}.md");
+        let tekst = std::fs::read_to_string(map.join(&rel)).ok()?;
+        trap_core::verslag::zoek_in_corpus(&tekst, &rel, art, lid)
+    };
+    let verslag = trap_core::verslag::toetsverslag(&u, &tijd, &opzoek);
+    let kader = trap_core::pdf::Kader {
+        titel: format!("{} ({})", u.gerekend_met.naam, u.contract.onderdeel),
+        regels: vec![
+            format!("project {} ({})", u.contract.project.project.naam, u.contract.project.project.id),
+            format!("bouwlaag {} '{}', peil {:.0}", u.contract.laag.code, u.contract.laag.naam, u.contract.laag.peil),
+            format!("doorbreekt {} '{}', peil {:.0}", u.contract.doorbreekt.code, u.contract.doorbreekt.naam, u.contract.doorbreekt.peil),
+            format!("materiaal {}, NL-SfB {}", u.contract.materiaal, u.contract.nlsfb.code),
+            format!("sparing: {}", u.contract.sparing_bron),
+            format!("uitvoer {tijd}, invoer {naam}"),
+        ],
+    };
+    let pdf = trap_core::pdf::tekening_pdf(&u.tekening, &u.rapport, Some(&u.contract.sparing), &kader);
+
+    let map = uit.unwrap_or_else(|| invoer.parent().unwrap_or(Path::new(".")).to_path_buf());
+    std::fs::create_dir_all(&map).map_err(|e| format!("kan {} niet maken: {e}", map.display()))?;
+    let stam = map.join(&u.bestandsnaam);
+    let toets = serde_json::to_string_pretty(&u.rapport).map_err(|e| e.to_string())? + "\n";
+    let mut geschreven = Vec::new();
+    for (ext, inhoud) in [
+        (".ifc", u.ifc.into_bytes()),
+        (".toets.json", toets.into_bytes()),
+        (".toetsverslag.md", verslag.into_bytes()),
+        (".pdf", pdf),
+    ] {
+        let pad = PathBuf::from(format!("{}{ext}", stam.display()));
+        // eerst naar .tmp, dan hernoemen: geen half bestand bij een fout
+        let tmp = PathBuf::from(format!("{}.tmp", pad.display()));
+        std::fs::write(&tmp, inhoud).and_then(|()| std::fs::rename(&tmp, &pad))
+            .map_err(|e| format!("kan {} niet schrijven: {e}", pad.display()))?;
+        geschreven.push(pad);
+    }
+    Ok(geschreven)
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("contract") => match contract(&args[1..]) {
+            Ok(paden) => {
+                for p in paden {
+                    println!("{}", p.display());
+                }
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        },
+        Some("contract-schema") => {
+            print!("{}", trap_core::contract::schema());
+            ExitCode::SUCCESS
+        }
         Some("schema") => {
             print!("{}", trap_core::invoer::schema());
             ExitCode::SUCCESS

@@ -1,0 +1,254 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ContractInvoer",
+  "description": "Headless invoer van de trapontwerper volgens het assemblagecontract.\n\n`trap` is de bestaande trapinvoer (`schema/trap-invoer.schema.json`) ZONDER `naam`, `project`, `niveaus` en materiaalvelden: die volgen uit het contract (niveaus = peil van `bouwlaag` en `doorbreekt`, vloerdikte = vloerpakket van `doorbreekt`, materiaal = `houtsoort`). Staan ze er toch in, dan weigert de kern (geen twee bronnen voor een maat).",
+  "type": "object",
+  "required": [
+    "bouwlaag",
+    "houtsoort",
+    "onderdeel",
+    "project",
+    "schema",
+    "trap"
+  ],
+  "properties": {
+    "bouwlaag": {
+      "description": "Bouwlaagcode waarop de trap staat (aantrede 1).",
+      "type": "string"
+    },
+    "doorbreekt": {
+      "description": "Bouwlaagcode waarvan de vloer doorbroken wordt (bovenkant trap); weg = de eerstvolgende bouwlaag erboven.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "houtsoort": {
+      "$ref": "#/definitions/Houtsoort"
+    },
+    "naam": {
+      "description": "Naam van de trap (IfcStair.Name); weg = onderdeel-id. Mag wijzigen zonder GUID-wijziging.",
+      "default": null,
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "nlsfb": {
+      "description": "Weg = 24.11 (rechte steektrap) of 24.12 (niet-recht), uit de trapvorm.",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/NlSfb"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "onderdeel": {
+      "description": "Onderdeel-id (`^[a-z0-9][a-z0-9-]*$`), tweede deel van elke GUID-sleutel. Nooit wijzigen of hergebruiken.",
+      "type": "string"
+    },
+    "project": {
+      "description": "project.json (schema kba-assemblage/1): pad of inline.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/ProjectBron"
+        }
+      ]
+    },
+    "schema": {
+      "description": "Moet `kba-trap-headless/1` zijn.",
+      "type": "string"
+    },
+    "trap": {
+      "description": "Trapdeel van de bestaande invoer (plattegrond in projectcoordinaten, trapgat, looplijn, verdrijving, ...); zie de typebeschrijving.",
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "Bouwlaag": {
+      "type": "object",
+      "required": [
+        "code",
+        "naam",
+        "peil"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "naam": {
+          "type": "string"
+        },
+        "peil": {
+          "type": "number",
+          "format": "double"
+        },
+        "vloerpakket": {
+          "default": null,
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Houtsoort": {
+      "description": "Houtsoort; wordt het NAA.K.T.-materiaal `hout_<soort>_generiek` (NAA.K.T. v2.5, hoofdgroep hout) op de trap en elk deel. Lijst = de kenmerken uit `IDS_NAAKT-v2.5.ids` die voor een houten trap in aanmerking komen.",
+      "type": "string",
+      "enum": [
+        "vuren",
+        "grenen",
+        "douglas",
+        "lariks",
+        "eiken",
+        "beuken",
+        "essen",
+        "esdoorn",
+        "meranti",
+        "merbau",
+        "accoya",
+        "hardhout",
+        "zachthout",
+        "multiplex",
+        "mdf"
+      ]
+    },
+    "NlSfb": {
+      "description": "NL-SfB tabel 1 (BNA1991), viercijferig zonder haken.",
+      "type": "object",
+      "required": [
+        "code",
+        "omschrijving"
+      ],
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "omschrijving": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Oorsprong": {
+      "type": "object",
+      "required": [
+        "nap_peil",
+        "rd_x",
+        "rd_y",
+        "rotatie_ware_noorden"
+      ],
+      "properties": {
+        "bron": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "crs": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hoogtestelsel": {
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "nap_peil": {
+          "type": "number",
+          "format": "double"
+        },
+        "rd_x": {
+          "type": "number",
+          "format": "double"
+        },
+        "rd_y": {
+          "type": "number",
+          "format": "double"
+        },
+        "rotatie_ware_noorden": {
+          "type": "number",
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectBron": {
+      "description": "Projectbestand: pad (relatief aan het invoerbestand, de CLI leest het) of inline.",
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "$ref": "#/definitions/ProjectOorsprong"
+        }
+      ]
+    },
+    "ProjectId": {
+      "type": "object",
+      "required": [
+        "id",
+        "naam"
+      ],
+      "properties": {
+        "gebouw": {
+          "default": "gebouw",
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "naam": {
+          "type": "string"
+        },
+        "site": {
+          "default": "kavel",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ProjectOorsprong": {
+      "type": "object",
+      "required": [
+        "bouwlagen",
+        "oorsprong",
+        "project",
+        "schema"
+      ],
+      "properties": {
+        "bouwlagen": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/Bouwlaag"
+          }
+        },
+        "oorsprong": {
+          "$ref": "#/definitions/Oorsprong"
+        },
+        "project": {
+          "$ref": "#/definitions/ProjectId"
+        },
+        "schema": {
+          "description": "Moet `kba-assemblage/1` zijn.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

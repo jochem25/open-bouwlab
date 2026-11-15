@@ -25,3 +25,12 @@ fn onbekend_veld_faalt() {
     let j = r#"{"naam":"x","niveaus":{"onder":0,"boven":2800},"plattegrond":{"soort":"armen","start":[0,0],"richting":[1,0],"binnenzijde":"links","armlengtes":[3000],"breedte":850},"optrede":17}"#;
     assert!(serde_json::from_str::<Invoer>(j).is_err(), "deny_unknown_fields");
 }
+
+/// Schema van de headless invoer (assemblagecontract, O-2026-11-15-05). Bijwerken:
+/// `trap contract-schema > crates/trap-core/schema/trap-headless.schema.json`
+/// en dezelfde inhoud naar `%KBA_SHARED%/conventies/assemblagecontract/schema/`.
+#[test]
+fn contract_schema_is_actueel() {
+    let opgeslagen = include_str!("../schema/trap-headless.schema.json").replace("\r\n", "\n");
+    assert_eq!(opgeslagen, trap_core::contract::schema(), "schema verouderd: opnieuw genereren");
+}

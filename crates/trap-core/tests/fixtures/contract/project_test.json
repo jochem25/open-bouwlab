@@ -1,0 +1,23 @@
+{
+  "schema": "kba-assemblage/1",
+  "project": {
+    "id": "TEST-0001",
+    "naam": "assemblagetest O-2026-11-15-03",
+    "gebouw": "gebouw",
+    "site": "kavel"
+  },
+  "oorsprong": {
+    "rd_x": 155000000,
+    "rd_y": 463000000,
+    "nap_peil": 0,
+    "rotatie_ware_noorden": 0,
+    "crs": "EPSG:28992",
+    "hoogtestelsel": "NAP",
+    "bron": "fictief testpunt (Amersfoort-ish); levels uit 2025_model (00_begane grond 0, 01_eerste verdieping 3000, 01 o.k. vloer 2730)"
+  },
+  "bouwlagen": [
+    { "code": "00", "naam": "00_begane grond", "peil": 0 },
+    { "code": "01", "naam": "01_eerste verdieping", "peil": 3000, "vloerpakket": 270 },
+    { "code": "02", "naam": "02_tweede verdieping", "peil": 6000, "vloerpakket": 270 }
+  ]
+}
