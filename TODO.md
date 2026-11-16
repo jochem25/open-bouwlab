@@ -14,6 +14,10 @@ Verslag: `docs/2026-10-30-trapontwerper-v1.md`. Lokaal: `scripts/trap-lokaal.ps1
 - [ ] Verdrijving van de leverancier overnemen als invoer (voorkanten opgeven): nu alleen vergelijken in golden 3
 - [ ] Uitslag bomen en varianten-tab uit de mockup: niet in v1
 - [ ] Trapgat uit een model lezen (mockup 'Trapgat uit Revit lezen'): niet in v1, trapgat alleen als coordinatenlijst
+- [x] Headless volgens assemblagecontract (O-2026-11-15-05, `docs/2026-11-15-trap-headless.md`): CLI `trap contract`, MCP `trap_contract`, contract-IFC, toetsverslag Bbl, pdf; review-dual verwerkt (16-11), pdf-maatvoering na beoordeling Jochem, gemerged in main
+- [ ] Trap-pdf via openaec-reports of de tekeningmotor (S3: KBA-titelblok, volledige tekenstijl); nu een eenvoudig controleblad (besluit 16-11: pdf.rs blijft voorlopig)
+- [ ] `referentie` (stramien/ruwe wanden) uit het project of het Revit-model halen i.p.v. in de trapinvoer
+- [ ] MCP-server: bestaande typefout in `server.resource` (regel ~360) bij SDK >= 1.30 (tsx draait, tsc --noEmit faalt); los van de trap
 - [ ] Rooktest in CI: vraagt Chrome + draaiende API; nu handmatig
 
 ## BENG via IFC (2026-10-12, LIVE: main 9ac06ee, sidecar ifc-ruimtebalans 248f561)

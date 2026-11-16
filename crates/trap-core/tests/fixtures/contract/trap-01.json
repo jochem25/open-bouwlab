@@ -1,0 +1,59 @@
+{
+  "schema": "kba-trap-headless/1",
+  "onderdeel": "trap-01",
+  "naam": "trap 01",
+  "project": "project_test.json",
+  "bouwlaag": "00",
+  "doorbreekt": "01",
+  "houtsoort": "vuren",
+  "trap": {
+    "plattegrond": {
+      "soort": "armen",
+      "start": [
+        4000,
+        2000
+      ],
+      "richting": [
+        -1,
+        0
+      ],
+      "binnenzijde": "rechts",
+      "armlengtes": [
+        2300,
+        1600
+      ],
+      "breedte": 850,
+      "breedte_is": "loopbreedte",
+      "welstuk": 80
+    },
+    "boom": {
+      "dikte": 40,
+      "plankbreedte": 320,
+      "voorhout": 30,
+      "achterhout_min": 20,
+      "nestdiepte": 10
+    },
+    "trede": {
+      "dikte": 38,
+      "neus": 42
+    },
+    "stootbord": {
+      "soort": "dicht",
+      "dikte": 18
+    },
+    "looplijn": {
+      "afstand_buitenkant_boom": 300,
+      "hoek": "boog"
+    },
+    "hoekverbinding": {
+      "doorlopend": "hoger"
+    },
+    "clearance": {},
+    "gebruiksfunctie": "woonfunctie",
+    "bouwsoort": "nieuwbouw",
+    "trappaal": {
+      "langs_in": 90,
+      "langs_uit": 90
+    }
+  }
+}

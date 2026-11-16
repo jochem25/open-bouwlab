@@ -4,6 +4,10 @@
 //! trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO>]
 //! trap schema               JSON-schema van de invoer naar stdout
 //! trap uitvoer <invoer.json> [--tijd <ISO>]   scherm-uitvoer (toetsing, tekening, IFC's) als JSON
+//! trap contract <invoer.json> [--uit <map>] [--tijd <ISO>] [--corpus <kennis-v2>]
+//!                           headless volgens het assemblagecontract: <onderdeel>.ifc,
+//!                           .toets.json, .toetsverslag.md en .pdf
+//! trap contract-schema      JSON-schema van de headless invoer
 //! ```
 //!
 //! Zonder `--ifc`/`--toets` komen de bestanden naast de invoer
@@ -17,7 +21,7 @@ use trap_core::{ontwerp_from_json, IfcOpties, DISCLAIMER};
 
 fn gebruik() -> ExitCode {
     eprintln!(
-        "gebruik:\n  trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO 8601>]\n  trap schema\n  trap uitvoer <invoer.json> [--tijd <ISO 8601>]"
+        "gebruik:\n  trap ontwerp <invoer.json> [--ifc <uit.ifc>] [--toets <uit.json>] [--tijd <ISO 8601>]\n  trap schema\n  trap uitvoer <invoer.json> [--tijd <ISO 8601>]\n  trap contract <invoer.json> [--uit <map>] [--tijd <ISO 8601>] [--corpus <kennis-v2>]\n  trap contract-schema"
     );
     ExitCode::from(2)
 }
@@ -43,9 +47,163 @@ fn naast(invoer: &Path, achtervoegsel: &str) -> PathBuf {
     invoer.with_file_name(format!("{stam}{achtervoegsel}"))
 }
 
+/// Normcorpus kennis-v2: `--corpus`, anders `%KBA_SHARED%\kennis-v2`.
+fn corpus_map(expliciet: Option<PathBuf>) -> Option<PathBuf> {
+    expliciet
+        .or_else(|| std::env::var_os("KBA_SHARED").map(|s| PathBuf::from(s).join("kennis-v2")))
+        .filter(|p| p.is_dir())
+}
+
+/// `trap contract`: headless volgens het assemblagecontract.
+fn contract(args: &[String]) -> Result<Vec<PathBuf>, String> {
+    let invoer = args.first().map(PathBuf::from).ok_or("invoerbestand ontbreekt")?;
+    let (mut uit, mut tijd, mut corpus) = (None, None, None);
+    let mut i = 1;
+    while i < args.len() {
+        let w = args.get(i + 1).cloned().ok_or_else(|| format!("waarde ontbreekt bij {}", args[i]))?;
+        match args[i].as_str() {
+            "--uit" => uit = Some(PathBuf::from(w)),
+            "--tijd" => tijd = Some(w),
+            "--corpus" => corpus = Some(PathBuf::from(w)),
+            o => return Err(format!("onbekende optie {o}")),
+        }
+        i += 2;
+    }
+    let tijd = tijd.unwrap_or_else(nu);
+    let bron = std::fs::read(&invoer).map_err(|e| format!("kan {} niet lezen: {e}", invoer.display()))?;
+    // eerst het schema-veld: een verkeerd bestand (bv. project.json) krijgt dan
+    // een duidelijke melding in plaats van een fout in een binnenveld
+    let ruw: serde_json::Value =
+        serde_json::from_slice(&bron).map_err(|e| format!("{}: geen geldige JSON: {e}", invoer.display()))?;
+    let schema = ruw.get("schema").and_then(|s| s.as_str()).unwrap_or("(geen)");
+    if schema != trap_core::contract::INVOER_SCHEMA {
+        return Err(format!(
+            "{}: schema '{schema}', verwacht '{}' (headless trapinvoer)",
+            invoer.display(),
+            trap_core::contract::INVOER_SCHEMA
+        ));
+    }
+    let ci: trap_core::contract::ContractInvoer =
+        serde_json::from_value(ruw).map_err(|e| format!("{}: {e}", invoer.display()))?;
+    let project = match &ci.project {
+        trap_core::contract::ProjectBron::Inline(p) => (**p).clone(),
+        trap_core::contract::ProjectBron::Pad(p) => {
+            let pad = invoer.parent().unwrap_or(Path::new(".")).join(p);
+            let tekst = std::fs::read(&pad).map_err(|e| format!("kan project {} niet lezen: {e}", pad.display()))?;
+            serde_json::from_slice(&tekst).map_err(|e| format!("{}: {e}", pad.display()))?
+        }
+    };
+    let naam = invoer.file_name().and_then(|s| s.to_str()).unwrap_or("").to_string();
+    let u = trap_core::ontwerp_contract(&ci, &project, &naam, &bron, &tijd).map_err(|e| e.to_string())?;
+
+    let corpus = corpus_map(corpus);
+    let opzoek = |art: &str, lid: Option<&str>, bron_id: &str| {
+        let map = corpus.as_ref()?;
+        if bron_id.is_empty() || bron_id == "-" {
+            return None;
+        }
+        // het corpus knipt grote bestanden op (bbl__afdeling-4-2.md ->
+        // bbl__afdeling-4-2-paragraaf-*.md, 16-11-2026): zoek in het hele
+        // bestand of anders in de delen
+        let (dir, stam) = match bron_id.rsplit_once('/') {
+            Some((d, s)) => (d, s),
+            None => ("", bron_id),
+        };
+        let namen: Vec<String> = std::fs::read_dir(map.join(dir))
+            .ok()?
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .collect();
+        trap_core::verslag::corpus_bestanden(&namen, stam).into_iter().find_map(|n| {
+            let rel = if dir.is_empty() { n } else { format!("{dir}/{n}") };
+            let tekst = std::fs::read_to_string(map.join(&rel)).ok()?;
+            trap_core::verslag::zoek_in_corpus(&tekst, &rel, art, lid)
+        })
+    };
+    let verslag = trap_core::verslag::toetsverslag(&u, &tijd, &opzoek);
+    let kader = trap_core::pdf::Kader {
+        titel: format!("{} ({})", u.gerekend_met.naam, u.contract.onderdeel),
+        regels: vec![
+            format!("project {} ({})", u.contract.project.project.naam, u.contract.project.project.id),
+            format!("bouwlaag {} '{}', peil {:.0}", u.contract.laag.code, u.contract.laag.naam, u.contract.laag.peil),
+            format!("doorbreekt {} '{}', peil {:.0}", u.contract.doorbreekt.code, u.contract.doorbreekt.naam, u.contract.doorbreekt.peil),
+            format!("materiaal {}, NL-SfB {}", u.contract.materiaal, u.contract.nlsfb.code),
+            format!("sparing: {}", u.contract.sparing_bron),
+            format!("uitvoer {tijd}, invoer {naam}"),
+        ],
+    };
+    let pdf = trap_core::pdf::tekening_pdf(&u.tekening, &u.rapport, Some(&u.contract.sparing), &kader, ci.referentie.as_ref());
+
+    let map = uit.unwrap_or_else(|| invoer.parent().unwrap_or(Path::new(".")).to_path_buf());
+    std::fs::create_dir_all(&map).map_err(|e| format!("kan {} niet maken: {e}", map.display()))?;
+    let stam = map.join(&u.bestandsnaam);
+    let toets = serde_json::to_string_pretty(&u.rapport).map_err(|e| e.to_string())? + "\n";
+    let set = [
+        (".ifc", u.ifc.into_bytes()),
+        (".toets.json", toets.into_bytes()),
+        (".toetsverslag.md", verslag.into_bytes()),
+        (".pdf", pdf),
+    ];
+    let paden: Vec<(PathBuf, PathBuf)> = set
+        .iter()
+        .map(|(ext, _)| {
+            let pad = PathBuf::from(format!("{}{ext}", stam.display()));
+            (PathBuf::from(format!("{}.tmp", pad.display())), pad)
+        })
+        .collect();
+    schrijf_set(&paden, set.iter().map(|(_, b)| b.as_slice()))
+}
+
+/// Schrijf de set als geheel: eerst ALLE .tmp-bestanden, pas daarna hernoemen.
+/// Faalt een schrijfactie, dan worden de .tmp's opgeruimd en blijft de vorige
+/// revisie compleet staan (review 16-11: geen mengsel van twee revisies).
+fn schrijf_set<'a>(paden: &[(PathBuf, PathBuf)], inhoud: impl Iterator<Item = &'a [u8]>) -> Result<Vec<PathBuf>, String> {
+    let ruim = |tot: usize| {
+        for (tmp, _) in &paden[..tot] {
+            let _ = std::fs::remove_file(tmp);
+        }
+    };
+    for (i, ((tmp, _), b)) in paden.iter().zip(inhoud).enumerate() {
+        if let Err(e) = std::fs::write(tmp, b) {
+            ruim(i + 1);
+            return Err(format!("kan {} niet schrijven: {e}", tmp.display()));
+        }
+    }
+    for (i, (tmp, pad)) in paden.iter().enumerate() {
+        if let Err(e) = std::fs::rename(tmp, pad) {
+            // de eerdere zijn al vervangen; de rest opruimen en dat melden
+            for (t, _) in &paden[i..] {
+                let _ = std::fs::remove_file(t);
+            }
+            return Err(format!(
+                "kan {} niet vervangen ({e}); {} van {} bestanden zijn al de nieuwe revisie",
+                pad.display(),
+                i,
+                paden.len()
+            ));
+        }
+    }
+    Ok(paden.iter().map(|(_, p)| p.clone()).collect())
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
+        Some("contract") => match contract(&args[1..]) {
+            Ok(paden) => {
+                for p in paden {
+                    println!("{}", p.display());
+                }
+                ExitCode::SUCCESS
+            }
+            Err(e) => {
+                eprintln!("{e}");
+                ExitCode::FAILURE
+            }
+        },
+        Some("contract-schema") => {
+            print!("{}", trap_core::contract::schema());
+            ExitCode::SUCCESS
+        }
         Some("schema") => {
             print!("{}", trap_core::invoer::schema());
             ExitCode::SUCCESS
@@ -124,5 +282,33 @@ fn main() -> ExitCode {
             }
         }
         _ => gebruik(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Faalt een bestand van de set, dan blijft de vorige revisie compleet
+    /// staan en blijft er geen .tmp achter (review 16-11).
+    #[test]
+    fn set_is_alles_of_niets() {
+        let d = std::env::temp_dir().join(format!("trap-set-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let p = |n: &str| (d.join(format!("{n}.tmp")), d.join(n));
+        std::fs::write(d.join("a"), b"oud").unwrap();
+        // derde doel in een map die niet bestaat: schrijven faalt
+        let paden = vec![p("a"), p("b"), (d.join("nee").join("c.tmp"), d.join("nee").join("c"))];
+        let r = schrijf_set(&paden, [b"nieuw".as_slice(), b"x", b"y"].into_iter());
+        assert!(r.is_err());
+        assert_eq!(std::fs::read(d.join("a")).unwrap(), b"oud");
+        assert!(!d.join("b").exists());
+        let rest: Vec<_> = std::fs::read_dir(&d).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
+        assert_eq!(rest, vec![std::ffi::OsString::from("a")], "geen .tmp over");
+        let ok = schrijf_set(&paden[..2], [b"nieuw".as_slice(), b"x"].into_iter()).unwrap();
+        assert_eq!(ok.len(), 2);
+        assert_eq!(std::fs::read(d.join("a")).unwrap(), b"nieuw");
+        let _ = std::fs::remove_dir_all(&d);
     }
 }

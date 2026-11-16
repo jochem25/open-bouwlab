@@ -1,0 +1,73 @@
+{
+  "schema": "kba-trap-headless/1",
+  "onderdeel": "kwartdraai-referentie",
+  "naam": "kwartdraai referentie",
+  "project": "referentie_project.json",
+  "bouwlaag": "-02",
+  "houtsoort": "vuren",
+  "trap": {
+    "plattegrond": {
+      "soort": "armen",
+      "start": [
+        6216.67,
+        -952.05
+      ],
+      "richting": [
+        0.0,
+        -1.0
+      ],
+      "binnenzijde": "links",
+      "armlengtes": [
+        1451.32,
+        2376.33
+      ],
+      "breedte": 800.0,
+      "welstuk": 80.0
+    },
+    "optreden": 17,
+    "boom": {
+      "dikte": 40.0,
+      "plankbreedte": 320.0,
+      "voorhout": 50.0,
+      "achterhout_min": 20.0,
+      "nestdiepte": 10.0
+    },
+    "trede": {
+      "dikte": 40.0,
+      "neus": 42.0
+    },
+    "stootbord": {
+      "soort": "dicht",
+      "dikte": 18.0
+    },
+    "trappaal": {
+      "langs_in": 90.0,
+      "langs_uit": 90.0
+    },
+    "verdrijving": {
+      "methode": "fuik",
+      "vakken": [
+        {
+          "van": 0,
+          "tot": 5
+        },
+        {
+          "van": 5,
+          "tot": 15
+        }
+      ]
+    },
+    "looplijn": {
+      "afstand_buitenkant_boom": 340.0,
+      "hoek": "boog"
+    },
+    "hoekverbinding": {
+      "doorlopend": "hoger"
+    },
+    "clearance": {
+      "vrije_hoogte": 2300.0
+    },
+    "gebruiksfunctie": "woonfunctie",
+    "bouwsoort": "verbouw"
+  }
+}

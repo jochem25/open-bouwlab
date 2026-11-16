@@ -12,6 +12,9 @@
  * - parse_ifcenergy   : parseer .ifcenergy bestand naar { project, result, modeller }
  * - get_schema        : haal JSON schema (project / result) op
  * - list_constructions: standaard constructies-catalogus
+ * - trap_contract      : trapontwerper headless (assemblagecontract) -> IFC,
+ *                        toetsverslag Bbl, pdf
+ * - trap_contract_schema: schema van de headless trapinvoer
  *
  * Resources:
  * - project://current : laatst geopende project
@@ -373,6 +376,141 @@ server.resource(
       },
     ],
   }),
+);
+
+// ---------------------------------------------------------------------------
+// Trapontwerper headless (assemblagecontract kba-assemblage/1, O-2026-11-15-05)
+// ---------------------------------------------------------------------------
+
+/**
+ * Pad naar de `trap` CLI (crate trap-core): `TRAP_BIN`, anders
+ * target/{release,debug}/trap(.exe). Bouwen: `cargo build --release -p trap-core`.
+ */
+function trapBinaryPath(): string {
+  const exeName = process.platform === "win32" ? "trap.exe" : "trap";
+  const candidates = [
+    process.env.TRAP_BIN ?? "",
+    join(REPO_ROOT, "target", "release", exeName),
+    join(REPO_ROOT, "target", "debug", exeName),
+  ].filter((p) => p !== "");
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  throw new Error(
+    `trap binary niet gevonden. Build eerst:\n  cargo build --release -p trap-core\n` +
+      `of zet TRAP_BIN. Gezocht in:\n${candidates.map((c) => `  ${c}`).join("\n")}`,
+  );
+}
+
+interface ToetsRegel {
+  id: string;
+  oordeel: string;
+}
+
+interface Toets {
+  resultaat: {
+    hoogte: number;
+    optreden: number;
+    optrede: number;
+    aantreden: number;
+    aantrede_looplijn: number;
+    loopbreedte: number;
+  };
+  regels: ToetsRegel[];
+  waarschuwingen: string[];
+}
+
+server.tool(
+  "trap_contract",
+  "Trapontwerper headless volgens het assemblagecontract: leest een invoer-JSON " +
+    "(schema kba-trap-headless/1, zie trap_contract_schema) met projectverwijzing, " +
+    "bouwlaag en houtsoort, en schrijft <onderdeel>.ifc (contract-IFC voor koppeling in " +
+    "Revit), .toets.json, .toetsverslag.md (Bbl met artikel_status uit het normcorpus) " +
+    "en .pdf (geannoteerde plattegrond). Geeft de paden en een samenvatting van de toetsing. " +
+    "De CLI doet hetzelfde zonder Claude: trap contract <invoer.json> [--uit <map>].",
+  {
+    invoerPath: z.string().describe("Absoluut pad naar de headless invoer-JSON"),
+    uitMap: z
+      .string()
+      .optional()
+      .describe("Map voor de uitvoer; weg = naast de invoer"),
+    tijd: z
+      .string()
+      .optional()
+      .describe("Tijdstempel ISO 8601 voor FILE_NAME en verslag (reproduceerbaar); weg = nu"),
+    corpus: z
+      .string()
+      .optional()
+      .describe("Map kennis-v2 voor artikel_status; weg = %KBA_SHARED%\\kennis-v2"),
+  },
+  async ({ invoerPath, uitMap, tijd, corpus }) => {
+    const args = ["contract", invoerPath];
+    if (uitMap) args.push("--uit", uitMap);
+    if (tijd) args.push("--tijd", tijd);
+    if (corpus) args.push("--corpus", corpus);
+    let stdout: string;
+    try {
+      ({ stdout } = await execFileAsync(trapBinaryPath(), args, { maxBuffer: 16 * 1024 * 1024 }));
+    } catch (err) {
+      // de CLI weigert met een leesbare melding op stderr (contract: weigeren i.p.v. raden)
+      const e = err as { stderr?: string; message: string };
+      return {
+        isError: true,
+        content: [{ type: "text", text: `geweigerd: ${(e.stderr ?? e.message).trim()}` }],
+      };
+    }
+    const paden = stdout.split(/\r?\n/).filter((r) => r.trim() !== "");
+    const toetsPad = paden.find((p) => p.endsWith(".toets.json"));
+    let samenvatting = "";
+    if (toetsPad) {
+      let t: Toets;
+      try {
+        t = JSON.parse(readFileSync(toetsPad, "utf8")) as Toets;
+      } catch (err) {
+        // de bestanden zijn geschreven; alleen de samenvatting faalt
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `toetsuitvoer onleesbaar (${(err as Error).message}); bestanden:\n${paden.join("\n")}`,
+            },
+          ],
+        };
+      }
+      const r = t.resultaat;
+      const fout = t.regels.filter((g) => g.oordeel === "voldoet_niet").map((g) => g.id);
+      const handmatig = t.regels.filter((g) => g.oordeel === "handmatig").map((g) => g.id);
+      samenvatting =
+        `hoogte ${r.hoogte.toFixed(0)} mm: ${r.optreden} x ${r.optrede.toFixed(1)} mm optrede, ` +
+        `${r.aantreden} x ${r.aantrede_looplijn.toFixed(1)} mm aantrede op de looplijn, ` +
+        `loopbreedte ${r.loopbreedte.toFixed(0)} mm\n` +
+        `Bbl voldoet_niet: ${fout.length ? fout.join(", ") : "geen"}\n` +
+        `handmatig te beoordelen: ${handmatig.length ? handmatig.join(", ") : "geen"}\n` +
+        (t.waarschuwingen.length ? `waarschuwingen: ${t.waarschuwingen.join("; ")}\n` : "");
+    }
+    return {
+      content: [{ type: "text", text: `${samenvatting}\nbestanden:\n${paden.map((p) => `  ${p}`).join("\n")}` }],
+    };
+  },
+);
+
+server.tool(
+  "trap_contract_schema",
+  "JSON-schema van de headless trapinvoer (kba-trap-headless/1). Het trapdeel volgt " +
+    "het schema van de gewone trapinvoer zonder naam, project, niveaus en materiaal.",
+  {},
+  async () => {
+    try {
+      const { stdout } = await execFileAsync(trapBinaryPath(), ["contract-schema"], {
+        maxBuffer: 4 * 1024 * 1024,
+      });
+      return { content: [{ type: "text", text: stdout }] };
+    } catch (err) {
+      const e = err as { stderr?: string; message: string };
+      return { isError: true, content: [{ type: "text", text: `mislukt: ${(e.stderr ?? e.message).trim()}` }] };
+    }
+  },
 );
 
 // ---------------------------------------------------------------------------

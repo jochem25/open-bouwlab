@@ -14,13 +14,16 @@
 pub mod boom;
 pub mod bouw;
 pub mod clearance;
+pub mod contract;
 pub mod ifc;
 pub mod invoer;
 pub mod model;
 pub mod onderdelen;
 pub mod p21;
+pub mod pdf;
 pub mod toets;
 pub mod verdrijving;
+pub mod verslag;
 pub mod vlak;
 
 pub use bouw::{ontwerp, Ontwerp, Rapport, Tekening, DISCLAIMER};
@@ -83,6 +86,72 @@ pub fn bestandsnaam(naam: &str) -> String {
     if s.is_empty() { "trap".into() } else { s.into() }
 }
 
+/// Uitvoer van de headless trapontwerper volgens het assemblagecontract.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ContractUitvoer {
+    /// Contract-IFC (IFC4, mm).
+    pub ifc: String,
+    pub rapport: Rapport,
+    pub tekening: Tekening,
+    /// De effectieve trapinvoer waarmee gerekend is (niveaus en namen uit het
+    /// project ingevuld): 'gerekend met' in het toetsverslag.
+    pub gerekend_met: Invoer,
+    /// Wat het contract aan het IFC toevoegde (verslag).
+    pub contract: contract::ContractIfc,
+    /// Voorgestelde bestandsnaam zonder extensie (= onderdeel-id).
+    pub bestandsnaam: String,
+}
+
+/// Headless: contract-invoer + project.json in, contract-IFC + toetsing uit.
+///
+/// `bron_bestand`/`bron` = naam en inhoud van het invoerbestand (herkomst,
+/// KBA_Assemblage.BronSha256). Sparing = het trapgat uit de invoer, anders het
+/// minimale trapgat uit de clearance (exact, niet de omhullende).
+pub fn ontwerp_contract(
+    ci: &contract::ContractInvoer,
+    project: &contract::ProjectOorsprong,
+    bron_bestand: &str,
+    bron: &[u8],
+    tijd: &str,
+) -> Result<ContractUitvoer, Fout> {
+    let invoer = ci.naar_invoer(project)?;
+    let o = ontwerp(&invoer)?;
+    let (sparing, sparing_bron) = match &invoer.trapgat {
+        Some(t) => (t.clone(), "trapgat uit de invoer".to_string()),
+        None => (
+            o.rapport.trapgat_minimaal.clone(),
+            "minimaal trapgat (trap-core: clearance boven o.k. bovenvloer)".to_string(),
+        ),
+    };
+    let c = contract::ContractIfc {
+        project: project.clone(),
+        laag: project.bouwlaag(&ci.bouwlaag)?.clone(),
+        doorbreekt: ci.doorbreekt_laag(project)?.clone(),
+        onderdeel: ci.onderdeel.clone(),
+        nlsfb: ci.nlsfb.clone().unwrap_or_else(|| contract::nlsfb_uit_vorm(&o.model.trap.vorm)),
+        materiaal: ci.houtsoort.naakt(),
+        sparing,
+        sparing_bron,
+        bron_bestand: bron_bestand.into(),
+        bron_sha256: contract::sha256_hex(bron),
+    };
+    let opties = IfcOpties {
+        tijd: tijd.into(),
+        bestandsnaam: format!("{}.ifc", ci.onderdeel),
+        disclaimer: Some(DISCLAIMER.into()),
+        clearance: ClearanceIfc::Representatie,
+        contract: Some(c.clone()),
+    };
+    Ok(ContractUitvoer {
+        ifc: schrijf_ifc(&o.model, &opties)?,
+        rapport: o.rapport,
+        tekening: o.tekening,
+        gerekend_met: invoer,
+        contract: c,
+        bestandsnaam: ci.onderdeel.clone(),
+    })
+}
+
 /// Invoer in, scherm-uitvoer uit. `tijd` = FILE_NAME-tijdstempel (ISO 8601).
 pub fn ontwerp_uitvoer(invoer: &Invoer, tijd: &str) -> Result<Uitvoer, Fout> {
     let o = ontwerp(invoer)?;
@@ -92,6 +161,7 @@ pub fn ontwerp_uitvoer(invoer: &Invoer, tijd: &str) -> Result<Uitvoer, Fout> {
         bestandsnaam: format!("{naam}{achtervoegsel}.ifc"),
         disclaimer: Some(DISCLAIMER.into()),
         clearance,
+        contract: None,
     };
     Ok(Uitvoer {
         ifc: schrijf_ifc(&o.model, &opties("", ClearanceIfc::RepresentatieEnProxy))?,
