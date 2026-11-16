@@ -9,6 +9,7 @@
 use std::fmt::Write as _;
 
 use crate::bouw::{Rapport, Tekening};
+use crate::contract::Referentie;
 use crate::model::P2;
 
 const BREED: f64 = 1190.55; // A3 liggend, pt
@@ -65,20 +66,91 @@ impl Blad {
     fn kleur_lijn(&mut self, r: f64, g: f64, b: f64) {
         let _ = writeln!(self.s, "{r:.2} {g:.2} {b:.2} RG");
     }
+    /// Tekst gedraaid over `hoek` (rad), linksonder op (x, y).
+    fn tekst_rot(&mut self, x: f64, y: f64, grootte: f64, hoek: f64, t: &str) {
+        let (c, s) = (hoek.cos(), hoek.sin());
+        let _ = writeln!(
+            self.s,
+            "q 0 g BT /F1 {grootte:.1} Tf {c:.4} {s:.4} {:.4} {c:.4} {x:.2} {y:.2} Tm ({}) Tj ET Q",
+            -s,
+            esc(t)
+        );
+    }
+    /// Maatlijn van a naar b (papier, pt), evenwijdig verschoven over `af` pt
+    /// langs de eenheidsnormaal `n`; hulplijnen, diagonale eindmarkering
+    /// (tekenconventies maatlijn_eindmarkering) en het getal boven de lijn.
+    fn maat(&mut self, a: (f64, f64), b: (f64, f64), n: (f64, f64), af: f64, tekst: &str) {
+        let a2 = (a.0 + n.0 * af, a.1 + n.1 * af);
+        let b2 = (b.0 + n.0 * af, b.1 + n.1 * af);
+        // hulplijnen met 2 pt overstek
+        self.lijn((a.0 + n.0 * 2.0, a.1 + n.1 * 2.0), (a2.0 + n.0 * 2.0, a2.1 + n.1 * 2.0));
+        self.lijn((b.0 + n.0 * 2.0, b.1 + n.1 * 2.0), (b2.0 + n.0 * 2.0, b2.1 + n.1 * 2.0));
+        self.lijn(a2, b2);
+        let (dx, dy) = (b2.0 - a2.0, b2.1 - a2.1);
+        let l = (dx * dx + dy * dy).sqrt().max(1e-9);
+        let (ux, uy) = (dx / l, dy / l);
+        // diagonaal: 45 graden tussen lijnrichting en normaal, 3 pt
+        let (gx, gy) = ((ux + n.0) * 1.5 / 2f64.sqrt(), (uy + n.1) * 1.5 / 2f64.sqrt());
+        for p in [a2, b2] {
+            self.lijn((p.0 - gx, p.1 - gy), (p.0 + gx, p.1 + gy));
+        }
+        // getal leesbaar: van links naar rechts of van onder naar boven
+        let mut hoek = uy.atan2(ux);
+        if !(-std::f64::consts::FRAC_PI_2 + 1e-6..=std::f64::consts::FRAC_PI_2 + 1e-6).contains(&hoek) {
+            hoek += std::f64::consts::PI;
+        }
+        let (c, s) = (hoek.cos(), hoek.sin());
+        let breed = tekst.chars().count() as f64 * 7.0 * 0.5;
+        let m = ((a2.0 + b2.0) / 2.0, (a2.1 + b2.1) / 2.0);
+        // boven de lijn = loodrecht op de leesrichting, 1,5 pt
+        let x = m.0 - c * breed / 2.0 - s * 1.5;
+        let y = m.1 - s * breed / 2.0 + c * 1.5;
+        self.tekst_rot(x, y, 7.0, hoek, tekst);
+    }
+}
+
+/// Getal met komma en hoogstens een decimaal (tekenconventies
+/// decimalen_maatgetal, K6): 187,5 en 260 (geen ",0").
+pub fn komma(x: f64) -> String {
+    let t = (x * 10.0).round() / 10.0;
+    if (t - t.round()).abs() < 1e-9 {
+        format!("{t:.0}")
+    } else {
+        format!("{t:.1}").replace('.', ",")
+    }
 }
 
 fn esc(t: &str) -> String {
     let mut s = String::new();
     for c in t.chars() {
-        match c {
-            '(' | ')' | '\\' => {
+        // WinAnsi (cp1252) heeft deze tekens op 0x80..0x9F
+        let win = match c {
+            '\u{20ac}' => Some(0x80),
+            '\u{201a}' => Some(0x82),
+            '\u{201e}' => Some(0x84),
+            '\u{2026}' => Some(0x85),
+            '\u{2018}' => Some(0x91),
+            '\u{2019}' => Some(0x92),
+            '\u{201c}' => Some(0x93),
+            '\u{201d}' => Some(0x94),
+            '\u{2013}' => Some(0x96),
+            '\u{2014}' => Some(0x97),
+            _ => None,
+        };
+        match (c, win) {
+            (_, Some(w)) => {
+                let _ = write!(s, "\\{w:03o}");
+            }
+            ('(' | ')' | '\\', _) => {
                 s.push('\\');
                 s.push(c);
             }
-            c if (c as u32) < 32 => s.push(' '),
-            c if (c as u32) < 128 => s.push(c),
-            // Latin-1 als octale escape (WinAnsiEncoding valt daar samen)
-            c if (c as u32) < 256 => {
+            (c, _) if (c as u32) < 32 => s.push(' '),
+            (c, _) if (c as u32) < 128 => s.push(c),
+            // 0x80..0x9F zijn in Unicode stuurtekens, in WinAnsi iets anders
+            (c, _) if (c as u32) < 0xa0 => s.push('?'),
+            // Latin-1 vanaf 0xA0 als octale escape (WinAnsi valt daar samen)
+            (c, _) if (c as u32) < 256 => {
                 let _ = write!(s, "\\{:03o}", c as u32);
             }
             _ => s.push('?'),
@@ -105,8 +177,54 @@ fn zwaartepunt(p: &[P2]) -> P2 {
     [p.iter().map(|q| q[0]).sum::<f64>() / n, p.iter().map(|q| q[1]).sum::<f64>() / n]
 }
 
-/// Bouw de PDF. `sparing` = contour van het sparingsvolume (trapgat).
-pub fn tekening_pdf(t: &Tekening, r: &Rapport, sparing: Option<&[P2]>, kader: &Kader) -> Vec<u8> {
+/// Een maatketen langs een as: waarden (mm, projectcoordinaten) en label.
+struct Keten {
+    waarden: Vec<f64>,
+    label: &'static str,
+}
+
+/// Ketens van binnen naar buiten langs een as: trapgat, ruwe wanden,
+/// stramien; zonder referentie de maat naar de projectoorsprong (0).
+fn ketens(g0: f64, g1: f64, wanden: &[f64], stramien: &[f64]) -> Vec<Keten> {
+    let mut uit = vec![Keten { waarden: vec![g0, g1], label: "trapgat" }];
+    if !wanden.is_empty() {
+        let mut w = Vec::new();
+        if let Some(l) = wanden.iter().copied().filter(|x| *x <= g0 + 1e-6).reduce(f64::max) {
+            w.push(l);
+        }
+        w.extend([g0, g1]);
+        if let Some(r) = wanden.iter().copied().filter(|x| *x >= g1 - 1e-6).reduce(f64::min) {
+            w.push(r);
+        }
+        w.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+        if w.len() > 2 {
+            uit.push(Keten { waarden: w, label: "ruwe wand" });
+        }
+    }
+    if let Some(s) = stramien.iter().copied().min_by(|a, b| (a - g0).abs().total_cmp(&(b - g0).abs())) {
+        let mut v = vec![s, g0, g1];
+        v.sort_by(f64::total_cmp);
+        v.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+        uit.push(Keten { waarden: v, label: "stramien" });
+    }
+    if wanden.is_empty() && stramien.is_empty() {
+        let mut v = vec![0.0, g0, g1];
+        v.sort_by(f64::total_cmp);
+        v.dedup_by(|a, b| (*a - *b).abs() < 0.5);
+        uit.push(Keten { waarden: v, label: "projectoorsprong" });
+    }
+    uit
+}
+
+/// Bouw de PDF. `sparing` = contour van het sparingsvolume (trapgat);
+/// `referentie` = stramien- en ruwe-wandlijnen voor de positiematen.
+pub fn tekening_pdf(
+    t: &Tekening,
+    r: &Rapport,
+    sparing: Option<&[P2]>,
+    kader: &Kader,
+    referentie: Option<&Referentie>,
+) -> Vec<u8> {
     let mut alles: Vec<&[P2]> = vec![&t.binnenzijde, &t.buitenzijde, &t.looplijn];
     alles.extend(t.treden.iter().map(Vec::as_slice));
     alles.extend(t.bomen.iter().map(Vec::as_slice));
@@ -114,6 +232,24 @@ pub fn tekening_pdf(t: &Tekening, r: &Rapport, sparing: Option<&[P2]>, kader: &K
     if let Some(s) = sparing {
         alles.push(s);
     }
+    // trapgat = sparing, anders de omhullende van de trap
+    let g = match sparing {
+        Some(s) => bbox(&[s]),
+        None => bbox(&alles),
+    };
+    let leeg = Referentie::default();
+    let rf = referentie.unwrap_or(&leeg);
+    let ketens_x = ketens(g[0], g[2], &rf.wand_x, &rf.stramien_x);
+    let ketens_y = ketens(g[1], g[3], &rf.wand_y, &rf.stramien_y);
+    // referentiewaarden in beeld houden
+    let mut extra: Vec<P2> = Vec::new();
+    for k in &ketens_x {
+        extra.extend(k.waarden.iter().map(|x| [*x, g[1]]));
+    }
+    for k in &ketens_y {
+        extra.extend(k.waarden.iter().map(|y| [g[0], *y]));
+    }
+    alles.push(&extra);
     let b = bbox(&alles);
     let (w_mm, h_mm) = ((b[2] - b[0]).max(1.0), (b[3] - b[1]).max(1.0));
     // tekenvlak links van het kader, met ruimte voor maatlijnen
@@ -160,42 +296,130 @@ pub fn tekening_pdf(t: &Tekening, r: &Rapport, sparing: Option<&[P2]>, kader: &K
         d.stijl(1.2, 0.0, 1.0, Some((6.0, 3.0)));
         d.kleur_lijn(0.8, 0.1, 0.1);
         d.veelhoek(&pts(s), false, true);
-        let z = tp(&zwaartepunt(s));
-        d.tekst(z.0 - 30.0, z.1 + 4.0, 7.0, "trapgat / sparing");
+        // label boven de linkerbovenhoek: vrij van de tredenummers
+        let z = tp(&[g[0], g[3]]);
+        d.tekst(z.0 + 2.0, z.1 + 4.0, 7.0, "trapgat / sparing");
         d.kleur_lijn(0.0, 0.0, 0.0);
     }
-    // looplijn en klimlijn
-    d.stijl(0.5, 0.0, 1.0, Some((2.0, 2.0)));
+    // looplijn en klimlijn: vallen ze samen (looplijn op klimlijnafstand),
+    // dan een lijn met een legenda die dat zegt (review Jochem 15-11: de
+    // groene lijn bedekte de blauwe)
+    let samen = t.looplijn.len() == t.klimlijn.len()
+        && t.looplijn.iter().zip(&t.klimlijn).all(|(a, k)| (a[0] - k[0]).hypot(a[1] - k[1]) < 1.0);
+    d.stijl(0.6, 0.0, 1.0, Some((5.0, 2.0)));
     d.kleur_lijn(0.1, 0.3, 0.8);
     d.veelhoek(&pts(&t.looplijn), false, false);
-    d.kleur_lijn(0.1, 0.6, 0.2);
-    d.veelhoek(&pts(&t.klimlijn), false, false);
-    if let Some(p) = t.looplijn.first() {
-        let q = tp(p);
-        d.tekst(q.0 + 4.0, q.1 - 10.0, 6.5, "looplijn (blauw), klimlijn (groen)");
+    if !samen {
+        d.stijl(0.6, 0.0, 1.0, Some((1.0, 2.0)));
+        d.kleur_lijn(0.1, 0.6, 0.2);
+        d.veelhoek(&pts(&t.klimlijn), false, false);
     }
     d.kleur_lijn(0.0, 0.0, 0.0);
-    // buitenmaten
+    let legenda = if samen {
+        format!(
+            "looplijn = klimlijn (blauw, streep): {} mm uit de buitenkant van de boom",
+            komma(t.klimlijn_afstand)
+        )
+    } else {
+        format!(
+            "looplijn (blauw, streep); klimlijn (groen, stip) {} mm uit de buitenkant van de boom",
+            komma(t.klimlijn_afstand)
+        )
+    };
+    let res = &r.resultaat;
+    // aantrede op de looplijn, langs de looplijn bij de eerste treden
+    let vk = &res.voorkanten;
+    if vk.len() >= 2 {
+        // gecentreerd boven de looplijn, tussen voorkant 1 en 4 (binnen de
+        // trap, vrij van de loopbreedtemaat aan het begin)
+        let k = 1.min(vk.len() - 2);
+        let e = (k + 3).min(vk.len() - 1);
+        let (a, c) = (tp(&vk[k].p_loop), tp(&vk[e].p_loop));
+        let (dx, dy) = (c.0 - a.0, c.1 - a.1);
+        let mut hoek = dy.atan2(dx);
+        if hoek.abs() > std::f64::consts::FRAC_PI_2 + 1e-6 {
+            hoek += std::f64::consts::PI;
+        }
+        let tekst = format!("aantrede {} x {} op de looplijn", res.aantreden, komma(res.aantrede_looplijn));
+        let breed = tekst.chars().count() as f64 * 6.5 * 0.5;
+        let (cs, sn) = (hoek.cos(), hoek.sin());
+        let m = ((a.0 + c.0) / 2.0, (a.1 + c.1) / 2.0);
+        d.tekst_rot(m.0 - cs * breed / 2.0 - sn * 3.0, m.1 - sn * breed / 2.0 + cs * 3.0, 6.5, hoek, &tekst);
+        // loopbreedte: tussen de randen van de loopbreedte bij de eerste
+        // voorkant, buiten de trap (tegen de looprichting in)
+        let p0 = vk[0].p_loop;
+        let p1 = vk[1].p_loop;
+        let (ux, uy) = (p0[0] - p1[0], p0[1] - p1[1]);
+        let lu = ux.hypot(uy).max(1e-9);
+        let lb = (vk[0].p_binnen[0] - vk[0].p_buiten[0]).hypot(vk[0].p_binnen[1] - vk[0].p_buiten[1]);
+        d.stijl(0.4, 0.0, 1.0, None);
+        d.maat(
+            tp(&vk[0].p_buiten),
+            tp(&vk[0].p_binnen),
+            (ux / lu, uy / lu),
+            14.0,
+            &format!("loopbreedte {lb:.0}"),
+        );
+    }
+    // maatketens: trapgat, ruwe wand / stramien / projectoorsprong
+    // (papiermaten: 10 mm tot het object, 5 mm tussen de ketens)
     d.stijl(0.4, 0.0, 1.0, None);
-    let (x0, y0) = tp(&[b[0], b[1]]);
-    let (x1, y1) = tp(&[b[2], b[3]]);
-    let ym = y0 - 25.0;
-    d.lijn((x0, ym), (x1, ym));
-    d.lijn((x0, ym - 4.0), (x0, ym + 4.0));
-    d.lijn((x1, ym - 4.0), (x1, ym + 4.0));
-    d.tekst((x0 + x1) / 2.0 - 12.0, ym + 3.0, 7.0, &format!("{:.0}", b[2] - b[0]));
-    let xm = x0 - 25.0;
-    d.lijn((xm, y0), (xm, y1));
-    d.lijn((xm - 4.0, y0), (xm + 4.0, y0));
-    d.lijn((xm - 4.0, y1), (xm + 4.0, y1));
-    d.tekst(xm - 22.0, (y0 + y1) / 2.0, 7.0, &format!("{:.0}", b[3] - b[1]));
+    let eerste = 10.0 * MM_PT;
+    let tussen = 5.0 * MM_PT;
+    let gy = tp(&[g[0], g[1]]).1;
+    let gx = tp(&[g[0], g[1]]).0;
+    for (i, kt) in ketens_x.iter().enumerate() {
+        let af = eerste + tussen * i as f64;
+        for w in kt.waarden.windows(2) {
+            let (a, c) = (tp(&[w[0], g[1]]), tp(&[w[1], g[1]]));
+            d.maat((a.0, gy), (c.0, gy), (0.0, -1.0), af, &format!("{:.0}", w[1] - w[0]));
+        }
+        let xe = tp(&[kt.waarden[kt.waarden.len() - 1], g[1]]).0;
+        d.tekst(xe + 6.0, gy - af - 2.5, 6.0, kt.label);
+    }
+    for (i, kt) in ketens_y.iter().enumerate() {
+        let af = eerste + tussen * i as f64;
+        for w in kt.waarden.windows(2) {
+            let (a, c) = (tp(&[g[0], w[0]]), tp(&[g[0], w[1]]));
+            d.maat((gx, a.1), (gx, c.1), (-1.0, 0.0), af, &format!("{:.0}", w[1] - w[0]));
+        }
+        let ye = tp(&[g[0], kt.waarden[kt.waarden.len() - 1]]).1;
+        d.tekst_rot(gx - af + 2.5, ye + 6.0, 6.0, std::f64::consts::FRAC_PI_2, kt.label);
+    }
+    // referentielijnen (streep-punt, grijs) over het tekenvlak
+    d.stijl(0.3, 0.5, 1.0, Some((8.0, 2.0)));
+    let (bx0, by0) = tp(&[b[0], b[1]]);
+    let (bx1, by1) = tp(&[b[2], b[3]]);
+    for kt in ketens_x.iter().skip(1) {
+        for x in &kt.waarden {
+            if (x - g[0]).abs() > 0.5 && (x - g[2]).abs() > 0.5 {
+                let px = tp(&[*x, 0.0]).0;
+                d.lijn((px, by0 - 10.0), (px, by1 + 10.0));
+            }
+        }
+    }
+    for kt in ketens_y.iter().skip(1) {
+        for y in &kt.waarden {
+            if (y - g[1]).abs() > 0.5 && (y - g[3]).abs() > 0.5 {
+                let py = tp(&[0.0, *y]).1;
+                d.lijn((bx0 - 10.0, py), (bx1 + 10.0, py));
+            }
+        }
+    }
+    d.stijl(0.4, 0.0, 1.0, None);
+    d.tekst(MARGE + 8.0, MARGE + 17.0, 7.0, &legenda);
     d.tekst(
         MARGE + 8.0,
         MARGE + 8.0,
         7.0,
         &format!(
-            "plattegrond, maten in mm, schaal 1:{schaal:.0} op A3; projectcoordinaten x {:.0}..{:.0}, y {:.0}..{:.0}",
-            b[0], b[2], b[1], b[3]
+            "plattegrond, maten in mm, schaal 1:{schaal:.0} op A3; trapgat {:.0} x {:.0}; projectcoordinaten x {:.0}..{:.0}, y {:.0}..{:.0}",
+            g[2] - g[0],
+            g[3] - g[1],
+            g[0],
+            g[2],
+            g[1],
+            g[3]
         ),
     );
 
@@ -203,12 +427,12 @@ pub fn tekening_pdf(t: &Tekening, r: &Rapport, sparing: Option<&[P2]>, kader: &K
     let mut y = HOOG - MARGE - 22.0;
     d.tekst(kx + 10.0, y, 12.0, &kader.titel);
     y -= 18.0;
-    let res = &r.resultaat;
     let mut regels = kader.regels.clone();
     regels.push(String::new());
-    regels.push(format!("hoogte {:.0} mm, {} optreden x {:.1} mm", res.hoogte, res.optreden, res.optrede));
-    regels.push(format!("{} aantreden, {:.1} mm op de looplijn", res.aantreden, res.aantrede_looplijn));
-    regels.push(format!("loopbreedte {:.0} mm, vrije hoogte {:.0} mm", res.loopbreedte, res.vrije_hoogte));
+    regels.push(format!("hoogte {} mm, {} optreden x {} mm", komma(res.hoogte), res.optreden, komma(res.optrede)));
+    regels.push(format!("{} aantreden, {} mm op de looplijn", res.aantreden, komma(res.aantrede_looplijn)));
+    regels.push(format!("loopbreedte {} mm, vrije hoogte {} mm", komma(res.loopbreedte), komma(res.vrije_hoogte)));
+    regels.push(format!("trapgat {} x {} mm", komma(g[2] - g[0]), komma(g[3] - g[1])));
     regels.push(String::new());
     regels.push("toetsing (Bbl bindend; Wattjes/praktijk advies):".into());
     for g in &r.regels {
@@ -300,7 +524,14 @@ mod tests {
     fn escape_en_breken() {
         assert_eq!(esc("a(b)\\"), "a\\(b\\)\\\\");
         assert_eq!(esc("\u{e9}"), "\\351");
-        assert_eq!(esc("\u{2014}"), "?");
+        assert_eq!(esc("\u{2014}"), "\\227");
+        assert_eq!(esc("\u{2013}\u{20ac}"), "\\226\\200");
+        assert_eq!(esc("\u{85}"), "?");
+        assert_eq!(esc("\u{2192}"), "?");
+        assert_eq!(komma(187.5), "187,5");
+        assert_eq!(komma(208.46), "208,5");
+        assert_eq!(komma(260.0), "260");
+        assert_eq!(komma(259.96), "260");
         assert_eq!(breek("aa bb cc", 5), vec!["aa bb".to_string(), "    cc".to_string()]);
     }
 

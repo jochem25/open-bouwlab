@@ -302,6 +302,27 @@ pub struct ContractInvoer {
     /// trapgat, looplijn, verdrijving, ...); zie de typebeschrijving.
     #[schemars(with = "serde_json::Map<String, serde_json::Value>")]
     pub trap: serde_json::Map<String, serde_json::Value>,
+    /// Alleen voor de maatvoering op de pdf (positie van het trapgat): stramien-
+    /// en ruwe-wandlijnen in projectcoordinaten. Weg = maat naar de
+    /// projectoorsprong. Raakt de IFC niet.
+    #[serde(default)]
+    pub referentie: Option<Referentie>,
+}
+
+/// Referentielijnen voor de maatvoering, evenwijdig aan de assen (mm,
+/// projectcoordinaten): `*_x` = verticale lijnen op die x, `*_y` = horizontale
+/// lijnen op die y. Wanden = de RUWE (constructieve) wandzijde.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct Referentie {
+    #[serde(default)]
+    pub stramien_x: Vec<f64>,
+    #[serde(default)]
+    pub stramien_y: Vec<f64>,
+    #[serde(default)]
+    pub wand_x: Vec<f64>,
+    #[serde(default)]
+    pub wand_y: Vec<f64>,
 }
 
 /// Wat het contract aan de IFC-schrijver doorgeeft.

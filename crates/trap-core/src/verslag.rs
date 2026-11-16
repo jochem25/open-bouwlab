@@ -26,6 +26,39 @@ pub struct Artikel {
     pub toestand: String,
 }
 
+/// Lidnummer zonder voorloopnullen ("01" = "1").
+fn lidnr(l: &str) -> String {
+    let t = l.trim().trim_start_matches('0');
+    if t.is_empty() { "0".into() } else { t.to_string() }
+}
+
+/// Leest "lid 1", "lid 1 en 2", "leden 1 en 2", "leden 1, 2 en 3" (spatie na
+/// het artikelnummer optioneel). Geeft de lidnummers, leeg = geen lid.
+fn leden(na: &str) -> Vec<String> {
+    let na = na.trim_start();
+    let Some(rest) = na.strip_prefix("leden").or_else(|| na.strip_prefix("lid")) else {
+        return Vec::new();
+    };
+    let mut uit = Vec::new();
+    let mut r = rest;
+    loop {
+        r = r.trim_start();
+        let n: String = r.chars().take_while(char::is_ascii_digit).collect();
+        if n.is_empty() {
+            break;
+        }
+        uit.push(lidnr(&n));
+        r = &r[n.len()..];
+        // alleen doorgaan bij ", <cijfer>" of " en <cijfer>" (niet "en tabel")
+        let volgende = r.strip_prefix(',').or_else(|| r.trim_start().strip_prefix("en "));
+        match volgende {
+            Some(v) if v.trim_start().starts_with(|c: char| c.is_ascii_digit()) => r = v,
+            _ => break,
+        }
+    }
+    uit
+}
+
 /// Bbl-verwijzingen in een bron-tekst: ("4.26", Some("1")), ("4.26a", None), ...
 pub fn bbl_artikelen(bron: &str) -> Vec<(String, Option<String>)> {
     let mut uit = Vec::new();
@@ -33,20 +66,44 @@ pub fn bbl_artikelen(bron: &str) -> Vec<(String, Option<String>)> {
     while let Some(i) = rest.find("Bbl art. ") {
         rest = &rest[i + 9..];
         let art: String = rest.chars().take_while(|c| c.is_ascii_alphanumeric() || *c == '.').collect();
+        // "4.26lid" zonder spatie: het artikel eindigt voor "lid"/"leden"
+        let art = match art.find("lid").or_else(|| art.find("leden")) {
+            Some(p) if p > 0 => art[..p].to_string(),
+            _ => art,
+        };
         let art = art.trim_end_matches('.').to_string();
         let na = &rest[art.len()..];
-        let lid = na
-            .strip_prefix(" lid ")
-            .map(|l| l.chars().take_while(char::is_ascii_digit).collect::<String>())
-            .filter(|l| !l.is_empty());
-        if !art.is_empty() && !uit.contains(&(art.clone(), lid.clone())) {
-            uit.push((art, lid));
+        let l = leden(na);
+        let paren: Vec<Option<String>> = if l.is_empty() { vec![None] } else { l.into_iter().map(Some).collect() };
+        for lid in paren {
+            if !art.is_empty() && !uit.contains(&(art.clone(), lid.clone())) {
+                uit.push((art.clone(), lid));
+            }
         }
     }
     uit
 }
 
+/// Corpusbestanden voor een bron-id, uit de bestandsnamen van zijn map: het
+/// bestand zelf (`bbl__afdeling-4-2.md`) of, als het corpus het heeft
+/// opgeknipt, de delen (`bbl__afdeling-4-2-paragraaf-....md`), gesorteerd.
+/// `stam` = laatste padstuk van het bron-id.
+pub fn corpus_bestanden(namen: &[String], stam: &str) -> Vec<String> {
+    let heel = format!("{stam}.md");
+    if namen.contains(&heel) {
+        return vec![heel];
+    }
+    let voor = format!("{stam}-");
+    let mut delen: Vec<String> =
+        namen.iter().filter(|n| n.starts_with(&voor) && n.ends_with(".md")).cloned().collect();
+    delen.sort();
+    delen
+}
+
 /// Zoek in de tekst van een corpusbestand de bronregel van artikel/lid.
+/// Zonder lid: alle leden van het artikel; verschillen hun statussen, dan
+/// staat dat er ("gemengd: lid 1 geldend, lid 2 vervallen") - nooit stil de
+/// status van het eerste lid.
 pub fn zoek_in_corpus(tekst: &str, bestand: &str, artikel: &str, lid: Option<&str>) -> Option<Artikel> {
     let toestand = tekst
         .lines()
@@ -58,17 +115,35 @@ pub fn zoek_in_corpus(tekst: &str, bestand: &str, artikel: &str, lid: Option<&st
             .split(" | ")
             .find_map(|d| d.trim_matches('`').trim().strip_prefix(&format!("{k}: ")).map(str::to_string))
     };
-    tekst
+    let lid = lid.map(lidnr);
+    let rijen: Vec<&str> = tekst
         .lines()
         .filter(|l| l.starts_with("`type:"))
         .filter(|l| veld(l, "artikel").as_deref() == Some(artikel))
-        .find(|l| lid.is_none() || veld(l, "lid").as_deref() == lid)
-        .map(|l| Artikel {
-            artikel_status: veld(l, "artikel_status").unwrap_or_else(|| "onbekend".into()),
-            bron_uri: veld(l, "bron_uri").unwrap_or_default(),
-            bestand: bestand.into(),
-            toestand: toestand.clone(),
-        })
+        .filter(|l| lid.is_none() || veld(l, "lid").map(|v| lidnr(&v)) == lid)
+        .collect();
+    let eerste = rijen.first()?;
+    // per lid de eerste rij (een lid kan over meer blokken lopen)
+    let mut per_lid: Vec<(String, String)> = Vec::new();
+    for r in &rijen {
+        let l = veld(r, "lid").map(|v| lidnr(&v)).unwrap_or_else(|| "-".into());
+        let s = veld(r, "artikel_status").unwrap_or_else(|| "onbekend".into());
+        if !per_lid.iter().any(|(k, _)| *k == l) {
+            per_lid.push((l, s));
+        }
+    }
+    let status = if per_lid.iter().all(|(_, s)| *s == per_lid[0].1) {
+        per_lid[0].1.clone()
+    } else {
+        let d: Vec<String> = per_lid.iter().map(|(l, s)| format!("lid {l} {s}")).collect();
+        format!("gemengd: {}", d.join(", "))
+    };
+    Some(Artikel {
+        artikel_status: status,
+        bron_uri: veld(eerste, "bron_uri").unwrap_or_default(),
+        bestand: bestand.into(),
+        toestand,
+    })
 }
 
 /// Laatste wijzigingsmoment van het Bbl (1 januari of 1 juli) op of voor `datum` (JJJJ-MM-DD).
@@ -228,8 +303,44 @@ mod tests {
         let a = zoek_in_corpus(t, "wet/b.md", "4.26", Some("2")).unwrap();
         assert_eq!(a.artikel_status, "vervallen");
         assert_eq!(a.toestand, "2026-09-24");
-        assert_eq!(zoek_in_corpus(t, "f", "4.26", None).unwrap().artikel_status, "geldend");
+        // zonder lid: niet stil het eerste lid (review 16-11)
+        assert_eq!(
+            zoek_in_corpus(t, "f", "4.26", None).unwrap().artikel_status,
+            "gemengd: lid 1 geldend, lid 2 vervallen"
+        );
         assert!(zoek_in_corpus(t, "f", "4.2", None).is_none());
+        // "01" = "1"
+        assert_eq!(zoek_in_corpus(t, "f", "4.26", Some("01")).unwrap().artikel_status, "geldend");
+        let gelijk = "`type: normatief | artikel: 4.27 | lid: 1 | artikel_status: geldend | bron_uri: u`\n`type: normatief | artikel: 4.27 | lid: 2 | artikel_status: geldend | bron_uri: u`\n";
+        assert_eq!(zoek_in_corpus(gelijk, "f", "4.27", None).unwrap().artikel_status, "geldend");
+    }
+
+    #[test]
+    fn leden_varianten() {
+        let s = |l: &[&str]| l.iter().map(|x| ("4.26".to_string(), Some(x.to_string()))).collect::<Vec<_>>();
+        assert_eq!(bbl_artikelen("Bbl art. 4.26 lid 1 en 2"), s(&["1", "2"]));
+        assert_eq!(bbl_artikelen("Bbl art. 4.26 leden 1, 2 en 3"), s(&["1", "2", "3"]));
+        assert_eq!(bbl_artikelen("Bbl art. 4.26lid 1"), s(&["1"]));
+        assert_eq!(bbl_artikelen("Bbl art. 4.26 lid 2 en tabel 4.24"), s(&["2"]));
+        assert_eq!(bbl_artikelen("Bbl art. 4.26 lid 01"), s(&["1"]));
+    }
+
+    #[test]
+    fn opgeknipt_corpus() {
+        let n = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let heel = n(&["bbl__afdeling-4-2.md", "bbl__afdeling-4-20.md"]);
+        assert_eq!(corpus_bestanden(&heel, "bbl__afdeling-4-2"), n(&["bbl__afdeling-4-2.md"]));
+        let geknipt = n(&[
+            "bbl__afdeling-4-2-paragraaf-4-2-8-tot-4-2-13.md",
+            "bbl__afdeling-4-2-paragraaf-4-2-1-tot-4-2-7.md",
+            "bbl__afdeling-4-20.md",
+            "bbl__afdeling-4-3-paragraaf-4-3-10.md",
+        ]);
+        assert_eq!(
+            corpus_bestanden(&geknipt, "bbl__afdeling-4-2"),
+            n(&["bbl__afdeling-4-2-paragraaf-4-2-1-tot-4-2-7.md", "bbl__afdeling-4-2-paragraaf-4-2-8-tot-4-2-13.md"])
+        );
+        assert!(corpus_bestanden(&geknipt, "bbl__afdeling-5-2").is_empty());
     }
 
     #[test]

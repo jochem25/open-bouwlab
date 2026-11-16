@@ -463,7 +463,21 @@ server.tool(
     const toetsPad = paden.find((p) => p.endsWith(".toets.json"));
     let samenvatting = "";
     if (toetsPad) {
-      const t = JSON.parse(readFileSync(toetsPad, "utf8")) as Toets;
+      let t: Toets;
+      try {
+        t = JSON.parse(readFileSync(toetsPad, "utf8")) as Toets;
+      } catch (err) {
+        // de bestanden zijn geschreven; alleen de samenvatting faalt
+        return {
+          isError: true,
+          content: [
+            {
+              type: "text",
+              text: `toetsuitvoer onleesbaar (${(err as Error).message}); bestanden:\n${paden.join("\n")}`,
+            },
+          ],
+        };
+      }
       const r = t.resultaat;
       const fout = t.regels.filter((g) => g.oordeel === "voldoet_niet").map((g) => g.id);
       const handmatig = t.regels.filter((g) => g.oordeel === "handmatig").map((g) => g.id);
@@ -487,10 +501,15 @@ server.tool(
     "het schema van de gewone trapinvoer zonder naam, project, niveaus en materiaal.",
   {},
   async () => {
-    const { stdout } = await execFileAsync(trapBinaryPath(), ["contract-schema"], {
-      maxBuffer: 4 * 1024 * 1024,
-    });
-    return { content: [{ type: "text", text: stdout }] };
+    try {
+      const { stdout } = await execFileAsync(trapBinaryPath(), ["contract-schema"], {
+        maxBuffer: 4 * 1024 * 1024,
+      });
+      return { content: [{ type: "text", text: stdout }] };
+    } catch (err) {
+      const e = err as { stderr?: string; message: string };
+      return { isError: true, content: [{ type: "text", text: `mislukt: ${(e.stderr ?? e.message).trim()}` }] };
+    }
   },
 );
 

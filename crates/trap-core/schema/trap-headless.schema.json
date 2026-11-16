@@ -59,6 +59,18 @@
         }
       ]
     },
+    "referentie": {
+      "description": "Alleen voor de maatvoering op de pdf (positie van het trapgat): stramien- en ruwe-wandlijnen in projectcoordinaten. Weg = maat naar de projectoorsprong. Raakt de IFC niet.",
+      "default": null,
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Referentie"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
     "schema": {
       "description": "Moet `kba-trap-headless/1` zijn.",
       "type": "string"
@@ -246,6 +258,45 @@
         "schema": {
           "description": "Moet `kba-assemblage/1` zijn.",
           "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Referentie": {
+      "description": "Referentielijnen voor de maatvoering, evenwijdig aan de assen (mm, projectcoordinaten): `*_x` = verticale lijnen op die x, `*_y` = horizontale lijnen op die y. Wanden = de RUWE (constructieve) wandzijde.",
+      "type": "object",
+      "properties": {
+        "stramien_x": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "stramien_y": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "wand_x": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "wand_y": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "number",
+            "format": "double"
+          }
         }
       },
       "additionalProperties": false

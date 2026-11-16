@@ -212,3 +212,71 @@ fn weigert_dubbele_bronnen_en_ongeldige_invoer() {
 fn guid_weigert_pipe_in_sleutel() {
     assert!(contract_guid("TEST|1", "trap-01", "IfcStair").is_err());
 }
+
+const TRAP02: &str = include_str!("fixtures/contract/trap-02.json");
+
+fn oordelen(u: &trap_core::ContractUitvoer) -> Vec<(String, trap_core::toets::Oordeel)> {
+    u.rapport.regels.iter().map(|g| (g.id.clone(), g.oordeel)).collect()
+}
+
+/// trap-01 is het NEGATIEVE geval (aantrede 208,5 < 220), trap-02 het
+/// positieve: geen enkele Bbl-regel voldoet_niet (besluit planner 16-11).
+#[test]
+fn trap01_voldoet_niet_trap02_voldoet() {
+    use trap_core::toets::Oordeel;
+    let o1 = oordelen(&draai(TRAP01, PROJECT_TEST));
+    let niet1: Vec<&String> = o1.iter().filter(|(_, o)| *o == Oordeel::VoldoetNiet).map(|(i, _)| i).collect();
+    assert_eq!(niet1, vec!["bbl-4.26-aantrede"]);
+    let u2 = draai(TRAP02, PROJECT_TEST);
+    let o2 = oordelen(&u2);
+    assert!(o2.iter().all(|(_, o)| *o != Oordeel::VoldoetNiet), "{o2:?}");
+    assert!(o2.iter().any(|(i, o)| i == "bbl-4.26-aantrede" && *o == Oordeel::Voldoet));
+    assert!((u2.rapport.resultaat.aantrede_looplijn - 240.0).abs() < 1e-9);
+}
+
+/// Teksten uit de inhoudsstroom (ongecomprimeerd, Helvetica).
+fn pdf_teksten(pdf: &[u8]) -> Vec<String> {
+    // geescapete haakjes eerst wegzetten, daarna terugzetten
+    let s = String::from_utf8_lossy(pdf).replace("\\(", "\u{1}").replace("\\)", "\u{2}");
+    s.split(") Tj")
+        .filter_map(|d| d.rsplit_once('(').map(|(_, t)| t.replace('\u{1}', "(").replace('\u{2}', ")")))
+        .collect()
+}
+
+fn pdf(trap: &str) -> Vec<String> {
+    let c = ci(trap);
+    let u = draai(trap, PROJECT_TEST);
+    let k = trap_core::pdf::Kader { titel: "t".into(), regels: vec![] };
+    pdf_teksten(&trap_core::pdf::tekening_pdf(&u.tekening, &u.rapport, Some(&u.contract.sparing), &k, c.referentie.as_ref()))
+}
+
+/// Review Jochem 15-11: legenda klopt met wat getekend is, maatvoering van
+/// trapgat / loopbreedte / positie / aantrede, decimalen met komma.
+#[test]
+fn pdf_maatvoering_en_legenda() {
+    let t1 = pdf(TRAP01);
+    // trap-01: looplijn op 300 = klimlijn: een lijn, legenda zegt dat
+    assert!(t1.iter().any(|t| t.starts_with("looplijn = klimlijn")), "{t1:?}");
+    assert!(!t1.iter().any(|t| t.contains("klimlijn (groen")));
+    assert!(t1.iter().any(|t| t == "aantrede 15 x 208,5 op de looplijn"), "{t1:?}");
+    assert!(t1.iter().any(|t| t == "loopbreedte 850"));
+    // trapgat 2030 x 1680 (L-vorm, omhullende) als keten en in het kader
+    let u = draai(TRAP01, PROJECT_TEST);
+    let xs: Vec<f64> = u.contract.sparing.iter().map(|p| p[0]).collect();
+    let lx = xs.iter().copied().fold(f64::MIN, f64::max) - xs.iter().copied().fold(f64::MAX, f64::min);
+    assert!(t1.iter().any(|t| *t == format!("{lx:.0}")), "trapgatmaat {lx}");
+    assert!(t1.iter().any(|t| t.starts_with("trapgat ") && t.ends_with(" mm")));
+    // zonder referentie: maat naar de projectoorsprong
+    assert!(t1.iter().any(|t| t == "projectoorsprong"));
+    // decimalen met komma, nooit een punt in een getal
+    assert!(t1.iter().any(|t| t.contains("187,5")));
+    // (regel-id's als bbl-4.26-aantrede zijn artikelnummers, geen getallen)
+    assert!(!t1.iter().filter(|t| !t.contains("bbl-")).any(|t| t.chars().collect::<Vec<_>>().windows(3).any(|w| w[0].is_ascii_digit() && w[1] == '.' && w[2].is_ascii_digit())), "punt-decimaal: {t1:?}");
+
+    // trap-02 met referentie: ketens naar ruwe wand en stramien, geen oorsprong
+    let t2 = pdf(TRAP02);
+    assert!(t2.iter().any(|t| t == "ruwe wand"));
+    assert!(t2.iter().any(|t| t == "stramien"));
+    assert!(!t2.iter().any(|t| t == "projectoorsprong"));
+    assert!(t2.iter().any(|t| t == "aantrede 15 x 240 op de looplijn"), "{t2:?}");
+}

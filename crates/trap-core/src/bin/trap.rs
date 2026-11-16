@@ -102,9 +102,22 @@ fn contract(args: &[String]) -> Result<Vec<PathBuf>, String> {
         if bron_id.is_empty() || bron_id == "-" {
             return None;
         }
-        let rel = format!("{bron_id}.md");
-        let tekst = std::fs::read_to_string(map.join(&rel)).ok()?;
-        trap_core::verslag::zoek_in_corpus(&tekst, &rel, art, lid)
+        // het corpus knipt grote bestanden op (bbl__afdeling-4-2.md ->
+        // bbl__afdeling-4-2-paragraaf-*.md, 16-11-2026): zoek in het hele
+        // bestand of anders in de delen
+        let (dir, stam) = match bron_id.rsplit_once('/') {
+            Some((d, s)) => (d, s),
+            None => ("", bron_id),
+        };
+        let namen: Vec<String> = std::fs::read_dir(map.join(dir))
+            .ok()?
+            .filter_map(|e| e.ok()?.file_name().into_string().ok())
+            .collect();
+        trap_core::verslag::corpus_bestanden(&namen, stam).into_iter().find_map(|n| {
+            let rel = if dir.is_empty() { n } else { format!("{dir}/{n}") };
+            let tekst = std::fs::read_to_string(map.join(&rel)).ok()?;
+            trap_core::verslag::zoek_in_corpus(&tekst, &rel, art, lid)
+        })
     };
     let verslag = trap_core::verslag::toetsverslag(&u, &tijd, &opzoek);
     let kader = trap_core::pdf::Kader {
@@ -118,27 +131,58 @@ fn contract(args: &[String]) -> Result<Vec<PathBuf>, String> {
             format!("uitvoer {tijd}, invoer {naam}"),
         ],
     };
-    let pdf = trap_core::pdf::tekening_pdf(&u.tekening, &u.rapport, Some(&u.contract.sparing), &kader);
+    let pdf = trap_core::pdf::tekening_pdf(&u.tekening, &u.rapport, Some(&u.contract.sparing), &kader, ci.referentie.as_ref());
 
     let map = uit.unwrap_or_else(|| invoer.parent().unwrap_or(Path::new(".")).to_path_buf());
     std::fs::create_dir_all(&map).map_err(|e| format!("kan {} niet maken: {e}", map.display()))?;
     let stam = map.join(&u.bestandsnaam);
     let toets = serde_json::to_string_pretty(&u.rapport).map_err(|e| e.to_string())? + "\n";
-    let mut geschreven = Vec::new();
-    for (ext, inhoud) in [
+    let set = [
         (".ifc", u.ifc.into_bytes()),
         (".toets.json", toets.into_bytes()),
         (".toetsverslag.md", verslag.into_bytes()),
         (".pdf", pdf),
-    ] {
-        let pad = PathBuf::from(format!("{}{ext}", stam.display()));
-        // eerst naar .tmp, dan hernoemen: geen half bestand bij een fout
-        let tmp = PathBuf::from(format!("{}.tmp", pad.display()));
-        std::fs::write(&tmp, inhoud).and_then(|()| std::fs::rename(&tmp, &pad))
-            .map_err(|e| format!("kan {} niet schrijven: {e}", pad.display()))?;
-        geschreven.push(pad);
+    ];
+    let paden: Vec<(PathBuf, PathBuf)> = set
+        .iter()
+        .map(|(ext, _)| {
+            let pad = PathBuf::from(format!("{}{ext}", stam.display()));
+            (PathBuf::from(format!("{}.tmp", pad.display())), pad)
+        })
+        .collect();
+    schrijf_set(&paden, set.iter().map(|(_, b)| b.as_slice()))
+}
+
+/// Schrijf de set als geheel: eerst ALLE .tmp-bestanden, pas daarna hernoemen.
+/// Faalt een schrijfactie, dan worden de .tmp's opgeruimd en blijft de vorige
+/// revisie compleet staan (review 16-11: geen mengsel van twee revisies).
+fn schrijf_set<'a>(paden: &[(PathBuf, PathBuf)], inhoud: impl Iterator<Item = &'a [u8]>) -> Result<Vec<PathBuf>, String> {
+    let ruim = |tot: usize| {
+        for (tmp, _) in &paden[..tot] {
+            let _ = std::fs::remove_file(tmp);
+        }
+    };
+    for (i, ((tmp, _), b)) in paden.iter().zip(inhoud).enumerate() {
+        if let Err(e) = std::fs::write(tmp, b) {
+            ruim(i + 1);
+            return Err(format!("kan {} niet schrijven: {e}", tmp.display()));
+        }
     }
-    Ok(geschreven)
+    for (i, (tmp, pad)) in paden.iter().enumerate() {
+        if let Err(e) = std::fs::rename(tmp, pad) {
+            // de eerdere zijn al vervangen; de rest opruimen en dat melden
+            for (t, _) in &paden[i..] {
+                let _ = std::fs::remove_file(t);
+            }
+            return Err(format!(
+                "kan {} niet vervangen ({e}); {} van {} bestanden zijn al de nieuwe revisie",
+                pad.display(),
+                i,
+                paden.len()
+            ));
+        }
+    }
+    Ok(paden.iter().map(|(_, p)| p.clone()).collect())
 }
 
 fn main() -> ExitCode {
@@ -238,5 +282,33 @@ fn main() -> ExitCode {
             }
         }
         _ => gebruik(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Faalt een bestand van de set, dan blijft de vorige revisie compleet
+    /// staan en blijft er geen .tmp achter (review 16-11).
+    #[test]
+    fn set_is_alles_of_niets() {
+        let d = std::env::temp_dir().join(format!("trap-set-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(&d).unwrap();
+        let p = |n: &str| (d.join(format!("{n}.tmp")), d.join(n));
+        std::fs::write(d.join("a"), b"oud").unwrap();
+        // derde doel in een map die niet bestaat: schrijven faalt
+        let paden = vec![p("a"), p("b"), (d.join("nee").join("c.tmp"), d.join("nee").join("c"))];
+        let r = schrijf_set(&paden, [b"nieuw".as_slice(), b"x", b"y"].into_iter());
+        assert!(r.is_err());
+        assert_eq!(std::fs::read(d.join("a")).unwrap(), b"oud");
+        assert!(!d.join("b").exists());
+        let rest: Vec<_> = std::fs::read_dir(&d).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).collect();
+        assert_eq!(rest, vec![std::ffi::OsString::from("a")], "geen .tmp over");
+        let ok = schrijf_set(&paden[..2], [b"nieuw".as_slice(), b"x"].into_iter()).unwrap();
+        assert_eq!(ok.len(), 2);
+        assert_eq!(std::fs::read(d.join("a")).unwrap(), b"nieuw");
+        let _ = std::fs::remove_dir_all(&d);
     }
 }
