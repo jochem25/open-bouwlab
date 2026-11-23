@@ -5,7 +5,15 @@
  * vocht op het kritieke condensatievlak. Waarschuwt bij schimmelrisico.
  */
 
-import type { YearlyMoistureResult } from "../../lib/yearlyMoistureCalculation";
+import {
+  HUMIDITY_CLASS_TABLE_VERIFIED,
+  HUMIDITY_CLASS_UNVERIFIED_NOTE,
+  describeDeltaPTable,
+} from "../../lib/humidityClasses";
+import {
+  type YearlyMoistureResult,
+  describeInternalClimate,
+} from "../../lib/yearlyMoistureCalculation";
 
 interface MoistureYearTableProps {
   result: YearlyMoistureResult;
@@ -62,12 +70,27 @@ export function MoistureYearTable({ result }: MoistureYearTableProps) {
 
   return (
     <div className="space-y-3">
-      {/* Condensatievlak info */}
-      <div className="flex items-center gap-2 text-xs text-on-surface-muted">
-        <span className="font-medium text-on-surface-secondary">Condensatievlak:</span>
-        <span>
-          tussen {planeInnerLayer} en {planeOuterLayer}
-        </span>
+      {/* Binnenklimaat + condensatievlak info */}
+      <div className="flex flex-col gap-0.5 text-xs text-on-surface-muted">
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-on-surface-secondary">Binnenklimaat:</span>
+          <span>{describeInternalClimate(result.internal)}</span>
+        </div>
+        {result.internal.mode === "class" && (
+          <div className="text-[11px]">
+            {describeDeltaPTable()}
+            {!HUMIDITY_CLASS_TABLE_VERIFIED && (
+              <span className="ml-1 oa-warning-text">{HUMIDITY_CLASS_UNVERIFIED_NOTE}</span>
+            )}
+          </div>
+        )}
+        <div className="flex items-center gap-2">
+          <span className="font-medium text-on-surface-secondary">Condensatievlak:</span>
+          <span>
+            tussen {planeInnerLayer} en {planeOuterLayer} ({result.planePosition} mm vanaf
+            binnen)
+          </span>
+        </div>
       </div>
 
       {/* Waarschuwingen */}
@@ -120,9 +143,15 @@ export function MoistureYearTable({ result }: MoistureYearTableProps) {
               <th className="pb-1.5 pr-2">Maand</th>
               <th className="pb-1.5 pr-2 text-right">{"θ"}e [°C]</th>
               <th className="pb-1.5 pr-2 text-right">RV [%]</th>
+              <th className="pb-1.5 pr-2 text-right">
+                p<sub>i</sub> [Pa]
+              </th>
               <th className="pb-1.5 pr-2 text-right">{"θ"}c [°C]</th>
               <th className="pb-1.5 pr-2 text-right">
                 p<sub>sat</sub> [Pa]
+              </th>
+              <th className="pb-1.5 pr-2 text-right">
+                p<sub>c</sub> [Pa]
               </th>
               <th className="pb-1.5 pr-2 text-right">
                 g<sub>c</sub> [g/m{"²"}]
@@ -154,10 +183,20 @@ export function MoistureYearTable({ result }: MoistureYearTableProps) {
                     {row.rhE}
                   </td>
                   <td className="py-1 pr-2 text-right tabular-nums text-on-surface-secondary">
+                    {Math.round(row.pi)}
+                  </td>
+                  <td className="py-1 pr-2 text-right tabular-nums text-on-surface-secondary">
                     {row.thetaC.toFixed(1)}
                   </td>
                   <td className="py-1 pr-2 text-right tabular-nums text-on-surface-secondary">
                     {Math.round(row.pSatC)}
+                  </td>
+                  <td
+                    className={`py-1 pr-2 text-right tabular-nums ${
+                      row.pC >= row.pSatC - 0.5 ? "font-medium text-red-700" : "text-on-surface-secondary"
+                    }`}
+                  >
+                    {Math.round(row.pC)}
                   </td>
                   <td
                     className={`py-1 pr-2 text-right tabular-nums font-medium ${

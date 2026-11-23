@@ -29,7 +29,19 @@ import {
   FASTENER_MATERIALS,
 } from "../lib/fastenerCorrection";
 import { generateReportDirect } from "../lib/reportClient";
-import { calculateYearlyMoisture } from "../lib/yearlyMoistureCalculation";
+import {
+  DEFAULT_HUMIDITY_CLASS,
+  DEFAULT_ROOM_TYPE_ID,
+  HUMIDITY_CLASS_EXAMPLES,
+  HUMIDITY_CLASSES,
+  type HumidityClass,
+  ROOM_TYPE_OPTIONS,
+  getRoomType,
+} from "../lib/humidityClasses";
+import {
+  type InternalMoistureInput,
+  calculateYearlyMoisture,
+} from "../lib/yearlyMoistureCalculation";
 import {
   CLIMATE_DEFAULT_SELECTION,
   CLIMATE_DEFAULT_STATION,
@@ -103,6 +115,29 @@ export function RcCalculator() {
   const [climateValue, setClimateValue] = useState<string>(
     encodeClimateValue(CLIMATE_DEFAULT_STATION, CLIMATE_DEFAULT_SELECTION),
   );
+
+  // Binnenklimaat voor de jaarbalans (NEN-EN-ISO 13788 bijlage A):
+  // "roomType" = type ruimte stelt een vochtklasse voor (overschrijfbaar),
+  // "class" = vochtklasse direct, "custom" = θi + RV constant (oude gedrag).
+  // Standaard: onbekend gebruik = klasse 3.
+  const [moistureMode, setMoistureMode] = useState<"roomType" | "class" | "custom">(
+    "roomType",
+  );
+  const [roomTypeId, setRoomTypeId] = useState<string>(DEFAULT_ROOM_TYPE_ID);
+  const [humidityClass, setHumidityClass] = useState<HumidityClass>(DEFAULT_HUMIDITY_CLASS);
+
+  const internalMoisture = useMemo<InternalMoistureInput>(() => {
+    if (moistureMode === "custom") return { mode: "constant" };
+    const room = moistureMode === "roomType" ? getRoomType(roomTypeId) : undefined;
+    const overridden = room !== undefined && room.humidityClass !== humidityClass;
+    return {
+      mode: "class",
+      humidityClass,
+      roomTypeLabel: room
+        ? `${room.label}${overridden ? " (klasse handmatig aangepast)" : ""}`
+        : undefined,
+    };
+  }, [moistureMode, roomTypeId, humidityClass]);
 
   // MaterialPicker state
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
@@ -281,8 +316,9 @@ export function RcCalculator() {
         thetaI,
         rhI,
         selectedClimate ?? undefined,
+        internalMoisture,
       ),
-    [layers, position, thetaI, rhI, selectedClimate],
+    [layers, position, thetaI, rhI, selectedClimate, internalMoisture],
   );
 
   const rcMin = RC_MIN_BOUWBESLUIT[position];
@@ -1071,6 +1107,11 @@ export function RcCalculator() {
                 thetaI={thetaI}
                 thetaE={thetaE}
               />
+              <p className="mt-2 text-xs text-on-surface-muted">
+                <strong>Indicatief, ontwerpcondities θe = {thetaE} °C</strong> (stationair). Het
+                oordeel over inwendige condensatie en vochtophoping volgt uit de jaarlijkse
+                vochtbalans hieronder, die per maand rekent.
+              </p>
             </div>
           </div>
 
@@ -1124,6 +1165,64 @@ export function RcCalculator() {
                       ))}
                     </select>
                   </label>
+                </div>
+                {/* Binnenklimaat (jaarbalans) */}
+                <div className="mb-4 grid grid-cols-3 gap-3">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                    <span>Binnenklimaat (jaarbalans)</span>
+                    <select
+                      value={moistureMode}
+                      onChange={(e) =>
+                        setMoistureMode(e.target.value as "roomType" | "class" | "custom")
+                      }
+                      className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    >
+                      <option value="roomType">Type ruimte</option>
+                      <option value="class">Vochtklasse</option>
+                      <option value="custom">Eigen binnenklimaat (θi + RV constant)</option>
+                    </select>
+                  </label>
+                  {moistureMode === "roomType" && (
+                    <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                      <span>Type ruimte</span>
+                      <select
+                        value={roomTypeId}
+                        onChange={(e) => {
+                          setRoomTypeId(e.target.value);
+                          const room = getRoomType(e.target.value);
+                          if (room) setHumidityClass(room.humidityClass);
+                        }}
+                        className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                      >
+                        {ROOM_TYPE_OPTIONS.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  {moistureMode !== "custom" ? (
+                    <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                      <span>Vochtklasse</span>
+                      <select
+                        value={humidityClass}
+                        onChange={(e) => setHumidityClass(Number(e.target.value) as HumidityClass)}
+                        className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                      >
+                        {HUMIDITY_CLASSES.map((c) => (
+                          <option key={c} value={c}>
+                            {`Klasse ${c} - ${HUMIDITY_CLASS_EXAMPLES[c]}`}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="col-span-2 self-end text-xs text-on-surface-muted">
+                      Gebruikt θi = {thetaI} °C en RV = {rhI} % uit de Glaser-invoer, constant
+                      over het jaar.
+                    </div>
+                  )}
                 </div>
                 {climateUnavailable && (
                   <div className="mb-3 rounded oa-warning-box px-3 py-2 text-xs">

@@ -1,5 +1,15 @@
 # TODO
 
+## Vochtklassen in de jaarlijkse vochtbalans (2026-11-23, branch `feat/vochtklassen`, O-2026-11-23-01)
+- [x] Vochtklassen 1-5, ruimtetype, eigen binnenklimaat; pi per maand; pi en p_c in tabel en rapport; Glaser-label indicatief
+- [ ] Δp-tabel verifiëren tegen NEN-EN-ISO 13788 bijlage A (alleen factor 1,10 is geverifieerd, ISO 13788:2001 par. 4.2 c); daarna `HUMIDITY_CLASS_TABLE_VERIFIED = true`
+- [ ] `driesOut` kijkt naar december (zit in het condensatieseizoen): klasse 4 droogt mei-okt volledig uit maar het oordeel zegt 'ophoping'. Fix voorgelegd aan planner (msg_7471c72da2d3)
+- [ ] Kritiek vlak = argmax gc in de koudste maand; bij een droog jaar is dat het 'minst drogende' vlak en verspringt het; ISO 13788 kent meerdere condensatievlakken
+- [ ] `wetDays` = natte maanden x 30 (grof); schimmelrisico > 90 dagen hangt daaraan
+- [ ] RcCompare rekent nog met eigen binnenklimaat 20 °C / 50 % (bewust niet aangepast)
+- [ ] Glaser: tangent-constructie zodat p_act niet boven p_sat getekend wordt
+- [ ] Ruimtetype/klasse wordt niet opgeslagen bij de constructie (alleen sessie-state)
+
 ## Trapontwerper v1 in Open Bouwlab (2026-10-30, branch `feat/trap-module`, O-2026-10-30-14)
 Verslag: `docs/2026-10-30-trapontwerper-v1.md`. Lokaal: `scripts/trap-lokaal.ps1` -> http://localhost:3011/trap.
 - [x] trap-core overgenomen (geanonimiseerd; referenties lokaal in `tests/fixtures.local/trap/`)

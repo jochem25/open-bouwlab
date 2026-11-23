@@ -17,7 +17,15 @@ import { generateGlaserSvg, svgToPngBase64 } from "./glaserSvg";
 import { generateMoistureYearSvg } from "./moistureYearSvg";
 import type { LayerInput, RcResult } from "./rcCalculation";
 import { RC_MIN_BOUWBESLUIT } from "./rcCalculation";
-import type { YearlyMoistureResult } from "./yearlyMoistureCalculation";
+import {
+  type YearlyMoistureResult,
+  describeInternalClimate,
+} from "./yearlyMoistureCalculation";
+import {
+  HUMIDITY_CLASS_TABLE_VERIFIED,
+  HUMIDITY_CLASS_UNVERIFIED_NOTE,
+  describeDeltaPTable,
+} from "./humidityClasses";
 
 const POSITION_LABELS: Record<VerticalPosition, string> = {
   wall: "Wand",
@@ -270,7 +278,7 @@ async function buildGlaserSection(input: RcReportInput): Promise<Record<string, 
           data: pngBase64,
           media_type: "image/png",
         },
-        caption: "Dampspanningsverloop door de constructie",
+        caption: `Dampspanningsverloop door de constructie (indicatief, ontwerpcondities θe = ${thetaE} °C)`,
         width_mm: 170,
         alignment: "center",
       };
@@ -283,6 +291,14 @@ async function buildGlaserSection(input: RcReportInput): Promise<Record<string, 
     title: "Dampspanningsanalyse (Glaser)",
     level: 1,
     content: [
+      {
+        type: "paragraph",
+        text:
+          `<b>Indicatief, ontwerpcondities θe = ${thetaE} °C</b> (stationair). ` +
+          "Het oordeel over inwendige condensatie en vochtophoping volgt uit de jaarlijkse " +
+          "vochtbalans (NEN-EN-ISO 13788), die per maand rekent.",
+      },
+      { type: "spacer", height_mm: 2 },
       {
         type: "table",
         title: "Klimaatcondities",
@@ -328,8 +344,10 @@ async function buildMoistureSection(input: RcReportInput): Promise<Record<string
     m.month,
     m.thetaE.toFixed(1),
     String(m.rhE),
+    String(Math.round(m.pi)),
     m.thetaC.toFixed(1),
     String(Math.round(m.pSatC)),
+    String(Math.round(m.pC)),
     m.gc.toFixed(1),
     m.ma.toFixed(1),
     STATUS_LABELS[m.status] ?? m.status,
@@ -377,6 +395,21 @@ async function buildMoistureSection(input: RcReportInput): Promise<Record<string
         : []),
       {
         type: "paragraph",
+        text: `Binnenklimaat: <b>${describeInternalClimate(mr.internal)}</b>.`,
+      },
+      ...(mr.internal.mode === "class"
+        ? [
+            {
+              type: "paragraph",
+              text:
+                `Gebruikte Δp-tabel (NEN-EN-ISO 13788 bijlage A): ${describeDeltaPTable()}` +
+                (HUMIDITY_CLASS_TABLE_VERIFIED ? "" : ` <b>${HUMIDITY_CLASS_UNVERIFIED_NOTE}</b>`),
+            },
+          ]
+        : []),
+      { type: "spacer", height_mm: 2 },
+      {
+        type: "paragraph",
         text: `Condensatievlak: tussen <b>${mr.planeInnerLayer}</b> en <b>${mr.planeOuterLayer}</b> (positie ${mr.planePosition} mm vanaf binnen).`,
       },
       { type: "spacer", height_mm: 2 },
@@ -387,8 +420,10 @@ async function buildMoistureSection(input: RcReportInput): Promise<Record<string
           "Maand",
           "θ_e [°C]",
           "RV [%]",
+          "p_i [Pa]",
           "θ_c [°C]",
           "p_sat [Pa]",
+          "p_c [Pa]",
           "g_c [g/m²]",
           "M_a [g/m²]",
           "Status",

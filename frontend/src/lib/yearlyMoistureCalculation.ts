@@ -9,6 +9,11 @@
 import type { VerticalPosition } from "../types";
 
 import { saturationPressure } from "./glaserCalculation";
+import {
+  HUMIDITY_CLASS_EXAMPLES,
+  type HumidityClass,
+  internalVapourPressure,
+} from "./humidityClasses";
 import { getMaterialById } from "./materialsDatabase";
 
 // ---------- Maandelijks buitenklimaat Nederland (KNMI De Bilt 1991–2020) ----------
@@ -51,14 +56,41 @@ const R_SE = 0.04;
 
 export type MoistureStatus = "dry" | "condensation" | "drying";
 
+/**
+ * Binnenklimaat voor de jaarbalans.
+ * - "constant": θi en RV_i constant over het jaar (eigen binnenklimaat).
+ * - "class": vochtklasse volgens NEN-EN-ISO 13788 bijlage A; pi per maand
+ *   = pe + 1,10·Δp(θe). roomTypeLabel is alleen informatief (UI/rapport).
+ */
+export type InternalMoistureInput =
+  | { mode: "constant" }
+  | { mode: "class"; humidityClass: HumidityClass; roomTypeLabel?: string };
+
+/** Vastgelegd binnenklimaat in het resultaat (voor tabel en rapport). */
+export interface InternalMoistureInfo {
+  mode: "constant" | "class";
+  thetaI: number;
+  /** Alleen bij mode "constant". */
+  rhI?: number;
+  /** Alleen bij mode "class". */
+  humidityClass?: HumidityClass;
+  roomTypeLabel?: string;
+}
+
 export interface MonthlyMoistureResult {
   month: string;
   thetaE: number;
   rhE: number;
   /** Dampdruk buiten [Pa]. */
   pe: number;
-  /** Dampdruk binnen [Pa]. */
+  /** Dampdruk binnen [Pa] (per maand bij een vochtklasse). */
   pi: number;
+  /**
+   * Werkelijke dampdruk op het condensatievlak [Pa]: het lineaire Glaser-
+   * verloop tussen pi en pe, begrensd op pSatC; gelijk aan pSatC zolang er
+   * condensatie of vocht aanwezig is.
+   */
+  pC: number;
   /** Temperatuur op condensatievlak [°C]. */
   thetaC: number;
   /** Verzadigingsdruk op condensatievlak [Pa]. */
@@ -87,6 +119,18 @@ export interface YearlyMoistureResult {
   planeOuterLayer: string;
   /** Positie van het condensatievlak [mm vanaf binnen]. */
   planePosition: number;
+  /** Gebruikt binnenklimaat. */
+  internal: InternalMoistureInfo;
+}
+
+/** Omschrijving van het gebruikte binnenklimaat (tabel en rapport). */
+export function describeInternalClimate(info: InternalMoistureInfo): string {
+  if (info.mode === "class" && info.humidityClass) {
+    const c = info.humidityClass;
+    const room = info.roomTypeLabel ? `${info.roomTypeLabel}, ` : "";
+    return `${room}vochtklasse ${c} (${HUMIDITY_CLASS_EXAMPLES[c]}); θi = ${info.thetaI} °C`;
+  }
+  return `eigen binnenklimaat: θi = ${info.thetaI} °C, RV = ${info.rhI ?? "-"} % (constant)`;
 }
 
 // ---------- Interne laagdata ----------
@@ -106,6 +150,7 @@ export function calculateYearlyMoisture(
   thetaI: number,
   rhI: number,
   climate?: MonthlyClimate[],
+  internal: InternalMoistureInput = { mode: "constant" },
 ): YearlyMoistureResult | null {
   const rSi = R_SI[position];
   const rSe = R_SE;
@@ -145,8 +190,14 @@ export function calculateYearlyMoisture(
 
   if (sdTotal <= 0 || rTotal <= 0) return null;
 
-  // Dampdruk binnen (constant over het jaar)
-  const pi = (rhI / 100) * saturationPressure(thetaI);
+  // Dampdruk binnen: constant (eigen binnenklimaat) of per maand uit de
+  // vochtklasse (pi = pe + 1,10·Δp(θe)), begrensd op verzadiging bij θi.
+  const piConstant = (rhI / 100) * saturationPressure(thetaI);
+  const pSatI = saturationPressure(thetaI);
+  const piFor = (thetaE: number, pe: number): number =>
+    internal.mode === "class"
+      ? Math.min(internalVapourPressure(internal.humidityClass, thetaE, pe), pSatI)
+      : piConstant;
 
   // Grensvlakken opbouwen: na Rsi, na elke laag
   // Interface i zit tussen laag i-1 en laag i (i=0 = binnenoppervlak)
@@ -169,6 +220,7 @@ export function calculateYearlyMoisture(
     curr.thetaE < prev.thetaE ? curr : prev,
   );
   const peCold = (coldest.rhE / 100) * saturationPressure(coldest.thetaE);
+  const piCold = piFor(coldest.thetaE, peCold);
 
   let maxGc = -Infinity;
   let critIdx = 0;
@@ -181,7 +233,7 @@ export function calculateYearlyMoisture(
     const sdIn = Math.max(iface.sdCum, 0.001);
     const sdOut = Math.max(sdTotal - iface.sdCum, 0.001);
 
-    const gIn = DELTA_0 * (pi - pSat) / sdIn;
+    const gIn = DELTA_0 * (piCold - pSat) / sdIn;
     const gOut = DELTA_0 * (pSat - peCold) / sdOut;
     const gc = (gIn - gOut) * coldest.days * 86400 * 1000;
 
@@ -207,6 +259,7 @@ export function calculateYearlyMoisture(
   for (let m = 0; m < 12; m++) {
     const climate = monthlyClimate[m]!;
     const pe = (climate.rhE / 100) * saturationPressure(climate.thetaE);
+    const pi = piFor(climate.thetaE, pe);
     const thetaC = thetaI - (thetaI - climate.thetaE) * crit.rCum / rTotal;
     const pSatC = saturationPressure(thetaC);
 
@@ -231,8 +284,10 @@ export function calculateYearlyMoisture(
     const m = (startMonth + iter) % 12;
     const climate = monthlyClimate[m]!;
     const pe = (climate.rhE / 100) * saturationPressure(climate.thetaE);
+    const pi = piFor(climate.thetaE, pe);
     const thetaC = thetaI - (thetaI - climate.thetaE) * crit.rCum / rTotal;
     const pSatC = saturationPressure(thetaC);
+    const pLinear = pi - (pi - pe) * crit.sdCum / sdTotal;
 
     let gc = monthlyGc[m]!;
 
@@ -260,6 +315,7 @@ export function calculateYearlyMoisture(
         rhE: climate.rhE,
         pe,
         pi,
+        pC: status === "dry" ? Math.min(pLinear, pSatC) : pSatC,
         thetaC,
         pSatC,
         gc,
@@ -292,5 +348,14 @@ export function calculateYearlyMoisture(
     planeInnerLayer,
     planeOuterLayer,
     planePosition: crit.xCum,
+    internal:
+      internal.mode === "class"
+        ? {
+            mode: "class",
+            thetaI,
+            humidityClass: internal.humidityClass,
+            roomTypeLabel: internal.roomTypeLabel,
+          }
+        : { mode: "constant", thetaI, rhI },
   };
 }
