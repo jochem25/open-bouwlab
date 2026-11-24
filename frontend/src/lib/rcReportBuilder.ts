@@ -18,6 +18,7 @@ import { generateMoistureYearSvg } from "./moistureYearSvg";
 import type { LayerInput, RcResult } from "./rcCalculation";
 import { RC_MIN_BOUWBESLUIT } from "./rcCalculation";
 import {
+  YEARLY_MOISTURE_NOT_APPLICABLE_NOTE,
   type YearlyMoistureResult,
   describeInternalClimate,
 } from "./yearlyMoistureCalculation";
@@ -59,6 +60,8 @@ export interface RcReportInput {
   /** Gekozen KNMI-klimaat voor de jaarlijkse vochtbalans, bv.
    *  "De Bilt — 1991-2020 (normaal)". Alleen relevant voor de vochtsectie. */
   climateLabel?: string;
+  /** Is de jaarbalans van toepassing (grenst aan buitenlucht)? Default true. */
+  moistureApplies?: boolean;
 }
 
 /** Build BM Reports JSON from Rc-calculator state. */
@@ -109,6 +112,7 @@ export async function buildRcReportData(input: RcReportInput): Promise<Record<st
       buildThermalSection(input),
       await buildGlaserSection(input),
       ...(input.moistureResult ? [await buildMoistureSection(input)] : []),
+      ...(input.moistureApplies === false ? [buildMoistureNotApplicableSection()] : []),
     ],
 
     backcover: { enabled: true },
@@ -324,6 +328,23 @@ async function buildGlaserSection(input: RcReportInput): Promise<Record<string, 
       {
         type: "paragraph",
         text: condensText,
+      },
+    ],
+  };
+}
+
+/** Sectie 5 als de jaarbalans niet van toepassing is (geen buitenklimaat). */
+function buildMoistureNotApplicableSection(): Record<string, unknown> {
+  return {
+    title: "Jaarlijkse vochtbalans",
+    level: 1,
+    content: [
+      {
+        type: "paragraph",
+        text:
+          `${YEARLY_MOISTURE_NOT_APPLICABLE_NOTE} De constructie grenst niet aan ` +
+          "buitenlucht; de maandmethode volgens NEN-EN-ISO 13788 rekent met het " +
+          "buitenklimaat aan de koude zijde en is hier niet doorgerekend.",
       },
     ],
   };

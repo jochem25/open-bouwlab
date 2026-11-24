@@ -7,10 +7,14 @@ import {
   deltaPForClass,
   internalVapourPressure,
 } from "./humidityClasses";
+import { CONSTRUCTION_CATALOGUE } from "./constructionCatalogue";
 import {
   MONTHLY_CLIMATE_NL,
+  YEARLY_MOISTURE_NOT_APPLICABLE_NOTE,
   type YearlyMoistureResult,
   calculateYearlyMoisture,
+  calculateYearlyMoistureForBoundary,
+  yearlyMoistureApplies,
 } from "./yearlyMoistureCalculation";
 
 /**
@@ -184,5 +188,55 @@ describe("calculateYearlyMoisture - rand θe ≥ 20 °C", () => {
       expect(m.pi).toBeCloseTo(m.pe, 9);
       expect(m.status).toBe("dry");
     }
+  });
+});
+
+describe("calculateYearlyMoisture - alleen bij buitenklimaat (grenstype)", () => {
+  function entry(id: string) {
+    const e = CONSTRUCTION_CATALOGUE.find((x) => x.id === id);
+    if (!e?.layers || !e.boundaryType) throw new Error(`catalogus ${id} ontbreekt`);
+    return { ...e, layers: e.layers, boundaryType: e.boundaryType };
+  }
+  const CLASS_4 = { mode: "class", humidityClass: 4 } as const;
+
+  it("alleen 'exterior' is van toepassing", () => {
+    expect(yearlyMoistureApplies("exterior")).toBe(true);
+    for (const bt of [
+      "unheated_space",
+      "adjacent_room",
+      "adjacent_building",
+      "ground",
+      "water",
+    ] as const) {
+      expect(yearlyMoistureApplies(bt)).toBe(false);
+    }
+    expect(YEARLY_MOISTURE_NOT_APPLICABLE_NOTE).toContain("niet van toepassing");
+  });
+
+  it("binnenwand (adjacent_room) geeft geen jaarbalans en dus geen Ma", () => {
+    const e = entry("binnenwand-kalkzandsteen");
+    expect(e.boundaryType).toBe("adjacent_room");
+    // Zonder toets gaf dit in klasse 4 een fysisch zinloze ophoping (~390 kg/m2).
+    const ongetoetst = calculateYearlyMoisture(
+      e.layers, e.verticalPosition, THETA_I, RH_I, undefined, CLASS_4,
+    );
+    expect(ongetoetst?.maxMa ?? 0).toBeGreaterThan(1000);
+    const r = calculateYearlyMoistureForBoundary(
+      e.boundaryType, e.layers, e.verticalPosition, THETA_I, RH_I, undefined, CLASS_4,
+    );
+    expect(r).toBeNull();
+  });
+
+  it("buitenwand (exterior) ongewijzigd t.o.v. de directe berekening", () => {
+    const e = entry("spouwmuur-nieuwbouw");
+    expect(e.boundaryType).toBe("exterior");
+    const direct = calculateYearlyMoisture(
+      e.layers, e.verticalPosition, THETA_I, RH_I, undefined, CLASS_4,
+    );
+    const getoetst = calculateYearlyMoistureForBoundary(
+      e.boundaryType, e.layers, e.verticalPosition, THETA_I, RH_I, undefined, CLASS_4,
+    );
+    expect(direct).not.toBeNull();
+    expect(getoetst).toEqual(direct);
   });
 });

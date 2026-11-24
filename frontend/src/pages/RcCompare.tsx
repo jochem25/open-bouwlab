@@ -15,7 +15,13 @@ import {
   roundUValue,
   type LayerInput,
 } from "../lib/rcCalculation";
-import { calculateYearlyMoisture } from "../lib/yearlyMoistureCalculation";
+import {
+  DEFAULT_MOISTURE_BOUNDARY,
+  YEARLY_MOISTURE_NOT_APPLICABLE_NOTE,
+  calculateYearlyMoisture,
+  calculateYearlyMoistureForBoundary,
+  yearlyMoistureApplies,
+} from "../lib/yearlyMoistureCalculation";
 import {
   CLIMATE_DEFAULT_SELECTION,
   CLIMATE_DEFAULT_STATION,
@@ -27,7 +33,7 @@ import {
 } from "../lib/climateData";
 import { useCatalogueStore } from "../store/catalogueStore";
 import { useModellerStore } from "../components/modeller/modellerStore";
-import type { VerticalPosition } from "../types";
+import type { BoundaryType, VerticalPosition } from "../types";
 
 // ---------- Constanten ----------
 
@@ -55,6 +61,8 @@ interface PickableConstruction {
   category: CatalogueCategory;
   position: VerticalPosition;
   layers: CatalogueLayer[];
+  /** Grenstype; bepaalt of de jaarbalans van toepassing is. */
+  boundaryType: BoundaryType;
 }
 
 /** Map een CatalogueLayer[] → LayerInput[] voor de rekenkern (incl. stud). */
@@ -78,6 +86,8 @@ interface ColumnComputed {
   hasCondensation: boolean;
   glaserResult: ReturnType<typeof calculateGlaser>;
   moistureResult: ReturnType<typeof calculateYearlyMoisture>;
+  /** Jaarbalans van toepassing (grenst aan buitenlucht)? */
+  moistureApplies: boolean;
   maxMa: number;
   wetDays: number;
   hasMoistureRisk: boolean;
@@ -94,6 +104,7 @@ function computeColumn(
   layers: CatalogueLayer[],
   position: VerticalPosition,
   climate: ReturnType<typeof getMonthlyClimate>,
+  boundaryType: BoundaryType,
 ): ColumnComputed {
   const inputs = toLayerInputs(layers);
 
@@ -112,7 +123,8 @@ function computeColumn(
     rhE: GLASER_DEFAULTS.rhE,
   });
 
-  const moistureResult = calculateYearlyMoisture(
+  const moistureResult = calculateYearlyMoistureForBoundary(
+    boundaryType,
     layers.map((l) => ({ materialId: l.materialId, thickness: l.thickness })),
     position,
     GLASER_DEFAULTS.thetaI,
@@ -131,6 +143,7 @@ function computeColumn(
     hasCondensation: glaserResult.hasCondensation,
     glaserResult,
     moistureResult,
+    moistureApplies: yearlyMoistureApplies(boundaryType),
     maxMa: moistureResult?.maxMa ?? 0,
     wetDays: moistureResult?.wetDays ?? 0,
     hasMoistureRisk: moistureResult?.hasRisk ?? false,
@@ -143,7 +156,7 @@ function StatusBadge({
   tone,
   label,
 }: {
-  tone: "ok" | "warn" | "bad";
+  tone: "ok" | "warn" | "bad" | "neutral";
   label: string;
 }) {
   const cls =
@@ -151,7 +164,9 @@ function StatusBadge({
       ? "bg-red-600/20 text-red-400"
       : tone === "warn"
         ? "oa-badge-warning"
-        : "bg-green-600/15 text-green-400";
+        : tone === "neutral"
+          ? "bg-[var(--oaec-border)] text-on-surface-muted"
+          : "bg-green-600/15 text-green-400";
   return (
     <span
       className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}
@@ -283,7 +298,9 @@ function CompareColumn({
               <h3 className="text-sm font-semibold text-on-surface-secondary">
                 Jaarlijkse vochtbalans
               </h3>
-              {computed.hasMoistureRisk ? (
+              {!computed.moistureApplies ? (
+                <StatusBadge tone="neutral" label="N.v.t." />
+              ) : computed.hasMoistureRisk ? (
                 <StatusBadge tone="bad" label="Schimmelrisico" />
               ) : computed.maxMa > 0.1 ? (
                 <StatusBadge tone="warn" label="Tijdelijk vocht" />
@@ -292,6 +309,7 @@ function CompareColumn({
               )}
             </div>
             <div className="px-4 py-3">
+              {computed.moistureApplies && (
               <div className="mb-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-on-surface-muted">
                 <span>
                   Max. ophoping:{" "}
@@ -305,8 +323,13 @@ function CompareColumn({
                   <strong className="text-on-surface">{computed.wetDays}</strong>
                 </span>
               </div>
+              )}
               {computed.moistureResult ? (
                 <MoistureYearTable result={computed.moistureResult} />
+              ) : !computed.moistureApplies ? (
+                <p className="text-xs italic text-on-surface-muted">
+                  {YEARLY_MOISTURE_NOT_APPLICABLE_NOTE}
+                </p>
               ) : (
                 <p className="text-xs italic text-on-surface-muted">
                   Geen vochtbalans beschikbaar (onbekende materialen of geen
@@ -417,6 +440,10 @@ export function RcCompare() {
         category: pc.category,
         position,
         layers: pc.layers,
+        // Projectconstructies hebben geen eigen grenstype; neem dat van de bron.
+        boundaryType:
+          catalogueEntries.find((e) => e.id === pc.catalogueSourceId)?.boundaryType ??
+          DEFAULT_MOISTURE_BOUNDARY,
       });
     }
 
@@ -430,6 +457,7 @@ export function RcCompare() {
         category: entry.category,
         position,
         layers: entry.layers,
+        boundaryType: entry.boundaryType ?? DEFAULT_MOISTURE_BOUNDARY,
       });
     }
 
@@ -471,14 +499,24 @@ export function RcCompare() {
   const computedA = useMemo(
     () =>
       selectedA
-        ? computeColumn(selectedA.layers, selectedA.position, selectedClimate)
+        ? computeColumn(
+            selectedA.layers,
+            selectedA.position,
+            selectedClimate,
+            selectedA.boundaryType,
+          )
         : null,
     [selectedA, selectedClimate],
   );
   const computedB = useMemo(
     () =>
       selectedB
-        ? computeColumn(selectedB.layers, selectedB.position, selectedClimate)
+        ? computeColumn(
+            selectedB.layers,
+            selectedB.position,
+            selectedClimate,
+            selectedB.boundaryType,
+          )
         : null,
     [selectedB, selectedClimate],
   );

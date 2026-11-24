@@ -6,7 +6,7 @@
  * en signaleert schimmelrisico bij > 90 dagen vocht.
  */
 
-import type { VerticalPosition } from "../types";
+import type { BoundaryType, VerticalPosition } from "../types";
 
 import { saturationPressure } from "./glaserCalculation";
 import {
@@ -15,6 +15,27 @@ import {
   internalVapourPressure,
 } from "./humidityClasses";
 import { getMaterialById } from "./materialsDatabase";
+
+// ---------- Toepasbaarheid (grenstype) ----------
+
+/**
+ * De jaarbalans rekent met het buitenklimaat aan de koude zijde. Alleen een
+ * constructie die aan buitenlucht grenst heeft dat klimaat; voor binnenwanden,
+ * vloeren op grond, scheidingswanden enz. is de uitkomst fysisch zinloos.
+ */
+export const YEARLY_MOISTURE_BOUNDARY: BoundaryType = "exterior";
+
+/** Grenstype als niets bekend is (eigen constructie zonder grenstype). */
+export const DEFAULT_MOISTURE_BOUNDARY: BoundaryType = YEARLY_MOISTURE_BOUNDARY;
+
+/** Melding voor UI en rapport als de jaarbalans niet van toepassing is. */
+export const YEARLY_MOISTURE_NOT_APPLICABLE_NOTE =
+  "Jaarlijkse vochtbalans niet van toepassing: geen buitenklimaat.";
+
+/** Is de jaarlijkse vochtbalans van toepassing voor dit grenstype? */
+export function yearlyMoistureApplies(boundaryType: BoundaryType): boolean {
+  return boundaryType === YEARLY_MOISTURE_BOUNDARY;
+}
 
 // ---------- Maandelijks buitenklimaat Nederland (KNMI De Bilt 1991–2020) ----------
 
@@ -360,4 +381,17 @@ export function calculateYearlyMoisture(
           }
         : { mode: "constant", thetaI, rhI },
   };
+}
+
+/**
+ * Jaarbalans met toets op het grenstype: `null` als de balans niet van
+ * toepassing is (geen buitenklimaat). Gebruik `yearlyMoistureApplies` om dat
+ * geval te onderscheiden van "geen resultaat" (onbekende materialen).
+ */
+export function calculateYearlyMoistureForBoundary(
+  boundaryType: BoundaryType,
+  ...args: Parameters<typeof calculateYearlyMoisture>
+): YearlyMoistureResult | null {
+  if (!yearlyMoistureApplies(boundaryType)) return null;
+  return calculateYearlyMoisture(...args);
 }

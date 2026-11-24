@@ -4,6 +4,9 @@
 - [x] Vochtklassen 1-5, ruimtetype, eigen binnenklimaat; pi per maand; pi en p_c in tabel en rapport; Glaser-label indicatief
 - [ ] Δp-tabel verifiëren tegen NEN-EN-ISO 13788 bijlage A (alleen factor 1,10 is geverifieerd, ISO 13788:2001 par. 4.2 c); daarna `HUMIDITY_CLASS_TABLE_VERIFIED = true`
 - [x] `driesOut` = ma bereikt ergens in de jaarcyclus 0 (was: december < 0,1). GO planner 23-11 (msg_579e5435d52e)
+- [x] Jaarbalans alleen voor grenstype exterior; overige grenstypen 'niet van toepassing' (GO planner 24-11, msg_7855fb161b3c)
+- [ ] Onverwarmde ruimte (kruipruimte, zolder) heeft wel een eigen klimaat; nu uitgesloten. Eventueel later rekenen met een klimaat per grenstype
+- [ ] Projectconstructies hebben geen eigen grenstype (afgeleid van de bronconstructie via catalogueSourceId)
 - [ ] Kritiek vlak = argmax gc in de koudste maand; bij een droog jaar is dat het 'minst drogende' vlak en verspringt het; ISO 13788 kent meerdere condensatievlakken
 - [ ] `wetDays` = natte maanden x 30 (grof); schimmelrisico > 90 dagen hangt daaraan
 - [ ] RcCompare rekent nog met eigen binnenklimaat 20 °C / 50 % (bewust niet aangepast)

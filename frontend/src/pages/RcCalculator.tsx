@@ -39,9 +39,13 @@ import {
   getRoomType,
 } from "../lib/humidityClasses";
 import {
+  DEFAULT_MOISTURE_BOUNDARY,
   type InternalMoistureInput,
-  calculateYearlyMoisture,
+  YEARLY_MOISTURE_NOT_APPLICABLE_NOTE,
+  calculateYearlyMoistureForBoundary,
+  yearlyMoistureApplies,
 } from "../lib/yearlyMoistureCalculation";
+import { BOUNDARY_TYPE_LABELS } from "../lib/constants";
 import {
   CLIMATE_DEFAULT_SELECTION,
   CLIMATE_DEFAULT_STATION,
@@ -55,7 +59,7 @@ import { useCatalogueStore } from "../store/catalogueStore";
 import { useModellerStore } from "../components/modeller/modellerStore";
 import { useProjectStore } from "../store/projectStore";
 import { useToastStore } from "../store/toastStore";
-import type { MaterialType, VerticalPosition } from "../types";
+import type { BoundaryType, MaterialType, VerticalPosition } from "../types";
 
 // ---------- Constanten ----------
 
@@ -125,6 +129,9 @@ export function RcCalculator() {
   );
   const [roomTypeId, setRoomTypeId] = useState<string>(DEFAULT_ROOM_TYPE_ID);
   const [humidityClass, setHumidityClass] = useState<HumidityClass>(DEFAULT_HUMIDITY_CLASS);
+  // Grenstype: de jaarbalans geldt alleen bij buitenlucht aan de koude zijde.
+  // Onbekend (eigen constructie zonder grenstype) = buiten, het oude gedrag.
+  const [boundaryType, setBoundaryType] = useState<BoundaryType>(DEFAULT_MOISTURE_BOUNDARY);
 
   const internalMoisture = useMemo<InternalMoistureInput>(() => {
     if (moistureMode === "custom") return { mode: "constant" };
@@ -185,6 +192,7 @@ export function RcCalculator() {
     setName(entry.name);
     setCategory(entry.category);
     setMaterialType(entry.materialType);
+    setBoundaryType(entry.boundaryType ?? DEFAULT_MOISTURE_BOUNDARY);
     if (entry.layers?.length) {
       setLayers(
         entry.layers.map((l) => ({
@@ -208,6 +216,9 @@ export function RcCalculator() {
     setName(pc.name);
     setCategory(pc.category);
     setMaterialType(pc.materialType);
+    // Projectconstructies hebben geen eigen grenstype; neem dat van de bron.
+    const source = allEntries.find((e) => e.id === pc.catalogueSourceId);
+    setBoundaryType(source?.boundaryType ?? DEFAULT_MOISTURE_BOUNDARY);
     if (pc.layers.length) {
       setLayers(
         pc.layers.map((l) => ({
@@ -219,7 +230,7 @@ export function RcCalculator() {
       );
     }
     hasInitializedEditProjectRef.current = true;
-  }, [editProjectId, projectConstructions]);
+  }, [editProjectId, projectConstructions, allEntries]);
 
   // Afgeleide waarden
   const position = CATEGORY_POSITION[category] ?? "wall";
@@ -308,9 +319,11 @@ export function RcCalculator() {
     );
   }, [climateOptions, climateValue, climateSelection]);
 
+  const moistureApplies = yearlyMoistureApplies(boundaryType);
   const moistureResult = useMemo(
     () =>
-      calculateYearlyMoisture(
+      calculateYearlyMoistureForBoundary(
+        boundaryType,
         layers,
         position,
         thetaI,
@@ -318,7 +331,7 @@ export function RcCalculator() {
         selectedClimate ?? undefined,
         internalMoisture,
       ),
-    [layers, position, thetaI, rhI, selectedClimate, internalMoisture],
+    [boundaryType, layers, position, thetaI, rhI, selectedClimate, internalMoisture],
   );
 
   const rcMin = RC_MIN_BOUWBESLUIT[position];
@@ -484,6 +497,7 @@ export function RcCalculator() {
       uValue: Math.round(rcResult.uValue * 1000) / 1000,
       materialType,
       verticalPosition: position,
+      boundaryType,
       layers: mappedLayers,
     };
 
@@ -527,6 +541,7 @@ export function RcCalculator() {
     position,
     layers,
     rcResult.uValue,
+    boundaryType,
     addEntry,
     updateEntry,
     editId,
@@ -570,6 +585,7 @@ export function RcCalculator() {
         rcResult,
         glaserResult,
         moistureResult,
+        moistureApplies,
         thetaI,
         thetaE,
         rhI,
@@ -594,7 +610,7 @@ export function RcCalculator() {
     } finally {
       setIsGenerating(false);
     }
-  }, [category, materialType, position, layers, rcResult, glaserResult, moistureResult, thetaI, thetaE, rhI, rhE, climateLabel, addToast]);
+  }, [category, materialType, position, layers, rcResult, glaserResult, moistureResult, moistureApplies, thetaI, thetaE, rhI, rhE, climateLabel, addToast]);
 
   const canSave = layers.some((l) => l.materialId);
 
@@ -1116,13 +1132,17 @@ export function RcCalculator() {
           </div>
 
           {/* Jaarlijkse vochtbalans */}
-          {moistureResult && (
+          {(moistureResult || !moistureApplies) && (
             <div className="rounded-lg border border-[var(--oaec-border)] bg-[var(--oaec-bg-lighter)]">
               <div className="flex items-center justify-between border-b border-[var(--oaec-border)] px-4 py-2.5">
                 <h3 className="text-sm font-semibold text-on-surface-secondary">
                   Jaarlijkse vochtbalans (NEN-EN-ISO 13788)
                 </h3>
-                {moistureResult.hasRisk ? (
+                {!moistureResult ? (
+                  <span className="flex items-center gap-1.5 rounded-full bg-[var(--oaec-border)] px-2.5 py-0.5 text-xs font-medium text-on-surface-muted">
+                    N.v.t.
+                  </span>
+                ) : moistureResult.hasRisk ? (
                   <span className="flex items-center gap-1.5 rounded-full bg-red-600/20 px-2.5 py-0.5 text-xs font-medium text-red-400">
                     <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-600/150" />
                     Schimmelrisico
@@ -1141,7 +1161,23 @@ export function RcCalculator() {
               </div>
               <div className="px-4 py-3">
                 {/* Klimaatkeuze — één dropdown (voedt uitsluitend de vochtbalans) */}
-                <div className="mb-4">
+                <div className="mb-4 grid grid-cols-3 gap-3">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
+                    <span>Grenst aan</span>
+                    <select
+                      value={boundaryType}
+                      onChange={(e) => setBoundaryType(e.target.value as BoundaryType)}
+                      className="rounded border border-[var(--oaec-border)] px-2 py-1 text-sm focus:border-primary focus:outline-none"
+                    >
+                      {Object.entries(BOUNDARY_TYPE_LABELS).map(([key, label]) => (
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {moistureApplies && (
+                  <div className="col-span-2">
                   <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
                     <span>Klimaat (jaarbalans)</span>
                     <select
@@ -1165,7 +1201,17 @@ export function RcCalculator() {
                       ))}
                     </select>
                   </label>
+                  </div>
+                  )}
                 </div>
+                {!moistureResult && (
+                  <p className="text-xs text-on-surface-muted">
+                    {YEARLY_MOISTURE_NOT_APPLICABLE_NOTE} Kies &quot;Buiten&quot; als de
+                    constructie aan buitenlucht grenst.
+                  </p>
+                )}
+                {moistureResult && (
+                <>
                 {/* Binnenklimaat (jaarbalans) */}
                 <div className="mb-4 grid grid-cols-3 gap-3">
                   <label className="flex flex-col gap-1 text-xs font-medium text-on-surface-muted">
@@ -1231,6 +1277,8 @@ export function RcCalculator() {
                   </div>
                 )}
                 <MoistureYearTable result={moistureResult} />
+                </>
+                )}
               </div>
             </div>
           )}
