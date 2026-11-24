@@ -126,6 +126,34 @@ describe("calculateYearlyMoisture - vochtklassen (dak, forfaitair klimaat)", () 
   });
 });
 
+describe("calculateYearlyMoisture - droogoordeel (driesOut)", () => {
+  it("klasse 4: ma in december > 0, toch 'droogt uit' omdat ma in de zomer 0 wordt", () => {
+    const r = forClass(4);
+    // Oude regel keek alleen naar december; die maand valt in het condensatieseizoen.
+    expect(month(r, "Dec").ma).toBeGreaterThan(0.1);
+    expect(r.months.some((m) => m.ma < 0.1)).toBe(true);
+    expect(r.driesOut).toBe(true);
+    // Max Ma blijft gerapporteerd.
+    expect(r.maxMa).toBeGreaterThan(1000);
+    expect(r.maxMa).toBe(Math.max(...r.months.map((m) => m.ma)));
+  });
+
+  it("geen droogperiode (θe het hele jaar 0 °C): ophoping, driesOut = false", () => {
+    const koud = MONTHLY_CLIMATE_NL.map((m) => ({ ...m, thetaE: 0, rhE: 90 }));
+    const r = calculateYearlyMoisture(DAK_LAGEN, "ceiling", THETA_I, RH_I, koud, {
+      mode: "class",
+      humidityClass: 4,
+    });
+    expect(r).not.toBeNull();
+    expect(r?.months.every((m) => m.ma > 0.1)).toBe(true);
+    expect(r?.driesOut).toBe(false);
+  });
+
+  it("geen vocht in het hele jaar: driesOut = true", () => {
+    expect(forClass(2).driesOut).toBe(true);
+  });
+});
+
 describe("calculateYearlyMoisture - eigen binnenklimaat (modus c)", () => {
   it("reproduceert het oude resultaat: pi constant = RV_i·psat(θi)", () => {
     const rDefault = calculateYearlyMoisture(DAK_LAGEN, "ceiling", THETA_I, RH_I);

@@ -111,7 +111,7 @@ export interface YearlyMoistureResult {
   wetDays: number;
   /** Schimmelrisico (> 90 dagen vocht). */
   hasRisk: boolean;
-  /** Droogt de constructie volledig uit binnen een jaar? */
+  /** Droogt de constructie volledig uit binnen een jaar (ma ergens in de cyclus 0)? */
   driesOut: boolean;
   /** Naam van de laag aan de binnenzijde van het condensatievlak. */
   planeInnerLayer: string;
@@ -336,8 +336,10 @@ export function calculateYearlyMoisture(
   const maxMa = Math.max(...months.map((r) => r.ma), 0);
   const wetMonths = months.filter((r) => r.ma > 0.1).length;
   const wetDays = wetMonths * 30;
-  const driesOut = months[months.length - 1]!.ma < 0.1
-    || months.every((r) => r.ma < 0.1);
+  // ISO 13788: condensaat moet in de droogperiode volledig verdampen. In de
+  // gestabiliseerde jaarcyclus betekent dat: ma bereikt ergens (vrijwel) 0.
+  // Eerder werd alleen december getoetst; die valt in het condensatieseizoen.
+  const driesOut = months.some((r) => r.ma < 0.1);
 
   return {
     months,
