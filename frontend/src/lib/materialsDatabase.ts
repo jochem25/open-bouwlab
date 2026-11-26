@@ -278,6 +278,8 @@ const RAW_MATERIALS: RawMaterial[] = [
   { id: "isolatie-kunststof-eps", categorie: "Isolatie - Kunststof", naam: "EPS", lambda: 0.035, mu: 40, rho: 20, rd_vast: null, alpha: 70, keywords: ["eps", "piepschuim", "tempex"], hatch_pattern: "hatch-insulation-eps" },
   { id: "isolatie-kunststof-eps-grijs-neopor", categorie: "Isolatie - Kunststof", naam: "EPS grijs (Neopor)", lambda: 0.032, mu: 40, rho: 18, rd_vast: null, alpha: 70, keywords: ["eps", "grijs", "neopor"], hatch_pattern: "hatch-insulation-eps" },
   { id: "isolatie-kunststof-xps", categorie: "Isolatie - Kunststof", naam: "XPS", lambda: 0.034, mu: 150, rho: 35, rd_vast: null, alpha: 65, keywords: ["xps", "roofmate", "styrodur"], hatch_pattern: "hatch-insulation-xps" },
+  // wedi bouwplaat: XPS-kern, beidzijdig glasvezel + kunststofgemodificeerde mortel. Bron: wedi Bauplatte technisch datablad (mu 100 EN 12086, lambda 0,036 EN 13164, rho 32 = XPS-kern EN 1602; mortellaag niet in rho). alpha onbekend (composiet).
+  { id: "isolatie-kunststof-wedi-bouwplaat", categorie: "Isolatie - Kunststof", naam: "wedi bouwplaat", merk: "wedi", lambda: 0.036, mu: 100, rho: 32, rd_vast: null, alpha: null, keywords: ["wedi", "bouwplaat", "bauplatte", "tegeldrager", "xps"], hatch_pattern: "hatch-insulation-xps" },
   { id: "isolatie-kunststof-pur", categorie: "Isolatie - Kunststof", naam: "PUR", lambda: 0.026, mu: 50, rho: 35, rd_vast: null, alpha: 60, keywords: ["pur", "polyurethaan"], hatch_pattern: "hatch-insulation-pur" },
   { id: "isolatie-kunststof-pir", categorie: "Isolatie - Kunststof", naam: "PIR", lambda: 0.023, mu: 50, rho: 35, rd_vast: null, alpha: 60, keywords: ["pir", "iko", "recticel"], hatch_pattern: "hatch-insulation-pir" },
   { id: "isolatie-kunststof-pir-alu-bekleed", categorie: "Isolatie - Kunststof", naam: "PIR alu-bekleed", lambda: 0.022, mu: 50, rho: 35, rd_vast: null, alpha: 60, keywords: ["pir", "alu", "dampgesloten"], hatch_pattern: "hatch-insulation-pir" },
@@ -330,6 +332,8 @@ const RAW_MATERIALS: RawMaterial[] = [
   { id: "folie-overig-pvc-dakbedekking", categorie: "Folie - Overig", naam: "PVC dakbedekking", lambda: 0.16, mu: 50000, rho: 1400, rd_vast: null, alpha: 80, keywords: ["pvc", "dak"] },
   { id: "folie-overig-tpo-fpo-dakbedekking", categorie: "Folie - Overig", naam: "TPO/FPO dakbedekking", lambda: 0.20, mu: 25000, rho: 900, rd_vast: null, alpha: 80, keywords: ["tpo", "fpo", "dak"] },
   { id: "folie-overig-aluminium-pure-folie", categorie: "Folie - Overig", naam: "Aluminium (pure folie)", lambda: null, mu: 10000000, rho: null, rd_vast: 0.0, sd_vast: 1500, alpha: 24, keywords: ["alu", "aluminium", "folie"] },
+  // wedi bouwplaat Vapor = wedi bouwplaat + deze laag (epoxyhars, 1,5 mm). Bron: wedi Technische gegevens bouwplaat Vapor NL 2016: sd 283 m, mu 188571 (EN 12086).
+  { id: "folie-overig-wedi-vapor-dampremming", categorie: "Folie - Overig", naam: "wedi Vapor epoxyharsdampremming", merk: "wedi", lambda: null, mu: 188571, rho: null, rd_vast: 0.0, sd_vast: 283, alpha: null, keywords: ["wedi", "vapor", "epoxy", "dampremmend", "dampscherm"] },
 
   // Afwerking
   { id: "afwerking-tegelwerk-keramisch", categorie: "Afwerking", naam: "Tegelwerk keramisch", lambda: 1.3, mu: 200, rho: 2300, rd_vast: null, alpha: 7, keywords: ["tegel", "keramisch", "vloer"] },
